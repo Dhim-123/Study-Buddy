@@ -230,8 +230,11 @@ def chat():
 
 if __name__ == "__main__":
     print("\n[STARTING] Study Buddy is running!")
-    print("   Open  http://localhost:5000  in your browser\n")
-    app.run(debug=True, port=5000)
-    # ^ debug=True  → auto-restarts when you edit this file (handy!)
-    #   port=5000   → the server listens on port 5000
-    #                  (like a channel number on a walkie-talkie)
+
+    port = int(os.environ.get("PORT", 5000))
+
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        debug=False
+    )
