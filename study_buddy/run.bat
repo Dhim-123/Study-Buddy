@@ -24,7 +24,9 @@ echo.
 
 :: Start the server
 echo  Starting Study Buddy server...
-echo  Open your browser to: http://localhost:5000
+echo  If port 5000 is occupied, a different free port will be used.
+echo  Your browser will open automatically to the correct URL.
+echo  Or open: http://127.0.0.1:5000 (or the port shown below)
 echo.
 echo  Press Ctrl+C to stop the server.
 echo.
