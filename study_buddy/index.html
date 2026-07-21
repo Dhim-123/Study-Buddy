@@ -18,10 +18,10 @@
      COLORS & TOKENS — premium, sleek, dark glassmorphism
      ===================================================== */
     :root {
-      --bg: #090d16;
-      --surface: rgba(17, 24, 43, 0.7);
-      --card: rgba(30, 41, 59, 0.55);
-      --border: rgba(99, 102, 241, 0.15);
+      --bg: #313338;
+      --surface: #2B2D31;
+      --card: #1E1F22;
+      --border: rgba(255, 255, 255, 0.08);
       --accent: #6366f1; /* Premium indigo */
       --accent-gradient: linear-gradient(135deg, #6366f1, #a855f7); /* Indigo to violet gradient */
       --accent2: #f43f5e; /* Rose */
@@ -29,8 +29,11 @@
       --text: #f3f4f6;
       --muted: #9ca3af;
       --user-bg: linear-gradient(135deg, #312e81, #1e1b4b);
-      --ai-bg: rgba(17, 24, 43, 0.5);
-      --radius: 16px;
+      --ai-bg: #2B2D31;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius: var(--radius-md);
       --font-ui: 'Outfit', 'Inter', sans-serif;
       --font-mono: 'Space Mono', monospace;
       --glow-accent: rgba(99, 102, 241, 0.25);
@@ -48,7 +51,7 @@
 
     body {
       font-family: var(--font-ui);
-      background: radial-gradient(circle at 50% 50%, #111827 0%, #030712 100%);
+      background: var(--bg);
       color: var(--text);
       height: 100dvh;
       display: flex;
@@ -62,9 +65,7 @@
       align-items: center;
       justify-content: space-between;
       padding: 14px 24px;
-      background: rgba(11, 15, 25, 0.8);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
+      background: var(--surface);
       border-bottom: 1px solid var(--border);
       gap: 12px;
       flex-shrink: 0;
@@ -88,24 +89,25 @@
     }
 
     .logo:hover .logo-icon {
-      box-shadow: 0 4px 22px var(--glow-accent), 0 0 0 2px rgba(99,102,241,0.35);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 
     .logo-icon {
       width: 38px;
       height: 38px;
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       background: var(--accent-gradient);
       display: grid;
       place-items: center;
       font-size: 1.15rem;
-      box-shadow: 0 4px 15px var(--glow-accent);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       transition: box-shadow 0.25s;
     }
 
     .logo span {
       background: var(--accent-gradient);
       -webkit-background-clip: text;
+      background-clip: text;
       -webkit-text-fill-color: transparent;
       font-weight: 900;
     }
@@ -120,10 +122,10 @@
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border);
       color: var(--text);
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       padding: 8px 14px;
       cursor: pointer;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease-out;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -137,7 +139,7 @@
       color: #fff;
       background: rgba(99, 102, 241, 0.12);
       box-shadow: 0 0 12px var(--glow-accent);
-      transform: translateY(-1px);
+      transform: translateY(0);
     }
     
     .btn-icon:active {
@@ -156,14 +158,12 @@
     #sidebar {
       width: 340px;
       min-width: 340px;
-      background: rgba(15, 23, 42, 0.6);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
+      background: var(--surface);
       border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       position: relative;
-      transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease-out;
       overflow: visible;
       z-index: 5;
     }
@@ -179,13 +179,11 @@
     #dict-sidebar {
       width: 300px;
       min-width: 300px;
-      background: rgba(15, 23, 42, 0.6);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
+      background: var(--surface);
       border-left: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease-out;
       overflow: hidden;
       z-index: 5;
     }
@@ -215,6 +213,7 @@
     .dict-title span {
       background: var(--accent-gradient);
       -webkit-background-clip: text;
+      background-clip: text;
       -webkit-text-fill-color: transparent;
     }
 
@@ -227,18 +226,18 @@
       flex: 1;
       background: rgba(17, 24, 39, 0.65);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       padding: 9px 13px;
       color: var(--text);
       font-family: var(--font-ui);
       font-size: .88rem;
       outline: none;
-      transition: all 0.2s;
+      transition: all 0.15s ease-out;
     }
 
     #dict-input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--glow-accent);
+      box-shadow: 0 0 0 2px var(--accent);
     }
 
     #dict-input::placeholder {
@@ -248,7 +247,7 @@
     #dict-search-btn {
       background: var(--accent-gradient);
       border: none;
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       width: 36px;
       height: 36px;
       color: #fff;
@@ -257,13 +256,13 @@
       display: grid;
       place-items: center;
       flex-shrink: 0;
-      transition: all 0.2s;
-      box-shadow: 0 2px 8px var(--glow-accent);
+      transition: all 0.15s ease-out;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
     #dict-search-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 14px var(--glow-accent);
+      transform: translateY(0);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.12);
     }
 
     .dict-body {
@@ -277,12 +276,12 @@
 
     .dict-body::-webkit-scrollbar { width: 4px; }
     .dict-body::-webkit-scrollbar-track { background: transparent; }
-    .dict-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+    .dict-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
 
     .dict-result {
       background: rgba(30, 41, 59, 0.55);
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: var(--radius-lg);
       padding: 14px 16px;
       animation: msgIn .2s cubic-bezier(0.4, 0, 0.2, 1);
     }
@@ -305,7 +304,7 @@
       display: inline-block;
       background: rgba(99,102,241,0.12);
       border: 1px solid rgba(99,102,241,0.25);
-      border-radius: 20px;
+      border-radius: var(--radius-lg);
       padding: 2px 10px;
       font-size: .72rem;
       font-weight: 700;
@@ -365,13 +364,13 @@
     .dict-history-chip {
       background: rgba(255,255,255,0.03);
       border: 1px solid var(--border);
-      border-radius: 20px;
+      border-radius: var(--radius-lg);
       padding: 4px 12px;
       font-size: .75rem;
       font-weight: 600;
       color: var(--muted);
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.15s ease-out;
       user-select: none;
     }
 
@@ -421,7 +420,7 @@
       width: 100%;
       background: rgba(17, 24, 39, 0.6);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       padding: 10px 14px;
       color: var(--text);
       font-family: var(--font-ui);
@@ -433,7 +432,7 @@
 
     .input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--glow-accent);
+      box-shadow: 0 0 0 2px var(--accent);
     }
 
     .file-input {
@@ -444,7 +443,7 @@
     .upload-card {
       background: rgba(30, 41, 59, 0.45);
       border: 1px solid var(--border);
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       padding: 20px;
       display: flex;
       flex-direction: column;
@@ -483,7 +482,7 @@
     .hint-box {
       background: rgba(30, 41, 59, 0.5);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       padding: 14px;
       font-size: .85rem;
       color: #99acff;
@@ -502,20 +501,20 @@
       width: 100%;
       background: var(--accent-gradient);
       border: none;
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       color: #fff;
       padding: 12px;
       font-family: var(--font-ui);
       font-weight: 800;
       font-size: .95rem;
       cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease-out;
       box-shadow: 0 4px 12px var(--glow-accent);
     }
 
     .btn-primary:hover {
       opacity: .95;
-      transform: translateY(-2px);
+      transform: translateY(0);
       box-shadow: 0 6px 18px var(--glow-accent);
     }
 
@@ -552,10 +551,7 @@
       background: transparent;
     }
 
-    #messages::-webkit-scrollbar-thumb {
-      background: rgba(255,255,255,0.08);
-      border-radius: 3px;
-    }
+    #messages::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
 
     /* welcome screen */
     #welcome {
@@ -574,7 +570,7 @@
       width: 80px;
       height: 80px;
       background: var(--accent-gradient);
-      border-radius: 24px;
+      border-radius: var(--radius-lg);
       display: grid;
       place-items: center;
       font-size: 2.2rem;
@@ -584,7 +580,7 @@
 
     @keyframes float {
       0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-8px); }
+      50% { transform: translateY(0); }
     }
 
     #welcome h2 {
@@ -633,7 +629,7 @@
     .avatar {
       width: 36px;
       height: 36px;
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       flex-shrink: 0;
       display: grid;
       place-items: center;
@@ -689,7 +685,7 @@
     .step-card {
       background: rgba(255,255,255,.03);
       border: 1px solid rgba(255,255,255,.06);
-      border-radius: 14px;
+      border-radius: var(--radius-lg);
       padding: 18px;
       margin-top: 14px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.1);
@@ -712,7 +708,7 @@
     .step-hint {
       background: rgba(16, 185, 129, 0.08);
       border: 1px solid rgba(16, 185, 129, 0.2);
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       padding: 12px;
       color: #d1fae5;
       margin-top: 10px;
@@ -730,19 +726,19 @@
       border: 1px solid var(--border);
       background: rgba(255,255,255,.04);
       color: var(--text);
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       padding: 9px 16px;
       cursor: pointer;
       font-size: .88rem;
       font-weight: 600;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease-out;
     }
 
     .step-btn:hover {
       border-color: var(--accent);
       color: #fff;
       background: rgba(99, 102, 241, 0.1);
-      transform: translateY(-1px);
+      transform: translateY(0);
     }
 
     .step-btn:active {
@@ -789,7 +785,7 @@
       background: #090d16;
       border: 1px solid rgba(255,255,255,0.06);
       padding: 2px 6px;
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       font-family: var(--font-mono);
       font-size: .85em;
       color: #38bdf8;
@@ -798,7 +794,7 @@
     .bubble pre {
       background: #090d16;
       border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       padding: 14px;
       margin: .8em 0;
       overflow-x: auto;
@@ -861,7 +857,7 @@
       align-self: center;
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border);
-      border-radius: 20px;
+      border-radius: var(--radius-lg);
       padding: 5px 16px;
       font-size: .75rem;
       font-weight: 800;
@@ -873,9 +869,7 @@
     /* ── INPUT BAR ── */
     #input-bar {
       padding: 16px 24px;
-      background: rgba(15, 23, 42, 0.6);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
+      background: var(--surface);
       border-top: 1px solid var(--border);
       display: flex;
       gap: 12px;
@@ -887,7 +881,7 @@
       flex: 1;
       background: rgba(17, 24, 39, 0.65);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       padding: 12px 18px;
       color: var(--text);
       font-family: var(--font-ui);
@@ -896,13 +890,13 @@
       resize: none;
       max-height: 120px;
       overflow-y: auto;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease-out;
       line-height: 1.5;
     }
 
     #user-input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--glow-accent);
+      box-shadow: 0 0 0 2px var(--accent);
     }
 
     #user-input::placeholder {
@@ -912,13 +906,13 @@
     #send-btn {
       background: var(--accent-gradient);
       border: none;
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       width: 44px;
       height: 44px;
       color: #fff;
       font-size: 1.1rem;
       cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease-out;
       display: grid;
       place-items: center;
       flex-shrink: 0;
@@ -926,7 +920,7 @@
     }
 
     #send-btn:hover {
-      transform: translateY(-2px);
+      transform: translateY(0);
       box-shadow: 0 6px 18px var(--glow-accent);
     }
 
@@ -955,7 +949,7 @@
 
     .sidebar-inner::-webkit-scrollbar-thumb {
       background: rgba(255,255,255,0.06);
-      border-radius: 2px;
+      border-radius: var(--radius-sm);
     }
 
     /* responsive */
@@ -983,8 +977,6 @@
       border-bottom: 1px solid var(--border);
       padding: 6px 16px;
       align-items: center;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
     }
 
     /* ── DEFINITIONS ── */
@@ -1001,19 +993,19 @@
     .def-card {
       background: rgba(30, 41, 59, 0.55);
       border: 1px solid var(--border);
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       padding: 18px 22px;
       display: flex;
       gap: 16px;
       align-items: flex-start;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease-out;
       animation: msgIn .25s cubic-bezier(0.4, 0, 0.2, 1) both;
     }
 
     .def-card:hover {
       border-color: var(--accent);
       box-shadow: 0 4px 20px var(--glow-accent);
-      transform: translateY(-1px);
+      transform: translateY(0);
     }
 
     .def-number {
@@ -1027,7 +1019,7 @@
       font-weight: 800;
       color: #fff;
       flex-shrink: 0;
-      box-shadow: 0 2px 8px var(--glow-accent);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
     .def-body {
@@ -1066,12 +1058,12 @@
       padding: 10px 16px;
       background: transparent;
       border: none;
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       color: var(--muted);
       font-weight: 700;
       font-size: .88rem;
       cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease-out;
       font-family: var(--font-ui);
       display: flex;
       align-items: center;
@@ -1087,7 +1079,7 @@
     .tab-btn.active {
       color: #fff;
       background: var(--accent-gradient);
-      box-shadow: 0 4px 15px var(--glow-accent);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 
     .feature-section {
@@ -1145,13 +1137,13 @@
     .quiz-input textarea {
       background: rgba(17, 24, 39, 0.6);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       padding: 14px;
       color: var(--text);
       font-family: var(--font-ui);
       font-size: .92rem;
       outline: none;
-      transition: all 0.2s;
+      transition: all 0.15s ease-out;
       resize: none;
       min-height: 80px;
     }
@@ -1160,7 +1152,7 @@
     .flashcard-input textarea:focus,
     .quiz-input textarea:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--glow-accent);
+      box-shadow: 0 0 0 2px var(--accent);
     }
 
     .feature-output {
@@ -1196,7 +1188,7 @@
       justify-content: center;
       text-align: center;
       cursor: pointer;
-      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.4s, box-shadow 0.4s, border-color 0.4s;
+      transition: all 0.15s ease-out;
       font-size: 1.05rem;
       font-weight: 700;
       color: var(--text);
@@ -1206,7 +1198,7 @@
     }
 
     .flashcard:hover {
-      transform: translateY(-6px);
+      transform: translateY(0);
       border-color: var(--accent);
       box-shadow: 0 12px 24px var(--glow-accent);
     }
@@ -1233,7 +1225,7 @@
     .quiz-question {
       background: rgba(17, 24, 39, 0.5);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       padding: 20px;
       margin-bottom: 20px;
     }
@@ -1254,10 +1246,10 @@
     .quiz-option {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       padding: 12px 16px;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.15s ease-out;
       color: var(--text);
       font-family: var(--font-ui);
       text-align: left;
@@ -1291,14 +1283,14 @@
 
     .quiz-score {
       background: var(--accent-gradient);
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       padding: 20px;
       text-align: center;
       margin-top: 20px;
       color: #fff;
       font-weight: 900;
       font-size: 1.25rem;
-      box-shadow: 0 4px 15px var(--glow-accent);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 
     .crosscheck-container {
@@ -1314,7 +1306,7 @@
     .crosscheck-item {
       background: rgba(17, 24, 39, 0.5);
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: var(--radius-lg);
       padding: 20px;
       margin-bottom: 20px;
     }
@@ -1335,11 +1327,11 @@
     .crosscheck-choice {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       padding: 14px 16px;
       text-align: left;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.15s ease-out;
       color: var(--text);
       font-family: var(--font-ui);
     }
@@ -1366,7 +1358,7 @@
     .crosscheck-feedback {
       margin-top: 14px;
       padding: 14px 16px;
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       background: rgba(255, 255, 255, 0.04);
       color: var(--text);
       line-height: 1.6;
@@ -1402,10 +1394,8 @@
       margin: 14px 0 4px;
       background: rgba(15, 23, 42, 0.55);
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: var(--radius-lg);
       padding: 16px 18px 12px;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
     }
 
     .chart-title {
@@ -1421,6 +1411,218 @@
       position: relative;
       width: 100%;
       max-height: 260px;
+    }
+
+    /* ═════════════════════════════════════════════════════
+       CAREER EXPLORER — Premium AI Career Guidance System
+       All classes prefixed with  ce-  to avoid conflicts.
+       ═════════════════════════════════════════════════════ */
+
+    #career-section { width:100%; height:100%; display:flex; flex-direction:column; overflow:hidden; }
+
+    .ce-content { flex:1; overflow-y:auto; scroll-behavior:smooth; }
+    .ce-content::-webkit-scrollbar { width:5px; }
+    .ce-content::-webkit-scrollbar-track { background:transparent; }
+    .ce-content::-webkit-scrollbar-thumb { background:rgba(255,255,255,.08); border-radius: var(--radius-sm); }
+
+    /* ── CE Buttons ── */
+    .ce-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:10px 20px; border-radius: var(--radius-md); font-family:var(--font-ui); font-weight:700; font-size:.9rem; cursor:pointer; border:none; transition:all .2s cubic-bezier(.4,0,.2,1); white-space:nowrap; }
+    .ce-btn-primary { background:var(--accent-gradient); color:#fff; box-shadow:0 4px 12px var(--glow-accent); }
+    .ce-btn-primary:hover { transform: translateY(0); box-shadow:0 6px 20px var(--glow-accent); }
+    .ce-btn-ghost { background:rgba(255,255,255,.05); border:1px solid var(--border); color:var(--muted); }
+    .ce-btn-ghost:hover { border-color:var(--accent); color:var(--text); background:rgba(99,102,241,.08); }
+    .ce-btn-success { background:linear-gradient(135deg,#059669,#10b981); color:#fff; box-shadow:0 4px 12px rgba(16,185,129,.3); padding:12px 28px; font-size:1rem; }
+    .ce-btn-success:hover { transform: translateY(0); box-shadow:0 6px 20px rgba(16,185,129,.4); }
+    .ce-btn-sm { padding:5px 12px; border-radius: var(--radius-md); font-family:var(--font-ui); font-size:.78rem; font-weight:700; cursor:pointer; border:none; transition:all .15s; }
+    .ce-btn-sm:hover { transform: translateY(0); }
+    .ce-btn-sm-primary { background:rgba(99,102,241,.15); color:var(--accent); border:1px solid rgba(99,102,241,.25); }
+    .ce-btn-sm-ghost   { background:rgba(255,255,255,.04); color:var(--muted); border:1px solid var(--border); }
+    .ce-btn-sm-danger  { background:rgba(244,63,94,.12); color:#f43f5e; border:1px solid rgba(244,63,94,.25); }
+
+    /* ── CE HOME ── */
+    .ce-home { max-width:900px; margin:0 auto; padding:40px 24px; display:flex; flex-direction:column; gap:32px; }
+    .ce-hero { text-align:center; display:flex; flex-direction:column; align-items:center; gap:16px; }
+    .ce-hero-icon { font-size:3.5rem; animation:float 3s ease-in-out infinite; filter:drop-shadow(0 0 20px rgba(99,102,241,.4)); }
+    .ce-hero-title { font-size:2.5rem; font-weight:900; background:linear-gradient(135deg,#6366f1,#a855f7,#10b981); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; letter-spacing:-1px; }
+    .ce-hero-subtitle { color:var(--muted); font-size:1rem; max-width:520px; line-height:1.65; }
+    .ce-hero-badges { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:4px; }
+    .ce-badge { background:rgba(99,102,241,.1); border:1px solid rgba(99,102,241,.2); border-radius: var(--radius-lg); padding:4px 14px; font-size:.8rem; font-weight:700; color:#a5b4fc; }
+    .ce-resume-banner { background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(168,85,247,.08)); border:1px solid rgba(99,102,241,.25); border-radius:var(--radius); padding:18px 24px; display:flex; align-items:center; gap:16px; animation:msgIn .3s ease; flex-wrap:wrap; }
+    .ce-resume-icon { font-size:1.8rem; flex-shrink:0; }
+    .ce-resume-content { flex:1; display:flex; flex-direction:column; gap:4px; }
+    .ce-resume-content strong { color:var(--text); font-weight:800; }
+    .ce-resume-content span { color:var(--muted); font-size:.85rem; }
+    .ce-resume-actions { display:flex; gap:10px; flex-shrink:0; flex-wrap:wrap; }
+    .ce-home-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    .ce-action-card { background:rgba(30,41,59,.45); border:1px solid var(--border); border-radius:var(--radius); padding:28px; cursor:pointer; transition:all .25s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; gap:10px; position:relative; overflow:hidden; }
+    .ce-action-card:hover { border-color:var(--accent); transform: translateY(0); box-shadow:0 12px 30px var(--glow-accent); }
+    .ce-action-card-muted { cursor:default; opacity:.6; pointer-events:none; }
+    .ce-action-icon { font-size:2rem; }
+    .ce-action-card h3 { font-size:1.15rem; font-weight:900; color:var(--text); }
+    .ce-action-card p { color:var(--muted); font-size:.88rem; line-height:1.5; }
+    .ce-action-arrow { font-size:1.3rem; color:var(--accent); margin-top:auto; transition:transform .2s; }
+    .ce-action-card:hover .ce-action-arrow { transform:translateX(4px); }
+    .ce-features-row { display:flex; flex-wrap:wrap; gap:16px; justify-content:center; padding:20px; background:rgba(17,24,39,.3); border-radius:var(--radius); border:1px solid var(--border); }
+    .ce-feature-item { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:.88rem; font-weight:600; }
+    .ce-feature-icon { font-size:1.1rem; }
+
+    /* ── CE ASSESSMENT ── */
+    .ce-assessment { max-width:800px; margin:0 auto; padding:28px 24px; display:flex; flex-direction:column; gap:24px; min-height:100%; }
+    .ce-assessment-header { display:flex; align-items:center; justify-content:space-between; }
+    .ce-step-info { display:flex; flex-direction:column; align-items:center; gap:4px; }
+    .ce-step-label { font-size:.72rem; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); }
+    .ce-step-name { font-size:1rem; font-weight:800; color:var(--text); }
+    .ce-progress-bar { position:relative; height:6px; background:rgba(255,255,255,.06); border-radius: var(--radius-sm); overflow:visible; }
+    .ce-progress-fill { height:100%; background:var(--accent-gradient); border-radius: var(--radius-sm); transition:width .5s cubic-bezier(.4,0,.2,1); box-shadow:0 0 8px var(--glow-accent); }
+    .ce-progress-steps { position:absolute; top:50%; left:0; width:100%; transform:translateY(-50%); display:flex; justify-content:space-between; padding:0 2px; }
+    .ce-progress-dot { width:14px; height:14px; border-radius:50%; background:rgba(255,255,255,.08); border:2px solid rgba(255,255,255,.12); transition:all .3s; }
+    .ce-progress-dot.done { background:var(--accent); border-color:var(--accent); box-shadow:0 0 6px var(--glow-accent); }
+    .ce-progress-dot.active { background:#fff; border-color:var(--accent); box-shadow:0 0 12px var(--glow-accent); transform:scale(1.35); }
+    .ce-question-area { background:rgba(30,41,59,.35); border:1px solid var(--border); border-radius:var(--radius); padding:28px; display:flex; flex-direction:column; gap:28px; }
+    .ce-step-header { display:flex; align-items:center; gap:16px; }
+    .ce-step-icon-lg { font-size:2.5rem; background:rgba(99,102,241,.12); border:1px solid rgba(99,102,241,.2); border-radius: var(--radius-lg); width:60px; height:60px; display:grid; place-items:center; flex-shrink:0; }
+    .ce-step-title { font-size:1.4rem; font-weight:900; color:var(--text); margin-bottom:4px; }
+    .ce-step-subtitle { color:var(--muted); font-size:.9rem; }
+    .ce-questions-list { display:flex; flex-direction:column; gap:24px; }
+    .ce-question { display:flex; flex-direction:column; gap:10px; }
+    .ce-question-label { font-weight:700; font-size:.95rem; color:var(--text); line-height:1.4; }
+    .ce-question-hint { font-size:.78rem; color:var(--muted); font-weight:600; letter-spacing:.5px; }
+    .ce-chip-group { display:flex; flex-wrap:wrap; gap:8px; }
+    .ce-chip { background:rgba(255,255,255,.04); border:1px solid var(--border); border-radius: var(--radius-lg); padding:7px 16px; color:var(--muted); font-family:var(--font-ui); font-size:.85rem; font-weight:600; cursor:pointer; transition:all .15s cubic-bezier(.4,0,.2,1); white-space:nowrap; }
+    .ce-chip:hover { border-color:var(--accent); color:var(--text); background:rgba(99,102,241,.08); }
+    .ce-chip.selected { background:var(--accent-gradient); border-color:transparent; color:#fff; box-shadow:0 2px 10px var(--glow-accent); }
+    .ce-textarea { width:100%; background:rgba(17,24,39,.6); border:1px solid var(--border); border-radius: var(--radius-md); padding:12px 14px; color:var(--text); font-family:var(--font-ui); font-size:.9rem; outline:none; transition:all .2s; resize:vertical; line-height:1.6; }
+    .ce-textarea:focus { border-color:var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+    .ce-textarea::placeholder { color:var(--muted); }
+    .ce-rating-group { display:flex; flex-direction:column; gap:10px; }
+    .ce-rating-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:10px 14px; background:rgba(255,255,255,.025); border-radius: var(--radius-md); border:1px solid rgba(255,255,255,.05); }
+    .ce-rating-label { color:var(--text); font-size:.88rem; font-weight:600; flex:1; }
+    .ce-stars { display:flex; gap:4px; }
+    .ce-star { background:none; border:none; font-size:1.4rem; cursor:pointer; color:rgba(255,255,255,.12); transition:all .15s; padding:0 2px; line-height:1; }
+    .ce-star:hover,.ce-star.selected { color:#f59e0b; transform:scale(1.15); filter:drop-shadow(0 0 4px rgba(245,158,11,.4)); }
+    .ce-assessment-nav { display:flex; justify-content:space-between; align-items:center; padding:0 4px; }
+
+    /* ── CE LOADING ── */
+    .ce-loading-screen { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:65vh; gap:20px; text-align:center; padding:40px 24px; }
+    .ce-loading-screen h3 { font-size:1.5rem; font-weight:900; color:var(--text); }
+    .ce-loading-screen > p { color:var(--muted); max-width:400px; line-height:1.6; }
+    .ce-loading-orb { position:relative; width:100px; height:100px; }
+    .ce-loading-spinner-lg { position:absolute; inset:0; border:3px solid rgba(99,102,241,.1); border-top-color:var(--accent); border-right-color:#a855f7; border-radius:50%; animation:spin .9s linear infinite; }
+    .ce-loading-icon { position:absolute; inset:0; display:grid; place-items:center; font-size:2.5rem; animation:float 2s ease-in-out infinite; }
+    .ce-loading-steps { display:flex; flex-direction:column; gap:10px; margin-top:10px; width:100%; max-width:360px; }
+    .ce-loading-step { padding:10px 16px; border-radius: var(--radius-md); background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.05); color:var(--muted); font-size:.88rem; font-weight:600; text-align:left; transition:all .4s; }
+    .ce-loading-step.active { background:rgba(99,102,241,.1); border-color:rgba(99,102,241,.3); color:var(--text); box-shadow:0 0 12px rgba(99,102,241,.15); }
+    .ce-loading-step.done { color:#10b981; border-color:rgba(16,185,129,.2); background:rgba(16,185,129,.05); }
+    .ce-loading-step.done::before { content:'✓ '; }
+    .ce-error-icon { font-size:3rem; }
+
+    /* ── CE REPORT ── */
+    .ce-report { max-width:920px; margin:0 auto; padding:24px; display:flex; flex-direction:column; gap:24px; }
+    .ce-report-header { display:flex; flex-direction:column; gap:16px; }
+    .ce-report-nav { display:flex; justify-content:space-between; align-items:center; }
+    .ce-report-actions { display:flex; gap:10px; }
+    .ce-report-title-block { text-align:center; }
+    .ce-report-badge { display:inline-block; background:rgba(99,102,241,.12); border:1px solid rgba(99,102,241,.25); border-radius: var(--radius-lg); padding:4px 16px; font-size:.8rem; font-weight:800; color:#a5b4fc; letter-spacing:.5px; margin-bottom:10px; }
+    .ce-report-title { font-size:2rem; font-weight:900; color:var(--text); letter-spacing:-0.5px; margin-bottom:10px; }
+    .ce-report-summary { color:var(--muted); font-size:.95rem; line-height:1.65; max-width:700px; margin:0 auto; }
+    .ce-compat-legend { display:flex; flex-wrap:wrap; gap:14px; justify-content:center; padding:12px 20px; background:rgba(17,24,39,.35); border-radius: var(--radius-lg); border:1px solid var(--border); }
+    .ce-legend-item { display:flex; align-items:center; gap:6px; font-size:.8rem; color:var(--muted); font-weight:600; }
+    .ce-legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .ce-careers-list { display:flex; flex-direction:column; gap:16px; }
+    .ce-career-card { background:rgba(30,41,59,.45); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; transition:all .25s cubic-bezier(.4,0,.2,1); animation:msgIn .35s ease both; }
+    .ce-career-card:nth-child(1){animation-delay:0s} .ce-career-card:nth-child(2){animation-delay:.07s} .ce-career-card:nth-child(3){animation-delay:.14s} .ce-career-card:nth-child(4){animation-delay:.21s} .ce-career-card:nth-child(5){animation-delay:.28s}
+    .ce-card-open { border-color:var(--accent); box-shadow:0 4px 28px var(--glow-accent); }
+    .ce-career-card-header { display:flex; align-items:center; gap:16px; padding:20px 24px; cursor:pointer; transition:background .2s; user-select:none; }
+    .ce-career-card-header:hover { background:rgba(255,255,255,.025); }
+    .ce-career-rank { font-size:1.6rem; font-weight:900; color:rgba(255,255,255,.12); min-width:42px; text-align:center; }
+    .ce-card-open .ce-career-rank { background:var(--accent-gradient); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    .ce-compat-ring { flex-shrink:0; }
+    .ce-ring-fill { transition:stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1); }
+    .ce-career-info { flex:1; display:flex; flex-direction:column; gap:6px; min-width:0; }
+    .ce-career-icon { font-size:1.5rem; line-height:1; }
+    .ce-career-name { font-size:1.15rem; font-weight:900; color:var(--text); }
+    .ce-compat-badge { display:inline-block; border:1px solid; border-radius: var(--radius-lg); padding:2px 12px; font-size:.75rem; font-weight:800; letter-spacing:.3px; width:fit-content; }
+    .ce-diff-badge { font-size:.75rem; font-weight:700; color:var(--muted); background:rgba(255,255,255,.04); border-radius: var(--radius-lg); padding:2px 10px; border:1px solid rgba(255,255,255,.07); width:fit-content; }
+    .ce-card-toggle { flex-shrink:0; }
+    .ce-toggle-icon { color:var(--muted); font-size:.8rem; transition:transform .3s; display:inline-block; }
+    .ce-card-open .ce-toggle-icon { transform:rotate(180deg); }
+    .ce-career-card-body { border-top:1px solid var(--border); }
+    @keyframes ceSlideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+    .ce-career-details { padding:24px; display:flex; flex-direction:column; gap:20px; }
+    .ce-detail-section { display:flex; flex-direction:column; gap:10px; }
+    .ce-detail-section h4 { font-size:.78rem; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
+    .ce-detail-section p { color:var(--text); font-size:.9rem; line-height:1.7; }
+    .ce-detail-section ul { padding-left:1.2em; display:flex; flex-direction:column; gap:5px; }
+    .ce-detail-section li { color:var(--text); font-size:.88rem; line-height:1.5; }
+    .ce-list-warn li { color:#fca5a5 !important; }
+    .ce-detail-row { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    .ce-detail-why { background:rgba(99,102,241,.05); border:1px solid rgba(99,102,241,.15); border-radius: var(--radius-lg); padding:16px; }
+    .ce-highlight-section { background:rgba(16,185,129,.05); border:1px solid rgba(16,185,129,.15); border-radius: var(--radius-lg); padding:16px; }
+    .ce-subject-chips,.ce-stream-chips,.ce-alt-chips { display:flex; flex-wrap:wrap; gap:6px; }
+    .ce-subject-chip { background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.25); border-radius: var(--radius-lg); padding:4px 12px; font-size:.78rem; font-weight:700; color:#6ee7b7; }
+    .ce-stream-chip { background:rgba(99,102,241,.12); border:1px solid rgba(99,102,241,.25); border-radius: var(--radius-lg); padding:4px 12px; font-size:.78rem; font-weight:700; color:#a5b4fc; }
+    .ce-alt-chip { background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.2); border-radius: var(--radius-lg); padding:4px 12px; font-size:.78rem; font-weight:700; color:#fbbf24; }
+    .ce-salary { font-size:1.1rem; font-weight:900; background:linear-gradient(135deg,#10b981,#6366f1); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    .ce-pros li { color:#6ee7b7 !important; } .ce-cons li { color:#fca5a5 !important; }
+    .ce-ai-section { background:rgba(168,85,247,.05); border:1px solid rgba(168,85,247,.15); border-radius: var(--radius-lg); padding:16px; }
+    .ce-report-footer { display:flex; justify-content:center; gap:16px; padding:20px 0; border-top:1px solid var(--border); margin-top:4px; }
+
+    /* ── CE HISTORY ── */
+    .ce-history { max-width:800px; margin:0 auto; padding:24px; display:flex; flex-direction:column; gap:20px; }
+    .ce-history-header { display:flex; align-items:center; justify-content:space-between; }
+    .ce-history-header h3 { font-size:1.3rem; font-weight:900; color:var(--text); }
+    .ce-compare-bar { background:rgba(99,102,241,.08); border:1px solid rgba(99,102,241,.2); border-radius: var(--radius-lg); padding:12px 16px; display:flex; align-items:center; gap:12px; font-size:.88rem; color:var(--text); flex-wrap:wrap; }
+    .ce-compare-bar > span:first-child { flex:1; }
+    .ce-history-list { display:flex; flex-direction:column; gap:12px; }
+    .ce-history-item { background:rgba(30,41,59,.45); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; display:flex; align-items:center; gap:16px; transition:all .2s; flex-wrap:wrap; }
+    .ce-history-item.selected { border-color:var(--accent); background:rgba(99,102,241,.06); }
+    .ce-history-item:hover { border-color:rgba(99,102,241,.3); }
+    .ce-checkbox { width:20px; height:20px; border-radius: var(--radius-sm); border:2px solid var(--border); cursor:pointer; transition:all .15s; flex-shrink:0; display:grid; place-items:center; }
+    .ce-checkbox.checked { background:var(--accent); border-color:var(--accent); box-shadow:0 0 8px var(--glow-accent); color:#fff; font-size:.7rem; font-weight:900; }
+    .ce-history-item-info { flex:1; display:flex; flex-direction:column; gap:5px; min-width:0; }
+    .ce-history-item-name { font-size:.95rem; font-weight:800; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ce-history-item-date { font-size:.78rem; color:var(--muted); }
+    .ce-history-top-career { display:flex; align-items:center; gap:8px; font-size:.82rem; color:var(--muted); }
+    .ce-hist-compat { font-weight:800; color:#10b981; }
+    .ce-history-item-actions { display:flex; gap:6px; flex-shrink:0; }
+    .ce-history-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:60vh; gap:16px; text-align:center; }
+    .ce-history-empty-icon { font-size:4rem; opacity:.35; }
+    .ce-history-empty h3 { font-size:1.5rem; font-weight:900; color:var(--text); }
+    .ce-history-empty p { color:var(--muted); }
+    .ce-history-footer { text-align:center; }
+    .ce-hint { color:var(--muted); font-size:.83rem; }
+
+    /* ── CE COMPARE ── */
+    .ce-compare { max-width:1100px; margin:0 auto; padding:24px; display:flex; flex-direction:column; gap:20px; }
+    .ce-compare-header { display:flex; align-items:center; justify-content:space-between; }
+    .ce-compare-header h3 { font-size:1.2rem; font-weight:900; color:var(--text); }
+    .ce-compare-grid { display:grid; gap:16px; }
+    .ce-compare-col { display:flex; flex-direction:column; gap:10px; }
+    .ce-compare-col-header { background:rgba(99,102,241,.1); border:1px solid rgba(99,102,241,.2); border-radius: var(--radius-lg); padding:14px; text-align:center; }
+    .ce-compare-name { font-weight:900; font-size:.95rem; color:var(--text); }
+    .ce-compare-date { font-size:.75rem; color:var(--muted); margin-top:3px; }
+    .ce-compare-career { background:rgba(30,41,59,.4); border:1px solid var(--border); border-radius: var(--radius-lg); padding:14px; display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; transition:all .2s; }
+    .ce-compare-rank { font-size:.72rem; font-weight:800; color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
+    .ce-compare-career-icon { font-size:1.5rem; }
+    .ce-compare-career-name { font-weight:800; font-size:.88rem; color:var(--text); }
+    .ce-compare-compat { font-size:1.1rem; font-weight:900; }
+
+    /* ── CE Print / PDF Export ── */
+    @media print {
+      header,nav,#sidebar,#dict-sidebar,.ce-report-nav,.ce-report-footer,
+      .ce-btn,.ce-compat-legend { display:none !important; }
+      body { background:#fff !important; color:#111 !important; }
+      #career-section { overflow:visible !important; height:auto !important; }
+      .ce-content { overflow:visible !important; }
+      .ce-report { padding:0; max-width:100%; }
+      .ce-career-card { break-inside:avoid; border:1px solid #ddd !important; background:#fff !important; margin-bottom:16px; box-shadow:none !important; }
+      .ce-career-card-body { display:block !important; }
+      .ce-career-name { color:#1a1a2e !important; }
+      .ce-detail-section h4 { color:#555 !important; }
+      .ce-detail-section p,.ce-detail-section li { color:#333 !important; }
+      .ce-report-title { background:none !important; -webkit-text-fill-color:#1a1a2e !important; color:#1a1a2e; }
+      .ce-career-rank { -webkit-text-fill-color:#1a1a2e !important; color:#1a1a2e; }
+      .ce-subject-chip,.ce-stream-chip,.ce-alt-chip { border:1px solid #ccc !important; color:#333 !important; background:#f5f5f5 !important; }
     }
   </style>
 </head>
@@ -1457,13 +1659,22 @@
     <button class="tab-btn" data-tab="quiz">❓ Quiz</button>
     <button class="tab-btn" data-tab="crosscheck">🧪 Crosscheck</button>
     <button class="tab-btn" data-tab="definitions">📖 Definitions</button>
+    <button class="tab-btn" data-tab="career">🧭 Career Explorer</button>
   </nav>
 
   <main>
 
     <!-- SETTINGS SIDEBAR -->
       <div id="sidebar">
-        <div class="sidebar-inner">
+        <div class="sb-header">
+          <button id="new-chat-btn" class="btn-primary" style="display:flex; align-items:center; gap:8px; justify-content:center;">
+            <span>✏️</span> New Chat
+          </button>
+        </div>
+        <div class="sb-conv-list" id="conv-list">
+          <!-- Conversations injected here -->
+        </div>
+        <div class="sb-footer">
 
           <div class="auth-card" id="auth-card">
             <h3 id="auth-mode-title">Login</h3>
@@ -1568,10 +1779,10 @@
     <div class="section-container">
       <div class="feature-header">
         <h2>🎧 Podcast Generator</h2>
-        <p>Use your last chat question to create a spoken podcast answer.</p>
+        <p>Generate an engaging two-host podcast from your chat or a custom topic.</p>
       </div>
       <div class="podcast-input">
-        <textarea id="podcast-input" placeholder="Leave blank to use your last chat question" rows="2"></textarea>
+        <textarea id="podcast-input" placeholder="Custom Podcast Topic (Leave blank to use full conversation)" rows="2"></textarea>
         <button id="generate-podcast-btn" class="btn-primary">🎙️ Generate Podcast Audio</button>
       </div>
       <div id="podcast-output" class="feature-output"></div>
@@ -1640,6 +1851,11 @@
       </div>
       <div id="definitions-output" class="definitions-container"></div>
     </div>
+  </div>
+
+  <!-- CAREER EXPLORER SECTION -->
+  <div id="career-section" class="feature-section" style="display:none;">
+    <div class="ce-content" id="ce-content-inner"></div>
   </div>
 
   <script>
@@ -1714,6 +1930,8 @@
     // =====================================================================
 
     let history = [];
+    let currentConvId = null;
+    let conversations = [];
     // ^ "history" stores every message in the conversation.
     //   It's a list (array) of objects that look like:
     //     { role: "user",      content: "What is gravity?" }
@@ -1725,8 +1943,8 @@
     //   for the AI to respond. We use it to prevent sending multiple
     //   messages at once (that would be chaotic!).
 
-    let notesContent = "";
-    let notesFileName = "";
+    let notesContent = localStorage.getItem("sb_notes_content") || "";
+    let notesFileName = localStorage.getItem("sb_notes_filename") || "";
     // ^ These store the uploaded study notes content and filename so that we can send them
     //   with our API requests to ensure the AI answers strictly from the notes.
 
@@ -1770,8 +1988,6 @@
 
     const welcomeEl = document.getElementById("welcome");
     // ^ The welcome screen with the big robot icon
-
-
 
     const sidebarEl = document.getElementById("sidebar");
     // ^ The settings panel on the left
@@ -1910,6 +2126,10 @@
 
         // Check login status on init
         await checkLoginStatus();
+        
+        if (notesContent) {
+          updateNotesIndicators();
+        }
       }
 
     function showUploadStatus(el, message, isError = false) {
@@ -1968,6 +2188,9 @@
         notesContent = reader.result;
         notesFileName = file.name;
         
+        localStorage.setItem("sb_notes_content", notesContent);
+        localStorage.setItem("sb_notes_filename", notesFileName);
+        
         // Show success status
         showUploadStatus(statusEl, `Loaded notes successfully (${(file.size / 1024).toFixed(1)} KB). AI will prioritize your notes.`);
         
@@ -1995,40 +2218,43 @@
 
 
     // =====================================================================
-    //  SAVE SETTINGS — What happens when you click "💾 Save Settings"
+    //  SAVE SETTINGS — What happens when you type in buddyNameEl
     // =====================================================================
 
-    document.getElementById("save-settings-btn").onclick = () => {
-      // Read the current values from the settings inputs:
+    document.getElementById("save-settings-btn").style.display = "none";
+    let buddyUpdateTimeout = null;
+    
+    buddyNameEl.addEventListener("input", () => {
       cfg.buddyName = buddyNameEl.value.trim() || "Nova";
-      // ^ If the name is empty, default to "Nova"
-      //   The "||" means "or" — if the left side is empty/false, use the right side
 
-      // Save to localStorage so settings persist when you reload the page:
       localStorage.setItem("sb_config", JSON.stringify({
         buddyName: cfg.buddyName,
       }));
-      // ^ JSON.stringify converts a JavaScript object into a text string.
-      //   localStorage can only store text, not objects directly.
 
-      // Update the welcome message with the new name:
       welcomeTitle.textContent = `Hey! I'm ${cfg.buddyName} 👋`;
 
-      // Reset the conversation history when settings change:
       history = [];
-      // ^ This clears old messages so the next answer starts fresh.
 
-      // Show a "✅ Saved!" message that disappears after 2 seconds:
       const saved = document.createElement("span");
       saved.style.cssText = "color:var(--accent3);font-weight:800;font-size:.85rem";
       saved.textContent = "✅ Saved!";
       const btn = document.getElementById("save-settings-btn");
       btn.after(saved);
-      // ^ .after() places the element right after the button
 
       setTimeout(() => saved.remove(), 2000);
-      // ^ setTimeout waits 2000 milliseconds (2 seconds), then removes it.
-    };
+      
+      if (typeof currentUser !== 'undefined' && currentUser?.loggedIn) {
+        currentUser.buddyName = cfg.buddyName;
+        clearTimeout(buddyUpdateTimeout);
+        buddyUpdateTimeout = setTimeout(() => {
+          fetch("/api/auth/update_buddy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ buddyName: cfg.buddyName })
+          }).catch(err => console.error(err));
+        }, 500);
+      }
+    });
 
 
     // =====================================================================
@@ -2120,6 +2346,16 @@
       const authToggleBtn = document.getElementById("auth-toggle-btn");
       const logoutBtn = document.getElementById("logout-btn");
       const authCard = document.getElementById("auth-card");
+      
+      authIdentifierInput.value = localStorage.getItem("sb_auth_identifier") || "";
+      authBuddyNameInput.value = localStorage.getItem("sb_auth_buddy_name") || "";
+
+      authIdentifierInput.addEventListener("input", () => {
+        localStorage.setItem("sb_auth_identifier", authIdentifierInput.value);
+      });
+      authBuddyNameInput.addEventListener("input", () => {
+        localStorage.setItem("sb_auth_buddy_name", authBuddyNameInput.value);
+      });
 
       // Toggle between login and register modes
       authToggleBtn.addEventListener("click", () => {
@@ -2192,6 +2428,9 @@
             currentUser = { loggedIn: false };
             showAuthMessage("Logged out successfully.");
             history = []; // Clear chat history on logout
+            currentConvId = null;
+            conversations = [];
+            sbRenderConversations();
             messagesEl.innerHTML = "";
             messagesEl.appendChild(welcomeEl);
             welcomeEl.style.display = "flex";
@@ -2211,30 +2450,191 @@
       //  HISTORY FETCHING
       // =====================================================================
 
-      async function fetchChatHistory() {
+      async function sbLoadConversations() {
         if (!currentUser?.loggedIn) return;
-
         try {
-          const res = await fetch("/api/history?limit=200");
+          const res = await fetch("/api/conversations");
           const data = await res.json();
-
           if (res.ok) {
-            history = data.messages;
-            messagesEl.innerHTML = ""; // Clear current messages
+            conversations = data.conversations || [];
+            sbRenderConversations();
+          }
+        } catch (e) {
+          console.error("Error loading conversations", e);
+        }
+      }
+
+      function sbRenderConversations() {
+        const listEl = document.getElementById("conv-list");
+        if (!listEl) return;
+        listEl.innerHTML = "";
+        
+        const pinned = conversations.filter(c => c.pinned);
+        const unpinned = conversations.filter(c => !c.pinned && !c.archived);
+        const archived = conversations.filter(c => c.archived);
+        
+        function renderGroup(title, convs) {
+          if (convs.length === 0) return;
+          const group = document.createElement("div");
+          group.className = "sb-conv-group";
+          
+          if (title) {
+            const groupTitle = document.createElement("div");
+            groupTitle.className = "sb-conv-group-title";
+            groupTitle.textContent = title;
+            group.appendChild(groupTitle);
+          }
+          
+          convs.forEach(c => {
+            const item = document.createElement("div");
+            item.className = `sb-conv-item ${c.id === currentConvId ? 'active' : ''}`;
+            item.onclick = (e) => {
+              if (isLoading) return;
+              if (e.target.closest('.sb-conv-menu-btn') || e.target.closest('.sb-conv-menu-dropdown')) return;
+              sbLoadMessages(c.id);
+            };
+            
+            const titleEl = document.createElement("div");
+            titleEl.className = "sb-conv-title";
+            titleEl.textContent = (c.pinned ? "📌 " : "") + c.title;
+            
+            const menuBtn = document.createElement("button");
+            menuBtn.className = "sb-conv-menu-btn";
+            menuBtn.innerHTML = "⋮";
+            
+            const menuDropdown = document.createElement("div");
+            menuDropdown.className = "sb-conv-menu-dropdown";
+            
+            const renameBtn = document.createElement("button");
+            renameBtn.className = "sb-menu-item";
+            renameBtn.textContent = "✏️ Rename";
+            renameBtn.onclick = () => sbRenameConversation(c.id, c.title);
+            
+            const pinBtn = document.createElement("button");
+            pinBtn.className = "sb-menu-item";
+            pinBtn.textContent = c.pinned ? "📌 Unpin" : "📌 Pin";
+            pinBtn.onclick = () => sbUpdateConversation(c.id, { pinned: !c.pinned });
+            
+            const archiveBtn = document.createElement("button");
+            archiveBtn.className = "sb-menu-item";
+            archiveBtn.textContent = c.archived ? "📤 Unarchive" : "🗄️ Archive";
+            archiveBtn.onclick = () => sbUpdateConversation(c.id, { archived: !c.archived });
+            
+            const shareBtn = document.createElement("button");
+            shareBtn.className = "sb-menu-item";
+            shareBtn.textContent = "🔗 Share";
+            shareBtn.onclick = () => { alert("Sharing link copied to clipboard!"); };
+            
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "sb-menu-item danger";
+            deleteBtn.textContent = "🗑️ Delete";
+            deleteBtn.onclick = () => sbDeleteConversation(c.id);
+            
+            menuDropdown.appendChild(renameBtn);
+            menuDropdown.appendChild(pinBtn);
+            menuDropdown.appendChild(archiveBtn);
+            menuDropdown.appendChild(shareBtn);
+            menuDropdown.appendChild(deleteBtn);
+            
+            menuBtn.onclick = (e) => {
+              e.stopPropagation();
+              // Close others
+              document.querySelectorAll('.sb-conv-menu-dropdown.show').forEach(el => el.classList.remove('show'));
+              menuDropdown.classList.toggle('show');
+            };
+            
+            item.appendChild(titleEl);
+            item.appendChild(menuBtn);
+            item.appendChild(menuDropdown);
+            group.appendChild(item);
+          });
+          listEl.appendChild(group);
+        }
+        
+        renderGroup("Pinned", pinned);
+        renderGroup(pinned.length > 0 ? "Recent" : "", unpinned);
+        renderGroup("Archived", archived);
+      }
+      
+      // Close menus when clicking outside
+      document.addEventListener("click", (e) => {
+        if (!e.target.closest(".sb-conv-menu-btn") && !e.target.closest(".sb-conv-menu-dropdown")) {
+          document.querySelectorAll('.sb-conv-menu-dropdown.show').forEach(el => el.classList.remove('show'));
+        }
+      });
+
+      async function sbUpdateConversation(id, updates) {
+        try {
+          const res = await fetch(`/api/conversations/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updates)
+          });
+          if (res.ok) await sbLoadConversations();
+        } catch (e) { console.error(e); }
+      }
+
+      async function sbRenameConversation(id, oldTitle) {
+        const newTitle = prompt("Enter new title:", oldTitle);
+        if (newTitle && newTitle.trim() !== oldTitle) {
+          await sbUpdateConversation(id, { title: newTitle.trim() });
+        }
+      }
+
+      async function sbDeleteConversation(id) {
+        if (!confirm("Are you sure you want to delete this chat?")) return;
+        try {
+          const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+          if (res.ok) {
+            if (currentConvId === id) {
+              sbNewChat();
+            }
+            await sbLoadConversations();
+          }
+        } catch (e) { console.error(e); }
+      }
+
+      function sbNewChat() {
+        if (typeof isLoading !== 'undefined' && isLoading) return;
+        currentConvId = null;
+        history = [];
+        messagesEl.innerHTML = "";
+        messagesEl.appendChild(welcomeEl);
+        welcomeEl.style.display = "flex";
+        sbRenderConversations();
+      }
+      
+      const newChatBtn = document.getElementById("new-chat-btn");
+      if (newChatBtn) newChatBtn.onclick = sbNewChat;
+
+      async function sbLoadMessages(id) {
+        currentConvId = id;
+        sbRenderConversations();
+        try {
+          const res = await fetch(`/api/conversations/${id}/messages`);
+          const data = await res.json();
+          if (res.ok) {
+            history = data.messages || [];
+            messagesEl.innerHTML = "";
             if (history.length === 0) {
               messagesEl.appendChild(welcomeEl);
               welcomeEl.style.display = "flex";
             } else {
               welcomeEl.remove();
               history.forEach(msg => appendBubble(msg.role, msg.content));
+              scrollBottom();
             }
-          } else {
-            console.error("Failed to fetch chat history:", data.error);
-            showAuthMessage(data.error || "Failed to load chat history.", true);
           }
-        } catch (err) {
-          console.error("Network error fetching chat history:", err);
-          showAuthMessage(`Network error loading chat history: ${err.message}`, true);
+        } catch (e) { console.error(e); }
+      }
+
+      async function fetchChatHistory() {
+        await sbLoadConversations();
+        if (conversations.length > 0) {
+          const first = conversations.find(c => !c.archived) || conversations[0];
+          await sbLoadMessages(first.id);
+        } else {
+          sbNewChat();
         }
       }
 
@@ -2308,6 +2708,8 @@
         // Reset notes content and file inputs/statuses
         notesContent = "";
         notesFileName = "";
+        localStorage.removeItem("sb_notes_content");
+        localStorage.removeItem("sb_notes_filename");
         updateNotesIndicators();
 
         const welcomeInput = document.getElementById("upload-input-welcome");
@@ -2444,6 +2846,7 @@
               messages: history,
               model: cfg.model,
               notes: notesContent,
+              conversation_id: currentConvId
             }),
           });
         // ^ fetch() sends an HTTP request to our server.
@@ -2481,15 +2884,10 @@
           //   If it's false, something went wrong (bad key, server error, etc.)
 
           const msg = data?.error || `Server error ${res.status}`;
-          // ^ data?.error uses "optional chaining" (?.) which means:
-          //   "if data exists AND has an error property, use it.
-          //    Otherwise, use the fallback message."
-
           appendBubble("ai", `❌ **Error:** ${msg}`);
-          // ^ Show the error in a chat bubble
-
+          history.pop();
+          userInputEl.value = text;
           return;
-          // ^ Exit the function early — don't try to show a reply
         }
 
         // ── Show the AI's reply ──
@@ -2503,6 +2901,12 @@
         history.push({ role: "assistant", content: reply });
         // ^ Add the AI's reply to our conversation history
         //   so the AI remembers what it said in future messages.
+        
+        if (data.conversation_id) {
+          currentConvId = data.conversation_id;
+        }
+        sbLoadConversations(); // Update sidebar instantly after message
+
         // Update the Crosscheck list so this new answer is selectable
         try { if (document.getElementById('crosscheck-list')) populateCrosscheckAnswers(); } catch(e) { /* ignore */ }
 
@@ -2511,10 +2915,9 @@
         // "catch" runs if fetch() itself failed (network error, server down, etc.)
 
         removeTyping(typingId);
-        // ^ Remove the typing animation
-
         appendBubble("ai", `❌ **Network error:** ${err.message}\n\nMake sure the server is running (python app.py).`);
-        // ^ Show a helpful error message
+        history.pop();
+        userInputEl.value = text;
 
       } finally {
         // ── This ALWAYS runs, whether the request succeeded or failed ──
@@ -2714,7 +3117,7 @@
         podcastBtn.textContent = "🎧 Podcast";
         podcastBtn.onclick = () => {
           if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
-          generatePodcastFromAnswer(text);
+          generatePodcast("", true);
         };
 
         const flashBtn = document.createElement("button");
@@ -3048,6 +3451,7 @@
     const quizSection = document.getElementById("quiz-section");
     const crosscheckSection = document.getElementById("crosscheck-section");
     const definitionsSection = document.getElementById("definitions-section");
+    const careerSection = document.getElementById("career-section");
     const crosscheckOutputEl = document.getElementById("crosscheck-output");
     const crosscheckQuestionEl = document.getElementById("crosscheck-question-input");
     const crosscheckAnswerEl = document.getElementById("crosscheck-answer-input");
@@ -3065,6 +3469,7 @@
         quizSection.style.display = "none";
         crosscheckSection.style.display = "none";
         definitionsSection.style.display = "none";
+        careerSection.style.display = "none";
 
         // Show the selected section
         const tab = btn.dataset.tab;
@@ -3077,6 +3482,11 @@
         }
         else if (tab === "definitions") {
           definitionsSection.style.display = "flex";
+        }
+        else if (tab === "career") {
+          careerSection.style.display = "flex";
+          // Trigger Career Explorer render on first load
+          if (typeof ceRenderOnTabSwitch === 'function') ceRenderOnTabSwitch();
         }
       });
     });
@@ -3253,9 +3663,7 @@
       }
     }
 
-    async function generatePodcastFromAnswer(text, switchToTab = true) {
-      const prompt = `Using the full chat conversation and the assistant answer below, generate a short podcast-style audio script in English. Use the entire conversation as context, covering all user questions asked so far and all earlier assistant replies. Do not focus only on the latest question.\n\n${text}`.trim();
-      if (!prompt) return;
+    async function generatePodcast(customTopic, switchToTab = true) {
       if (switchToTab) {
         document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
         const pTab = [...document.querySelectorAll(".tab-btn")].find(b => b.dataset.tab === "podcasts");
@@ -3309,11 +3717,23 @@
       }
 
       try {
+        let messagesToSend = [];
+        if (customTopic) {
+          messagesToSend = [{ role: "user", content: `Please create a podcast about: ${customTopic}` }];
+        } else {
+          if (history.length === 0) {
+            output.innerHTML = `<div style="color: var(--accent2);">❌ Chat is empty. Please start a conversation or enter a custom topic.</div>`;
+            return;
+          }
+          messagesToSend = [...history];
+          messagesToSend.push({ role: "user", content: "Generate a podcast based on our entire conversation above." });
+        }
+
         const res = await fetch("/api/podcast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: buildMessagesWithPrompt(prompt),
+            messages: messagesToSend,
             model: cfg.model,
             notes: notesContent,
           }),
@@ -3554,17 +3974,13 @@
 
     document.getElementById("generate-podcast-btn").addEventListener("click", async () => {
       const rawInput = document.getElementById("podcast-input").value;
-      const prompt = resolveFeaturePrompt(rawInput);
-      if (!prompt) {
-        alert("Ask a question in the chat first or type a topic.");
-        return;
-      }
+      const customTopic = rawInput.trim();
 
       const output = document.getElementById("podcast-output");
       output.innerHTML = `<div class="loading-spinner"></div> Generating podcast audio...`;
 
       try {
-        await generatePodcastFromAnswer(prompt, false);
+        await generatePodcast(customTopic, false);
       } catch (err) {
         output.textContent = `❌ Network error: ${err.message}`;
       }
@@ -3862,49 +4278,28 @@
       `;
 
       try {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: [{ role: "user", content: word }],
-            model: cfg.model,
-            mode: "dictionary"
-          })
-        });
-
-        const data = await res.json();
+        const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+        let data;
+        try {
+          data = await res.json();
+        } catch (e) {
+          // Ignore json parse error
+        }
 
         if (!res.ok) {
-          showDictError(data?.error || `Error ${res.status}`);
+          const msg = data && data.title ? `${data.title}: ${data.message}` : `Error ${res.status}`;
+          showDictError(msg);
           return;
         }
 
-        let parsedResult;
-        try {
-          // Gemini response might be wrapped in markdown code blocks or have extra whitespace
-          let cleanText = data.reply.trim();
-          if (cleanText.startsWith("```json")) {
-            cleanText = cleanText.substring(7);
-          }
-          if (cleanText.startsWith("```")) {
-            cleanText = cleanText.substring(3);
-          }
-          if (cleanText.endsWith("```")) {
-            cleanText = cleanText.substring(0, cleanText.length - 3);
-          }
-          parsedResult = JSON.parse(cleanText.trim());
-        } catch (e) {
-          // If JSON parsing fails, fallback to rendering the raw reply as text
-          console.error("JSON parsing error for definition:", e, data.reply);
-          renderRawDictResult(word, data.reply);
-          return;
+        if (data && data.length > 0) {
+          renderDictResult(data[0]);
+          addWordToHistory(data[0].word || word);
+        } else {
+          showDictError("No definition found.");
         }
-
-        renderDictResult(parsedResult);
-        addWordToHistory(parsedResult.word || word);
-
       } catch (err) {
-        showDictError(`Network error: ${err.message}`);
+        showDictError(`Network error: Please check your connection.`);
       }
     }
 
@@ -3919,61 +4314,87 @@
       wordDiv.textContent = result.word || "";
       resultCard.appendChild(wordDiv);
 
-      if (result.phonetic) {
+      const phonetic = result.phonetic || (result.phonetics && result.phonetics.find(p => p.text)?.text);
+      if (phonetic) {
         const phoneticDiv = document.createElement("div");
         phoneticDiv.className = "dict-phonetic";
-        phoneticDiv.textContent = result.phonetic;
+        phoneticDiv.textContent = phonetic;
         resultCard.appendChild(phoneticDiv);
       }
 
-      if (result.pos) {
-        const posSpan = document.createElement("span");
-        posSpan.className = "dict-pos";
-        posSpan.textContent = result.pos;
-        resultCard.appendChild(posSpan);
-      }
+      if (result.meanings && result.meanings.length > 0) {
+        result.meanings.forEach(meaning => {
+          const posSpan = document.createElement("div");
+          posSpan.className = "dict-pos";
+          posSpan.style.marginTop = "12px";
+          posSpan.style.marginBottom = "4px";
+          posSpan.style.fontWeight = "bold";
+          posSpan.style.color = "var(--primary)";
+          posSpan.textContent = meaning.partOfSpeech;
+          resultCard.appendChild(posSpan);
 
-      if (result.definition) {
-        const meaningDiv = document.createElement("div");
-        meaningDiv.className = "dict-meaning";
-        meaningDiv.textContent = result.definition;
-        resultCard.appendChild(meaningDiv);
-      }
+          meaning.definitions.forEach((def, index) => {
+            const defContainer = document.createElement("div");
+            defContainer.style.marginBottom = "8px";
+            
+            const meaningDiv = document.createElement("div");
+            meaningDiv.className = "dict-meaning";
+            meaningDiv.style.fontSize = "0.9rem";
+            meaningDiv.textContent = `${index + 1}. ${def.definition}`;
+            defContainer.appendChild(meaningDiv);
 
-      if (result.example) {
-        const exampleDiv = document.createElement("div");
-        exampleDiv.className = "dict-example";
-        exampleDiv.textContent = `"${result.example}"`;
-        resultCard.appendChild(exampleDiv);
+            if (def.example) {
+              const exampleDiv = document.createElement("div");
+              exampleDiv.className = "dict-example";
+              exampleDiv.style.fontStyle = "italic";
+              exampleDiv.style.color = "var(--muted)";
+              exampleDiv.style.marginTop = "2px";
+              exampleDiv.textContent = `"${def.example}"`;
+              defContainer.appendChild(exampleDiv);
+            }
+
+            if (def.synonyms && def.synonyms.length > 0) {
+              const synDiv = document.createElement("div");
+              synDiv.style.fontSize = "0.85em";
+              synDiv.style.color = "var(--muted)";
+              synDiv.style.marginTop = "2px";
+              synDiv.innerHTML = `<strong>Synonyms:</strong> ${escapeHtml(def.synonyms.join(", "))}`;
+              defContainer.appendChild(synDiv);
+            }
+
+            if (def.antonyms && def.antonyms.length > 0) {
+              const antDiv = document.createElement("div");
+              antDiv.style.fontSize = "0.85em";
+              antDiv.style.color = "var(--muted)";
+              antDiv.style.marginTop = "2px";
+              antDiv.innerHTML = `<strong>Antonyms:</strong> ${escapeHtml(def.antonyms.join(", "))}`;
+              defContainer.appendChild(antDiv);
+            }
+            resultCard.appendChild(defContainer);
+          });
+          
+          if (meaning.synonyms && meaning.synonyms.length > 0) {
+             const synDiv = document.createElement("div");
+             synDiv.style.fontSize = "0.85em";
+             synDiv.style.color = "var(--muted)";
+             synDiv.style.marginBottom = "8px";
+             synDiv.innerHTML = `<strong>General Synonyms:</strong> ${escapeHtml(meaning.synonyms.join(", "))}`;
+             resultCard.appendChild(synDiv);
+          }
+          if (meaning.antonyms && meaning.antonyms.length > 0) {
+             const antDiv = document.createElement("div");
+             antDiv.style.fontSize = "0.85em";
+             antDiv.style.color = "var(--muted)";
+             antDiv.style.marginBottom = "8px";
+             antDiv.innerHTML = `<strong>General Antonyms:</strong> ${escapeHtml(meaning.antonyms.join(", "))}`;
+             resultCard.appendChild(antDiv);
+          }
+        });
       }
 
       dictBodyEl.appendChild(resultCard);
 
-      // Render search history section below the result
       renderDictHistory();
-    }
-
-    function renderRawDictResult(word, text) {
-      dictBodyEl.innerHTML = "";
-
-      const resultCard = document.createElement("div");
-      resultCard.className = "dict-result";
-
-      const wordDiv = document.createElement("div");
-      wordDiv.className = "dict-word";
-      wordDiv.textContent = word;
-      resultCard.appendChild(wordDiv);
-
-      const meaningDiv = document.createElement("div");
-      meaningDiv.className = "dict-meaning";
-      meaningDiv.textContent = text;
-      resultCard.appendChild(meaningDiv);
-
-      dictBodyEl.appendChild(resultCard);
-
-      // Render search history section below the result
-      renderDictHistory();
-      addWordToHistory(word);
     }
 
     function showDictError(message) {
@@ -3990,11 +4411,13 @@
       word = word.toLowerCase().trim();
       if (!word) return;
 
-      // Remove duplicates
+      if (dictHistory.length > 0 && dictHistory[0] === word) {
+        return;
+      }
+      
       dictHistory = dictHistory.filter(w => w !== word);
-      // Keep only last 10 search terms
       dictHistory.unshift(word);
-      if (dictHistory.length > 10) {
+      if (dictHistory.length > 20) {
         dictHistory.pop();
       }
 
@@ -4002,28 +4425,103 @@
     }
 
     function renderDictHistory() {
-      if (dictHistory.length === 0) return;
+      const existingHistory = dictBodyEl.querySelector(".dict-history-section");
+      
+      if (dictHistory.length === 0) {
+        if (existingHistory) existingHistory.remove();
+        return;
+      }
+      
+      const historySection = document.createElement("div");
+      historySection.className = "dict-history-section";
+      historySection.style.marginTop = "15px";
+      historySection.style.borderTop = "1px solid var(--border)";
+      historySection.style.paddingTop = "10px";
+
+      const headerDiv = document.createElement("div");
+      headerDiv.style.display = "flex";
+      headerDiv.style.justifyContent = "space-between";
+      headerDiv.style.alignItems = "center";
+      headerDiv.style.marginBottom = "8px";
 
       const label = document.createElement("div");
       label.className = "dict-history-label";
       label.textContent = "Recent Searches";
-      dictBodyEl.appendChild(label);
+      
+      const clearBtn = document.createElement("button");
+      clearBtn.textContent = "Clear All";
+      clearBtn.style.fontSize = "0.75rem";
+      clearBtn.style.background = "none";
+      clearBtn.style.border = "none";
+      clearBtn.style.color = "var(--muted)";
+      clearBtn.style.cursor = "pointer";
+      clearBtn.onclick = () => {
+        dictHistory = [];
+        localStorage.setItem("sb_dict_history", "[]");
+        renderDictHistory();
+      };
+      clearBtn.onmouseover = () => clearBtn.style.textDecoration = "underline";
+      clearBtn.onmouseout = () => clearBtn.style.textDecoration = "none";
+      
+      headerDiv.appendChild(label);
+      headerDiv.appendChild(clearBtn);
+      historySection.appendChild(headerDiv);
 
       const container = document.createElement("div");
       container.className = "dict-history-chips";
+      container.style.display = "flex";
+      container.style.flexWrap = "wrap";
+      container.style.gap = "6px";
 
-      dictHistory.forEach(word => {
+      dictHistory.forEach((word, index) => {
         const chip = document.createElement("div");
         chip.className = "dict-history-chip";
-        chip.textContent = word;
-        chip.addEventListener("click", () => {
+        chip.style.display = "inline-flex";
+        chip.style.alignItems = "center";
+        chip.style.gap = "6px";
+        chip.style.padding = "4px 8px";
+        chip.style.background = "var(--bg-card)";
+        chip.style.border = "1px solid var(--border)";
+        chip.style.borderRadius = "14px";
+        chip.style.fontSize = "0.85rem";
+
+        const textSpan = document.createElement("span");
+        textSpan.textContent = word;
+        textSpan.style.cursor = "pointer";
+        textSpan.onclick = () => {
           dictInputEl.value = word;
           lookupWord(word);
-        });
+        };
+        
+        const delBtn = document.createElement("span");
+        delBtn.innerHTML = "&times;";
+        delBtn.title = "Remove";
+        delBtn.style.cursor = "pointer";
+        delBtn.style.fontSize = "1.2rem";
+        delBtn.style.lineHeight = "0.5";
+        delBtn.style.opacity = "0.5";
+        delBtn.style.padding = "0 2px";
+        delBtn.onclick = (e) => {
+          e.stopPropagation();
+          dictHistory.splice(index, 1);
+          localStorage.setItem("sb_dict_history", JSON.stringify(dictHistory));
+          renderDictHistory();
+        };
+        delBtn.onmouseover = () => delBtn.style.opacity = "1";
+        delBtn.onmouseout = () => delBtn.style.opacity = "0.5";
+
+        chip.appendChild(textSpan);
+        chip.appendChild(delBtn);
         container.appendChild(chip);
       });
 
-      dictBodyEl.appendChild(container);
+      historySection.appendChild(container);
+
+      if (existingHistory) {
+        existingHistory.replaceWith(historySection);
+      } else {
+        dictBodyEl.appendChild(historySection);
+      }
     }
 
     function initDict() {
@@ -4040,10 +4538,758 @@
 
       // Render initial history if any
       if (dictHistory.length > 0) {
-        dictBodyEl.innerHTML = "";
         renderDictHistory();
       }
     }
+
+    // =====================================================================
+    //  CAREER EXPLORER — AI-Powered Career Guidance System (ICSE Grade 9-10)
+    //  All identifiers prefixed with  ce  to avoid conflicts with existing code.
+    // =====================================================================
+    (function () {
+      'use strict';
+
+      // ── Storage keys ──
+      const CE_PROGRESS_KEY = 'ce_assessment_progress';
+      const CE_HISTORY_KEY  = 'ce_report_history';
+
+      // ── Assessment steps (8 categories, 30 questions total) ──
+      const CE_STEPS = [
+        {
+          id:'interests', title:'Your Interests', icon:'\uD83D\uDCA1',
+          subtitle:'What excites and energises you?',
+          questions:[
+            { id:'q_int_1', type:'multi-chip', label:'Which activities excite you most?', hint:'Select all that apply',
+              options:['Technology & Coding','Science & Research','Art & Design','Music & Performance','Sports & Fitness','Business & Finance','Social Work & NGO','Nature & Environment','Writing & Journalism','Teaching & Mentoring','Medicine & Healthcare','Law & Politics'] },
+            { id:'q_int_2', type:'single-chip', label:'What type of problems do you enjoy solving?',
+              options:['Technical / Engineering','Creative / Design','People / Social','Business / Strategy','Scientific / Research','Environmental / Nature'] },
+            { id:'q_int_3', type:'single-chip', label:'If you had a free afternoon, you would most likely:',
+              options:['Build or code something','Draw, paint or create','Read books or write stories','Play sports or exercise','Watch documentaries and research','Hang out and talk with people','Plan a project or business','Explore nature outdoors'] }
+          ]
+        },
+        {
+          id:'subjects', title:'Favourite Subjects', icon:'\uD83D\uDCDA',
+          subtitle:'Which school subjects do you shine in?',
+          questions:[
+            { id:'q_sub_1', type:'multi-chip', label:'Which subjects do you enjoy most?', hint:'Select all that apply',
+              options:['Mathematics','Physics','Chemistry','Biology','Computer Science','History & Civics','Geography','English Literature','English Language','Hindi','Economics','Art & Craft','Physical Education'] },
+            { id:'q_sub_2', type:'single-chip', label:'Which subject area comes most naturally to you?',
+              options:['Maths & Numbers','Science & Experiments','Languages & Writing','Social Studies & History','Arts & Creativity','Computers & Technology'] },
+            { id:'q_sub_3', type:'rating-group', label:'Rate your interest in each subject group (1 = Low, 5 = High):',
+              items:['Pure Sciences (Physics, Chemistry)','Life Sciences (Biology)','Mathematics & Statistics','Humanities & Social Sciences','Commerce & Economics','Arts, Music & Languages'] }
+          ]
+        },
+        {
+          id:'hobbies', title:'Hobbies & Activities', icon:'\uD83C\uDFA8',
+          subtitle:'What do you love doing outside school?',
+          questions:[
+            { id:'q_hob_1', type:'multi-chip', label:'Which hobbies do you actively pursue?', hint:'Select all that apply',
+              options:['Coding / App building','Drawing / Painting','Photography / Videography','Playing a musical instrument','Reading novels or non-fiction','Writing / Blogging / Poetry','Gaming','Sports / Martial arts / Athletics','Cooking / Baking','Robotics / Electronics DIY','Dancing / Theatre / Drama','Gardening / Nature walks','Volunteering / Community service'] },
+            { id:'q_hob_2', type:'single-chip', label:'How many hours a week do you spend on hobbies?',
+              options:['Less than 2 hours','2–5 hours','5–10 hours','More than 10 hours'] },
+            { id:'q_hob_3', type:'text', label:'Have you won any competition, built a project, or achieved something you\'re proud of?',
+              placeholder:'e.g., Won a science fair, built an app, represented school in sports, wrote a story...' }
+          ]
+        },
+        {
+          id:'personality', title:'Your Personality', icon:'\uD83E\uDDE0',
+          subtitle:'Understanding who you are',
+          questions:[
+            { id:'q_per_1', type:'multi-chip', label:'Which words best describe you?', hint:'Select up to 5',
+              options:['Curious & Inquisitive','Organised & Systematic','Creative & Imaginative','Analytical & Logical','Empathetic & Caring','Competitive & Driven','Patient & Methodical','Adventurous & Risk-taking','Detail-oriented','Big-picture thinker','Sociable & Outgoing','Introverted & Reflective'] },
+            { id:'q_per_2', type:'single-chip', label:'When you face a difficult problem, you usually:',
+              options:['Break it down step by step logically','Try creative or unconventional solutions','Ask others for help and collaborate','Research and gather information first','Trust your instinct and act quickly'] },
+            { id:'q_per_3', type:'single-chip', label:'Do you prefer working:',
+              options:['Mostly alone — I focus better independently','In a small tight-knit team of 2–3','In a large collaborative group','It depends entirely on the task'] },
+            { id:'q_per_4', type:'single-chip', label:'What motivates you most?',
+              options:['Solving complex intellectual challenges','Creating something beautiful or innovative','Helping people and making a difference','Achieving recognition and success','Financial security and growth','Constant learning and upskilling'] }
+          ]
+        },
+        {
+          id:'learning', title:'Learning Style', icon:'\uD83C\uDFAF',
+          subtitle:'How do you learn and work best?',
+          questions:[
+            { id:'q_lrn_1', type:'multi-chip', label:'How do you learn best?', hint:'Select all that apply',
+              options:['Watching videos and demonstrations','Reading books and detailed notes','Hands-on experiments and projects','Discussing and teaching others','Solving practice problems repeatedly','Building things and making models'] },
+            { id:'q_lrn_2', type:'multi-chip', label:'What type of tasks do you perform best?', hint:'Select all that apply',
+              options:['Analysing data and spotting patterns','Designing visuals and layouts','Writing and communicating ideas clearly','Leading and organising teams','Researching and investigating topics','Building and fixing things','Performing and presenting on stage','Coding and solving problems with computers'] },
+            { id:'q_lrn_3', type:'single-chip', label:'How do you prefer to receive feedback?',
+              options:['Detailed written feedback I can review','Direct verbal discussion','Grades and scores only','Peer feedback from classmates','Mentorship and guided coaching'] }
+          ]
+        },
+        {
+          id:'skills', title:'Your Skills', icon:'\u2B50',
+          subtitle:'Honest self-assessment of your abilities',
+          questions:[
+            { id:'q_skl_1', type:'rating-group', label:'Rate your current skill level (1 = Beginner, 5 = Strong):',
+              items:['Logical & Mathematical Thinking','Communication & Public Speaking','Creativity & Artistic Ability','Leadership & Team Management','Technical / Computer Skills','Research & Analysis','Empathy & People Skills','Attention to Detail & Precision'] },
+            { id:'q_skl_2', type:'text', label:'What skills or talents have teachers, parents, or friends complimented you on?',
+              placeholder:'e.g., "You explain things so clearly", "You are great at solving puzzles", "Your drawings are amazing"...' }
+          ]
+        },
+        {
+          id:'goals', title:'Career Goals', icon:'\uD83D\uDE80',
+          subtitle:'What do you want from your future?',
+          questions:[
+            { id:'q_gol_1', type:'multi-chip', label:'What matters most to you in a career?', hint:'Select your top priorities',
+              options:['High salary & financial success','Job stability & security','Making a positive impact on society','Fame & public recognition','Creative freedom & expression','Innovation & cutting-edge work','Travel & global exposure','Work-life balance & flexibility','Being your own boss / entrepreneurship','Prestige & social respect'] },
+            { id:'q_gol_2', type:'single-chip', label:'Where do you see yourself in 15 years?',
+              options:['Leading a tech company or startup','Working in a top hospital or research lab','Running my own successful business','In government or public service','A celebrated artist, writer, or performer','A senior expert professional in my field','Working internationally / abroad','I am still exploring options'] },
+            { id:'q_gol_3', type:'single-chip', label:'Are you open to studying or working outside India?',
+              options:['Yes, very much interested','Maybe, if the right opportunity arises','I prefer to stay in India','Not sure yet'] },
+            { id:'q_gol_4', type:'text', label:'Any specific career you have already thought about or dreamed of?',
+              placeholder:'e.g., Software Engineer, Doctor, Architect, Film Director, Chartered Accountant...' }
+          ]
+        },
+        {
+          id:'environment', title:'Work Environment', icon:'\uD83C\uDFE2',
+          subtitle:'Where do you thrive best?',
+          questions:[
+            { id:'q_env_1', type:'multi-chip', label:'What kind of workplace do you prefer?', hint:'Select all that apply',
+              options:['Modern tech office / startup','Hospital or clinic','Outdoors / fieldwork','Laboratory or research centre','Creative studio or design space','School, college or training centre','Courtroom or government office','Remote work from home','Travelling constantly','My own business space'] },
+            { id:'q_env_2', type:'single-chip', label:'What pace of work suits you best?',
+              options:['Fast-paced with constant new challenges','Steady and predictable with clear routines','Flexible — varies day to day','Seasonal projects with intense focus periods'] },
+            { id:'q_env_3', type:'multi-chip', label:'What kind of impact do you want your career to have?', hint:'Select all that apply',
+              options:['Save lives or improve health','Build technologies that change the world','Educate and inspire people','Create art, culture, or entertainment','Protect the natural environment','Drive economic growth','Ensure justice and equality for all','Invent and innovate new solutions'] }
+          ]
+        }
+      ];
+
+      // ── Compat color bands ──
+      const CE_COMPAT = [
+        { min:85, color:'#10b981', label:'Excellent Match', glow:'rgba(16,185,129,.3)' },
+        { min:70, color:'#6366f1', label:'Strong Match',   glow:'rgba(99,102,241,.3)' },
+        { min:55, color:'#f59e0b', label:'Good Match',     glow:'rgba(245,158,11,.3)'  },
+        { min:0,  color:'#f43f5e', label:'Moderate Match', glow:'rgba(244,63,94,.3)'   }
+      ];
+
+      function ceCompatColor(pct) {
+        return CE_COMPAT.find(c => pct >= c.min) || CE_COMPAT[CE_COMPAT.length - 1];
+      }
+
+      // ── State ──
+      let ceStep   = 0;
+      let ceAns    = {};
+      let ceReport = null;
+      let ceHist   = [];
+      let ceCompIds= [];
+      let ceView   = 'home';
+      let ceRendered = false;
+
+      const ceSection = document.getElementById('career-section');
+
+      // ── Persist ──
+      function ceLoad() {
+        try {
+          const p = localStorage.getItem(CE_PROGRESS_KEY);
+          if (p) { const d = JSON.parse(p); ceStep = d.step || 0; ceAns = d.answers || {}; }
+          const h = localStorage.getItem(CE_HISTORY_KEY);
+          if (h) ceHist = JSON.parse(h);
+        } catch(e) {}
+      }
+
+      function ceSave() {
+        try { localStorage.setItem(CE_PROGRESS_KEY, JSON.stringify({ step:ceStep, answers:ceAns, ts:Date.now() })); } catch(e) {}
+      }
+
+      function ceClrProgress() {
+        localStorage.removeItem(CE_PROGRESS_KEY);
+        ceStep = 0; ceAns = {};
+      }
+
+      function ceSaveHist(report) {
+        const entry = { id:'ce_'+Date.now(), name:'Assessment '+new Date().toLocaleDateString('en-IN'), date:new Date().toISOString(), report };
+        ceHist.unshift(entry);
+        if (ceHist.length > 20) ceHist.pop();
+        try { localStorage.setItem(CE_HISTORY_KEY, JSON.stringify(ceHist)); } catch(e) {}
+        return entry.id;
+      }
+
+      // ── Cache ──
+      function ceCacheKey(a) {
+        const s = JSON.stringify(a); let h = 0;
+        for (let i = 0; i < s.length; i++) { h = ((h<<5)-h)+s.charCodeAt(i); h|=0; }
+        return 'ce_cache_'+Math.abs(h);
+      }
+
+      function ceGetCache(a) {
+        try { const k = ceCacheKey(a); const c = localStorage.getItem(k); if (c) { const p=JSON.parse(c); if (Date.now()-p.ts<86400000) return p.report; } } catch(e) {}
+        return null;
+      }
+
+      function ceSetCache(a,r) {
+        try { localStorage.setItem(ceCacheKey(a), JSON.stringify({report:r,ts:Date.now()})); } catch(e) {}
+      }
+
+      // ── Main render dispatcher ──
+      function ceRender() {
+        if (!ceSection) return;
+        const inner = ceSection.querySelector('.ce-content');
+        if (!inner) return;
+        ceRendered = true;
+        switch(ceView) {
+          case 'home':       ceRenderHome(inner);       break;
+          case 'assessment': ceRenderAssessment(inner); break;
+          case 'report':     ceRenderReport(inner);     break;
+          case 'history':    ceRenderHistory(inner);    break;
+          case 'compare':    ceRenderCompare(inner);    break;
+        }
+      }
+
+      // ── HOME ──
+      function ceRenderHome(el) {
+        const saved = localStorage.getItem(CE_PROGRESS_KEY);
+        const sd = saved ? JSON.parse(saved) : null;
+        const pct = sd ? Math.round((sd.step/CE_STEPS.length)*100) : 0;
+        el.innerHTML = `
+          <div class="ce-home">
+            <div class="ce-hero">
+              <div class="ce-hero-icon">🧭</div>
+              <h2 class="ce-hero-title">Career Explorer</h2>
+              <p class="ce-hero-subtitle">AI-powered career guidance for Grade 9–10 ICSE students. Answer 30 personalised questions and discover your ideal career path.</p>
+              <div class="ce-hero-badges">
+                <span class="ce-badge">🎯 8 Categories</span>
+                <span class="ce-badge">🤖 Gemini AI Analysis</span>
+                <span class="ce-badge">📊 Top 5 Careers</span>
+                <span class="ce-badge">📄 PDF Export</span>
+                <span class="ce-badge">📝 History & Compare</span>
+              </div>
+            </div>
+            ${sd && (sd.step > 0 || Object.keys(sd.answers||{}).length > 0) ? `
+            <div class="ce-resume-banner">
+              <div class="ce-resume-icon">⏸️</div>
+              <div class="ce-resume-content">
+                <strong>Assessment In Progress</strong>
+                <span>Step ${sd.step + 1} of ${CE_STEPS.length} &mdash; ${pct}% complete. Your progress is saved.</span>
+              </div>
+              <div class="ce-resume-actions">
+                <button class="ce-btn ce-btn-primary" id="ce-resume-btn">▶ Resume</button>
+                <button class="ce-btn ce-btn-ghost" id="ce-fresh-btn">🔄 Start Fresh</button>
+              </div>
+            </div>` : ''}
+            <div class="ce-home-grid">
+              <div class="ce-action-card" id="ce-start-card">
+                <div class="ce-action-icon">📝</div>
+                <h3>${sd && (sd.step > 0 || Object.keys(sd.answers||{}).length > 0) ? 'Continue Assessment' : 'Take Assessment'}</h3>
+                <p>Answer questions about your interests, subjects, skills, personality, and goals to get your personalised career report.</p>
+                <div class="ce-action-arrow">→</div>
+              </div>
+              ${ceHist.length > 0 ? `
+              <div class="ce-action-card" id="ce-hist-card">
+                <div class="ce-action-icon">📊</div>
+                <h3>View History (${ceHist.length})</h3>
+                <p>Review your previous assessments, compare career reports side by side, and track your growth.</p>
+                <div class="ce-action-arrow">→</div>
+              </div>` : `
+              <div class="ce-action-card ce-action-card-muted">
+                <div class="ce-action-icon">📊</div>
+                <h3>View History</h3>
+                <p>Your past assessments will appear here after you complete your first one.</p>
+                <div class="ce-action-arrow" style="opacity:.3">→</div>
+              </div>`}
+            </div>
+            <div class="ce-features-row">
+              <div class="ce-feature-item"><span class="ce-feature-icon">🎯</span>Compatibility scores</div>
+              <div class="ce-feature-item"><span class="ce-feature-icon">💰</span>Salary insights</div>
+              <div class="ce-feature-item"><span class="ce-feature-icon">🎓</span>Stream guidance</div>
+              <div class="ce-feature-item"><span class="ce-feature-icon">📋</span>Entrance exams</div>
+              <div class="ce-feature-item"><span class="ce-feature-icon">🤖</span>AI future impact</div>
+              <div class="ce-feature-item"><span class="ce-feature-icon">↔️</span>Compare reports</div>
+            </div>
+          </div>`;
+        // Attach click handlers
+        document.getElementById('ce-start-card')?.addEventListener('click', () => {
+          if (sd && (sd.step > 0 || Object.keys(sd.answers||{}).length > 0)) { ceView='assessment'; ceRender(); }
+          else { ceClrProgress(); ceView='assessment'; ceRender(); }
+        });
+        document.getElementById('ce-hist-card')?.addEventListener('click', () => { ceView='history'; ceRender(); });
+        document.getElementById('ce-resume-btn')?.addEventListener('click', (e) => { e.stopPropagation(); ceView='assessment'; ceRender(); });
+        document.getElementById('ce-fresh-btn')?.addEventListener('click', (e) => { e.stopPropagation(); if (confirm('Discard saved progress and start fresh?')) { ceClrProgress(); ceView='assessment'; ceRender(); } });
+      }
+
+      // ── ASSESSMENT ──
+      function ceRenderAssessment(el) {
+        const step = CE_STEPS[ceStep];
+        const total = CE_STEPS.length;
+        const pct = (ceStep / total) * 100;
+        el.innerHTML = `
+          <div class="ce-assessment">
+            <div class="ce-assessment-header">
+              <button class="ce-btn ce-btn-ghost" id="ce-back-home">← Back</button>
+              <div class="ce-step-info">
+                <span class="ce-step-label">Step ${ceStep+1} of ${total}</span>
+                <span class="ce-step-name">${step.icon} ${step.title}</span>
+              </div>
+              <div style="width:80px"></div>
+            </div>
+            <div class="ce-progress-bar">
+              <div class="ce-progress-fill" style="width:${pct}%"></div>
+              <div class="ce-progress-steps">${CE_STEPS.map((_,i)=>`<div class="ce-progress-dot ${i<ceStep?'done':i===ceStep?'active':''}" title="${CE_STEPS[i].title}"></div>`).join('')}</div>
+            </div>
+            <div class="ce-question-area">
+              <div class="ce-step-header">
+                <div class="ce-step-icon-lg">${step.icon}</div>
+                <div><h3 class="ce-step-title">${step.title}</h3><p class="ce-step-subtitle">${step.subtitle}</p></div>
+              </div>
+              <div class="ce-questions-list">${step.questions.map(q => ceRenderQ(q)).join('')}</div>
+            </div>
+            <div class="ce-assessment-nav">
+              ${ceStep > 0 ? '<button class="ce-btn ce-btn-ghost" id="ce-prev">← Previous</button>' : '<div></div>'}
+              ${ceStep < total-1
+                ? '<button class="ce-btn ce-btn-primary" id="ce-next">Next →</button>'
+                : '<button class="ce-btn ce-btn-success" id="ce-submit">✨ Generate My Career Report</button>'}
+            </div>
+          </div>`;
+        // Restore answers into UI
+        ceRestoreAnswers();
+        // Nav handlers
+        document.getElementById('ce-back-home')?.addEventListener('click', () => { ceView='home'; ceRender(); });
+        document.getElementById('ce-prev')?.addEventListener('click', () => { ceStep--; ceSave(); ceView='assessment'; ceRender(); el.scrollTop=0; });
+        document.getElementById('ce-next')?.addEventListener('click', () => { ceStep++; ceSave(); ceView='assessment'; ceRender(); el.scrollTop=0; });
+        document.getElementById('ce-submit')?.addEventListener('click', () => ceSubmit(el));
+      }
+
+      function ceRenderQ(q) {
+        if (q.type === 'multi-chip') return `
+          <div class="ce-question" data-qid="${q.id}">
+            <div class="ce-question-label">${q.label}</div>
+            ${q.hint ? `<div class="ce-question-hint">${q.hint}</div>` : ''}
+            <div class="ce-chip-group" data-qid="${q.id}" data-type="multi">
+              ${q.options.map(o => `<button class="ce-chip" type="button" data-val="${ceEscAttr(o)}">${o}</button>`).join('')}
+            </div>
+          </div>`;
+        if (q.type === 'single-chip') return `
+          <div class="ce-question" data-qid="${q.id}">
+            <div class="ce-question-label">${q.label}</div>
+            <div class="ce-chip-group" data-qid="${q.id}" data-type="single">
+              ${q.options.map(o => `<button class="ce-chip" type="button" data-val="${ceEscAttr(o)}">${o}</button>`).join('')}
+            </div>
+          </div>`;
+        if (q.type === 'text') return `
+          <div class="ce-question" data-qid="${q.id}">
+            <div class="ce-question-label">${q.label}</div>
+            <textarea class="ce-textarea" data-qid="${q.id}" placeholder="${ceEscAttr(q.placeholder||'')}" rows="3"></textarea>
+          </div>`;
+        if (q.type === 'rating-group') return `
+          <div class="ce-question" data-qid="${q.id}">
+            <div class="ce-question-label">${q.label}</div>
+            <div class="ce-rating-group">
+              ${q.items.map((item,i)=>`
+              <div class="ce-rating-row">
+                <span class="ce-rating-label">${item}</span>
+                <div class="ce-stars" data-qid="${q.id}" data-idx="${i}" data-lbl="${ceEscAttr(item)}">
+                  ${[1,2,3,4,5].map(n=>`<button class="ce-star" type="button" data-v="${n}">★</button>`).join('')}
+                </div>
+              </div>`).join('')}
+            </div>
+          </div>`;
+        return '';
+      }
+
+      function ceEscAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+      // ── Answer restoration ──
+      function ceRestoreAnswers() {
+        const step = CE_STEPS[ceStep];
+        step.questions.forEach(q => {
+          if (q.type === 'multi-chip' || q.type === 'single-chip') {
+            const v = ceAns[q.id] || '';
+            const vals = v ? v.split(', ') : [];
+            const g = document.querySelector(`.ce-chip-group[data-qid="${q.id}"]`);
+            if (g) g.querySelectorAll('.ce-chip').forEach(b => { if (vals.includes(b.dataset.val)) b.classList.add('selected'); });
+          } else if (q.type === 'text') {
+            const ta = document.querySelector(`textarea.ce-textarea[data-qid="${q.id}"]`);
+            if (ta && ceAns[q.id]) ta.value = ceAns[q.id];
+          } else if (q.type === 'rating-group') {
+            q.items.forEach((_,i) => {
+              const key = q.id+'__'+i;
+              const v = ceAns[key]; if (!v) return;
+              const r = parseInt(v.split(':')[1]);
+              const sg = document.querySelector(`.ce-stars[data-qid="${q.id}"][data-idx="${i}"]`);
+              if (sg && r) sg.querySelectorAll('.ce-star').forEach((s,si) => s.classList.toggle('selected',si<r));
+            });
+          }
+        });
+        // Live event delegation for all interactive elements in assessment
+        document.querySelectorAll('.ce-chip-group').forEach(g => {
+          g.addEventListener('click', e => {
+            const btn = e.target.closest('.ce-chip'); if (!btn) return;
+            if (g.dataset.type === 'multi') { btn.classList.toggle('selected'); }
+            else { g.querySelectorAll('.ce-chip').forEach(b=>b.classList.remove('selected')); btn.classList.add('selected'); }
+            const sel = [...g.querySelectorAll('.ce-chip.selected')].map(b=>b.dataset.val);
+            ceAns[g.dataset.qid] = g.dataset.type==='multi' ? sel.join(', ') : (sel[0]||'');
+            ceSave();
+          });
+        });
+        document.querySelectorAll('textarea.ce-textarea').forEach(ta => {
+          ta.addEventListener('input', () => { ceAns[ta.dataset.qid] = ta.value; ceSave(); });
+        });
+        document.querySelectorAll('.ce-stars').forEach(sg => {
+          sg.addEventListener('click', e => {
+            const btn = e.target.closest('.ce-star'); if (!btn) return;
+            const v = parseInt(btn.dataset.v);
+            sg.querySelectorAll('.ce-star').forEach((s,i)=>s.classList.toggle('selected',i<v));
+            ceAns[sg.dataset.qid+'__'+sg.dataset.idx] = sg.dataset.lbl+': '+v+'/5';
+            ceSave();
+          });
+        });
+      }
+
+      // ── SUBMIT / Generate Report ──
+      async function ceSubmit(el) {
+        // Check cache first
+        const cached = ceGetCache(ceAns);
+        if (cached) {
+          ceReport = cached;
+          if (!ceHist.find(h => JSON.stringify(h.report) === JSON.stringify(cached))) {
+            ceSaveHist(cached);
+          }
+          ceClrProgress();
+          ceView = 'report';
+          ceRender();
+          return;
+        }
+        // Build answers map for prompt
+        const promptAns = {};
+        CE_STEPS.forEach(step => {
+          step.questions.forEach(q => {
+            if (q.type === 'rating-group') {
+              q.items.forEach((_,i) => { const k=q.id+'__'+i; if (ceAns[k]) promptAns[step.title+' — '+q.items[i]] = ceAns[k]; });
+            } else {
+              const lbl = step.title+' — '+q.label.substring(0,60);
+              if (ceAns[q.id]) promptAns[lbl] = ceAns[q.id];
+            }
+          });
+        });
+        // Show loading
+        el.innerHTML = `
+          <div class="ce-loading-screen">
+            <div class="ce-loading-orb">
+              <div class="ce-loading-spinner-lg"></div>
+              <div class="ce-loading-icon">🧭</div>
+            </div>
+            <h3>Analysing Your Profile…</h3>
+            <p>Our AI is reviewing your answers across all 8 categories and building your personalised career report. This may take 20–40 seconds.</p>
+            <div class="ce-loading-steps">
+              <div class="ce-loading-step active" id="ce-ls1">📊 Processing your responses</div>
+              <div class="ce-loading-step" id="ce-ls2">🔍 Matching career profiles</div>
+              <div class="ce-loading-step" id="ce-ls3">🎯 Calculating compatibility scores</div>
+              <div class="ce-loading-step" id="ce-ls4">📝 Writing your personalised report</div>
+            </div>
+          </div>`;
+        let si = 1;
+        const stpInt = setInterval(() => {
+          si++; if (si > 4) return;
+          const prev = document.getElementById('ce-ls'+(si-1));
+          const curr = document.getElementById('ce-ls'+si);
+          if (prev) { prev.classList.remove('active'); prev.classList.add('done'); }
+          if (curr) curr.classList.add('active');
+        }, 3000);
+        let retries = 0;
+        async function attempt() {
+          try {
+            const res = await fetch('/api/career-analyze', {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({ answers:promptAns, model:typeof cfg!=='undefined'?cfg.model:'gemini-2.5-flash' })
+            });
+            clearInterval(stpInt);
+            if (!res.ok) { const errText=await res.text(); throw new Error('Server error '+res.status); }
+            const d = await res.json();
+            if (d.error) throw new Error(d.error);
+            if (!d.report || !Array.isArray(d.report.careers)) throw new Error('Invalid report structure from AI.');
+            ceSetCache(ceAns, d.report);
+            ceReport = d.report;
+            if (!ceHist.find(h => JSON.stringify(h.report) === JSON.stringify(d.report))) {
+              ceSaveHist(d.report);
+            }
+            ceClrProgress();
+            ceView = 'report';
+            ceRender();
+          } catch(err) {
+            clearInterval(stpInt);
+            retries++;
+            if (retries < 3) {
+              let cd = 6;
+              el.innerHTML = `<div class="ce-loading-screen"><div class="ce-error-icon">⚠️</div><h3>Retrying… (${retries}/3)</h3><p>The AI took a moment. Retrying in <span id="ce-cd">${cd}</span>s…</p><p style="color:var(--muted);font-size:.83rem">${escapeHtml(err.message)}</p></div>`;
+              const ti = setInterval(()=>{ cd--; const e2=document.getElementById('ce-cd'); if(e2)e2.textContent=cd; if(cd<=0){clearInterval(ti);attempt();} },1000);
+            } else {
+              el.innerHTML = `<div class="ce-loading-screen"><div class="ce-error-icon">❌</div><h3>Could Not Generate Report</h3><p>The AI was unable to process your request after 3 attempts.</p><p style="color:var(--muted);font-size:.83rem">${escapeHtml(err.message)}</p><div style="display:flex;gap:12px;margin-top:24px;justify-content:center;"><button class="ce-btn ce-btn-primary" id="ce-retry-btn">🔄 Try Again</button><button class="ce-btn ce-btn-ghost" id="ce-home-err">← Go Home</button></div></div>`;
+              document.getElementById('ce-retry-btn')?.addEventListener('click',()=>ceSubmit(el));
+              document.getElementById('ce-home-err')?.addEventListener('click',()=>{ceView='home';ceRender();});
+            }
+          }
+        }
+        attempt();
+      }
+
+      // ── REPORT ──
+      function ceRenderReport(el) {
+        if (!ceReport || !ceReport.careers) { el.innerHTML='<div style="padding:60px;text-align:center;color:var(--muted)">No report data. Please take the assessment.</div>'; return; }
+        const careers = ceReport.careers.slice(0,5);
+        el.innerHTML = `
+          <div class="ce-report" id="ce-report-view">
+            <div class="ce-report-header">
+              <div class="ce-report-nav">
+                <button class="ce-btn ce-btn-ghost" id="ce-rep-home">← Home</button>
+                <div class="ce-report-actions">
+                  <button class="ce-btn ce-btn-ghost" id="ce-rep-hist">📊 History</button>
+                  <button class="ce-btn ce-btn-primary" id="ce-rep-pdf">⬇️ Download PDF</button>
+                </div>
+              </div>
+              <div class="ce-report-title-block">
+                <div class="ce-report-badge">🧭 AI Career Analysis — Grade 9–10 ICSE</div>
+                <h2 class="ce-report-title">Your Career Compatibility Report</h2>
+                ${ceReport.summary ? `<p class="ce-report-summary">${escapeHtml(ceReport.summary)}</p>` : ''}
+              </div>
+              <div class="ce-compat-legend">${CE_COMPAT.map(c=>`<div class="ce-legend-item"><span class="ce-legend-dot" style="background:${c.color}"></span>${c.label}</div>`).join('')}</div>
+            </div>
+            <div class="ce-careers-list">${careers.map((c,i)=>ceRenderCard(c,i)).join('')}</div>
+            <div class="ce-report-footer">
+              <button class="ce-btn ce-btn-ghost" id="ce-retake">🔄 Retake Assessment</button>
+              <button class="ce-btn ce-btn-primary" id="ce-pdf2">⬇️ Download PDF</button>
+            </div>
+          </div>`;
+        document.getElementById('ce-rep-home')?.addEventListener('click',()=>{ceView='home';ceRender();});
+        document.getElementById('ce-rep-hist')?.addEventListener('click',()=>{ceView='history';ceRender();});
+        document.getElementById('ce-rep-pdf')?.addEventListener('click',()=>window.print());
+        document.getElementById('ce-retake')?.addEventListener('click',()=>{ceClrProgress();ceView='assessment';ceRender();});
+        document.getElementById('ce-pdf2')?.addEventListener('click',()=>window.print());
+        // Expand/collapse card listeners
+        careers.forEach((_,i) => {
+          document.getElementById('ce-ch-'+i)?.addEventListener('click',()=>{
+            const body=document.getElementById('ce-cb-'+i);
+            const card=document.getElementById('ce-cc-'+i);
+            if(!body)return;
+            const open=body.style.display!=='none';
+            body.style.display=open?'none':'block';
+            if(!open)body.style.animation='ceSlideDown .3s ease';
+            card.classList.toggle('ce-card-open',!open);
+          });
+        });
+      }
+
+      function ceRenderCard(career, idx) {
+        const pct = parseInt(career.compatibility, 10) || 0;
+        const col = ceCompatColor(pct);
+        const circ = 2*Math.PI*36;
+        const off = circ - (pct/100)*circ;
+        return `
+          <div class="ce-career-card" id="ce-cc-${idx}">
+            <div class="ce-career-card-header" id="ce-ch-${idx}">
+              <div class="ce-career-rank">#${career.rank||idx+1}</div>
+              <div class="ce-compat-ring">
+                <svg viewBox="0 0 80 80" width="76" height="76">
+                  <circle cx="40" cy="40" r="36" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="6"/>
+                  <circle cx="40" cy="40" r="36" fill="none" stroke="${col.color}" stroke-width="6"
+                    stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"
+                    stroke-linecap="round" transform="rotate(-90 40 40)" class="ce-ring-fill"/>
+                  <text x="40" y="38" text-anchor="middle" fill="${col.color}" font-size="14" font-weight="800" font-family="Outfit,sans-serif">${pct}%</text>
+                  <text x="40" y="52" text-anchor="middle" fill="rgba(255,255,255,.45)" font-size="8" font-family="Outfit,sans-serif">Match</text>
+                </svg>
+              </div>
+              <div class="ce-career-info">
+                <div class="ce-career-icon">${career.icon||'\uD83D\uDCBC'}</div>
+                <div class="ce-career-name">${escapeHtml(career.name||'')}</div>
+                <span class="ce-compat-badge" style="background:${col.color}22;color:${col.color};border-color:${col.color}44">${col.label}</span>
+                ${career.difficulty_level?`<span class="ce-diff-badge">⚡ ${escapeHtml(career.difficulty_level)} Difficulty</span>`:''}
+              </div>
+              <div class="ce-card-toggle"><span class="ce-toggle-icon">▼</span></div>
+            </div>
+            <div class="ce-career-card-body" id="ce-cb-${idx}" style="display:none;">
+              <div class="ce-career-details">
+                <div class="ce-detail-section ce-detail-why">
+                  <h4>🎯 Why This Career Suits You</h4>
+                  <p>${escapeHtml(career.why_matches||'')}</p>
+                </div>
+                <div class="ce-detail-row">
+                  <div class="ce-detail-section">
+                    <h4>💪 Required Strengths</h4>
+                    <ul>${(career.required_strengths||[]).map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ul>
+                  </div>
+                  <div class="ce-detail-section">
+                    <h4>📈 Weaknesses to Improve</h4>
+                    <ul class="ce-list-warn">${(career.weaknesses_to_improve||[]).map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ul>
+                  </div>
+                </div>
+                <div class="ce-detail-section ce-highlight-section">
+                  <h4>📚 Subjects to Focus on in Grade 9 &amp; 10</h4>
+                  <div class="ce-subject-chips">${(career.grade_9_10_subjects||[]).map(s=>`<span class="ce-subject-chip">${escapeHtml(s)}</span>`).join('')}</div>
+                </div>
+                <div class="ce-detail-row">
+                  <div class="ce-detail-section">
+                    <h4>🔀 Recommended Streams After Grade 10</h4>
+                    <div class="ce-stream-chips">${(career.recommended_streams||[]).map(s=>`<span class="ce-stream-chip">${escapeHtml(s)}</span>`).join('')}</div>
+                  </div>
+                  <div class="ce-detail-section">
+                    <h4>📝 Key Entrance Exams</h4>
+                    <ul>${(career.entrance_exams||[]).map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ul>
+                  </div>
+                </div>
+                <div class="ce-detail-row">
+                  <div class="ce-detail-section">
+                    <h4>🎓 College Degree Required</h4>
+                    <p>${escapeHtml(career.college_degree||'Not specified')}</p>
+                  </div>
+                  <div class="ce-detail-section">
+                    <h4>💰 Average Salary in India</h4>
+                    <p class="ce-salary">${escapeHtml(career.avg_salary_india||'Varies')}</p>
+                  </div>
+                </div>
+                <div class="ce-detail-row">
+                  <div class="ce-detail-section">
+                    <h4>📊 Future Demand</h4>
+                    <p>${escapeHtml(career.future_demand||'Not specified')}</p>
+                  </div>
+                  <div class="ce-detail-section">
+                    <h4>⚡ Difficulty Level</h4>
+                    <p>${escapeHtml(career.difficulty_level||'Not specified')}</p>
+                  </div>
+                </div>
+                <div class="ce-detail-section">
+                  <h4>🌅 Daily Work Life</h4>
+                  <p>${escapeHtml(career.daily_work_life||'')}</p>
+                </div>
+                <div class="ce-detail-row">
+                  <div class="ce-detail-section ce-pros">
+                    <h4>✅ Pros</h4>
+                    <ul>${(career.pros||[]).map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ul>
+                  </div>
+                  <div class="ce-detail-section ce-cons">
+                    <h4>❌ Cons</h4>
+                    <ul>${(career.cons||[]).map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ul>
+                  </div>
+                </div>
+                <div class="ce-detail-section ce-ai-section">
+                  <h4>🤖 AI Future Impact</h4>
+                  <p>${escapeHtml(career.ai_future_impact||'')}</p>
+                </div>
+                <div class="ce-detail-section">
+                  <h4>🔀 Alternative Careers to Explore</h4>
+                  <div class="ce-alt-chips">${(career.alternative_careers||[]).map(s=>`<span class="ce-alt-chip">${escapeHtml(s)}</span>`).join('')}</div>
+                </div>
+              </div>
+            </div>
+          </div>`;
+      }
+
+      // ── HISTORY ──
+      function ceRenderHistory(el) {
+        if (ceHist.length === 0) {
+          el.innerHTML = `<div class="ce-history-empty"><div class="ce-history-empty-icon">📊</div><h3>No History Yet</h3><p>Complete an assessment to see your career reports here.</p><button class="ce-btn ce-btn-primary" id="ce-hist-start">Start Assessment →</button></div>`;
+          document.getElementById('ce-hist-start')?.addEventListener('click',()=>{ceClrProgress();ceView='assessment';ceRender();});
+          return;
+        }
+        el.innerHTML = `
+          <div class="ce-history">
+            <div class="ce-history-header">
+              <button class="ce-btn ce-btn-ghost" id="ce-hist-home">← Home</button>
+              <h3>📊 Assessment History</h3>
+              <div></div>
+            </div>
+            ${ceCompIds.length > 0 ? `
+            <div class="ce-compare-bar">
+              <span>📊 ${ceCompIds.length} report${ceCompIds.length>1?'s':''} selected for comparison</span>
+              ${ceCompIds.length>=2?'<button class="ce-btn ce-btn-primary" id="ce-do-compare">Compare Now →</button>':''}
+              <button class="ce-btn ce-btn-ghost" id="ce-clr-compare">Clear</button>
+            </div>` : ''}
+            <div class="ce-history-list">${ceHist.map(entry => `
+              <div class="ce-history-item ${ceCompIds.includes(entry.id)?'selected':''}" id="ce-hi-${entry.id}">
+                <div class="ce-checkbox ${ceCompIds.includes(entry.id)?'checked':''}" data-cid="${entry.id}">${ceCompIds.includes(entry.id)?'\u2713':''}</div>
+                <div class="ce-history-item-info">
+                  <div class="ce-history-item-name">${escapeHtml(entry.name)}</div>
+                  <div class="ce-history-item-date">${new Date(entry.date).toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+                  ${entry.report?.careers?.[0]?`<div class="ce-history-top-career">${entry.report.careers[0].icon||'\uD83D\uDCBC'} Top match: <strong>${escapeHtml(entry.report.careers[0].name)}</strong>&nbsp;&mdash;&nbsp;<span class="ce-hist-compat">${parseInt(entry.report.careers[0].compatibility, 10) || 0}%</span></div>`:''}
+                </div>
+                <div class="ce-history-item-actions">
+                  <button class="ce-btn-sm ce-btn-sm-primary" data-action="view" data-id="${entry.id}">👁 View</button>
+                  <button class="ce-btn-sm ce-btn-sm-ghost" data-action="rename" data-id="${entry.id}">✏️ Rename</button>
+                  <button class="ce-btn-sm ce-btn-sm-danger" data-action="delete" data-id="${entry.id}">🗑 Delete</button>
+                </div>
+              </div>`).join('')}
+            </div>
+            ${ceHist.length>=2?'<div class="ce-history-footer"><p class="ce-hint">Select 2 or more reports and click Compare Now to view them side by side.</p></div>':''}
+          </div>`;
+        document.getElementById('ce-hist-home')?.addEventListener('click',()=>{ceView='home';ceRender();});
+        document.getElementById('ce-do-compare')?.addEventListener('click',()=>{ceView='compare';ceRender();});
+        document.getElementById('ce-clr-compare')?.addEventListener('click',()=>{ceCompIds=[];ceView='history';ceRender();});
+        // Checkbox toggles
+        el.querySelectorAll('.ce-checkbox[data-cid]').forEach(cb => {
+          cb.addEventListener('click',()=>{
+            const id=cb.dataset.cid;
+            const idx=ceCompIds.indexOf(id);
+            if(idx===-1){if(ceCompIds.length>=3)ceCompIds.shift();ceCompIds.push(id);}else ceCompIds.splice(idx,1);
+            ceView='history';ceRender();
+          });
+        });
+        // Action buttons
+        el.querySelectorAll('[data-action]').forEach(btn => {
+          btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const id=btn.dataset.id; const action=btn.dataset.action;
+            const entry=ceHist.find(e2=>e2.id===id);
+            if(action==='view'&&entry){ceReport=entry.report;ceView='report';ceRender();}
+            else if(action==='rename'&&entry){
+              const nm=prompt('New name for this report:',entry.name);
+              if(nm&&nm.trim()){entry.name=nm.trim();try{localStorage.setItem(CE_HISTORY_KEY,JSON.stringify(ceHist));}catch(e2){}ceView='history';ceRender();}
+            } else if(action==='delete'){
+              if(confirm('Delete this report? This cannot be undone.')){
+                ceHist=ceHist.filter(e2=>e2.id!==id);
+                ceCompIds=ceCompIds.filter(c=>c!==id);
+                try{localStorage.setItem(CE_HISTORY_KEY,JSON.stringify(ceHist));}catch(e2){}
+                ceView='history';ceRender();
+              }
+            }
+          });
+        });
+      }
+
+      // ── COMPARE ──
+      function ceRenderCompare(el) {
+        const reports = ceCompIds.map(id=>ceHist.find(e=>e.id===id)).filter(Boolean);
+        if (reports.length < 2) { ceView='history'; ceRender(); return; }
+        el.innerHTML = `
+          <div class="ce-compare">
+            <div class="ce-compare-header">
+              <button class="ce-btn ce-btn-ghost" id="ce-cmp-back">← History</button>
+              <h3>Comparing ${reports.length} Reports</h3>
+              <button class="ce-btn ce-btn-ghost" id="ce-cmp-pdf">⬇️ PDF</button>
+            </div>
+            <div class="ce-compare-grid" style="grid-template-columns:repeat(${reports.length},1fr);">
+              ${reports.map(entry => {
+                const top=entry.report?.careers?.[0];
+                return `<div class="ce-compare-col">
+                  <div class="ce-compare-col-header">
+                    <div class="ce-compare-name">${escapeHtml(entry.name)}</div>
+                    <div class="ce-compare-date">${new Date(entry.date).toLocaleDateString('en-IN')}</div>
+                  </div>
+                  ${(entry.report?.careers||[]).map((c,i)=>{
+                    const pct = parseInt(c.compatibility, 10) || 0;
+                    const col=ceCompatColor(pct);
+                    return `<div class="ce-compare-career" style="${i===0?'border-color:'+col.color+'44':''}">
+                      <div class="ce-compare-rank">#${i+1}</div>
+                      <div class="ce-compare-career-icon">${c.icon||'\uD83D\uDCBC'}</div>
+                      <div class="ce-compare-career-name">${escapeHtml(c.name)}</div>
+                      <div class="ce-compare-compat" style="color:${col.color}">${pct}%</div>
+                    </div>`;
+                  }).join('')}
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+        document.getElementById('ce-cmp-back')?.addEventListener('click',()=>{ceView='history';ceRender();});
+        document.getElementById('ce-cmp-pdf')?.addEventListener('click',()=>window.print());
+      }
+
+      // ── Expose tab-switch hook ──
+      window.ceRenderOnTabSwitch = function() {
+        if (!ceRendered) ceRender();
+        else if (ceView==='home' || ceView==='history') ceRender(); // refresh in case history changed
+      };
+
+      // ── Boot ──
+      ceLoad();
+
+    })(); // end Career Explorer IIFE
 
     init();
     initDict();

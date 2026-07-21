@@ -20,10 +20,10 @@
     }
 
     :root {
-      --bg: #090d16;
-      --surface: rgba(17, 24, 43, 0.7);
-      --card: rgba(30, 41, 59, 0.55);
-      --border: rgba(99, 102, 241, 0.15);
+      --bg: #313338;
+      --surface: #2B2D31;
+      --card: #1E1F22;
+      --border: rgba(255, 255, 255, 0.08);
       --accent: #6366f1;
       --accent-gradient: linear-gradient(135deg, #6366f1, #a855f7);
       --accent2: #f43f5e;
@@ -38,7 +38,7 @@
     }
 
     body {
-      background: radial-gradient(circle at 50% 50%, #111827 0%, #030712 100%);
+      background: var(--bg);
       color: var(--text);
       font-family: var(--font-ui);
       line-height: 1.6;
@@ -73,11 +73,11 @@
       border: 1px solid var(--border);
       color: var(--text);
       padding: 9px 16px;
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       cursor: pointer;
       font-size: 14px;
       font-weight: 700;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease-out;
     }
 
     .cd-back-btn:hover {
@@ -85,7 +85,7 @@
       color: #fff;
       background: rgba(99, 102, 241, 0.1);
       box-shadow: 0 0 12px var(--glow-accent);
-      transform: translateY(-1px);
+      transform: translateY(0);
     }
 
     /* ========== IDLE PHASE ========== */
@@ -97,10 +97,8 @@
 
     .cd-greeting {
       background: var(--surface);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
       border: 1px solid var(--border);
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       padding: 28px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
     }
@@ -138,18 +136,18 @@
       border: 1px solid var(--border);
       color: var(--text);
       padding: 14px;
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       font-family: var(--font-ui);
       font-size: 14px;
       resize: vertical;
       min-height: 100px;
       outline: none;
-      transition: all 0.2s;
+      transition: all 0.15s ease-out;
     }
 
     .cd-input-group textarea:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--glow-accent);
+      box-shadow: 0 0 0 2px var(--accent);
     }
 
     .cd-action-btn {
@@ -157,17 +155,17 @@
       border: none;
       color: #fff;
       padding: 12px 28px;
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       font-weight: 800;
       cursor: pointer;
       font-size: 14px;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease-out;
       align-self: flex-start;
       box-shadow: 0 4px 12px var(--glow-accent);
     }
 
     .cd-action-btn:hover {
-      transform: translateY(-2px);
+      transform: translateY(0);
       box-shadow: 0 6px 18px var(--glow-accent);
       opacity: 0.95;
     }
@@ -208,16 +206,16 @@
     .cd-history-card {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       padding: 20px;
       cursor: pointer;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease-out;
     }
 
     .cd-history-card:hover {
       border-color: var(--accent);
       background: rgba(99, 102, 241, 0.05);
-      transform: translateY(-2px);
+      transform: translateY(0);
       box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
     }
 
@@ -244,7 +242,7 @@
       background: rgba(99, 102, 241, 0.15);
       color: #a5b4fc;
       padding: 4px 10px;
-      border-radius: 20px;
+      border-radius: var(--radius-lg);
       font-size: 11px;
       font-weight: 700;
       border: 1px solid rgba(99, 102, 241, 0.2);
@@ -261,10 +259,8 @@
 
     .cd-mission-card {
       background: var(--surface);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
       border: 1px solid var(--border);
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       padding: 28px;
       background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), transparent);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
@@ -305,10 +301,8 @@
 
     .cd-timer {
       background: var(--surface);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
       border: 2px solid var(--accent);
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       padding: 28px;
       text-align: center;
       box-shadow: 0 8px 24px var(--glow-accent);
@@ -335,7 +329,7 @@
     .cd-scratchpad-section {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       padding: 24px;
     }
 
@@ -355,27 +349,25 @@
       border: 1px solid var(--border);
       color: var(--text);
       padding: 14px;
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       font-family: var(--font-ui);
       font-size: 14px;
       min-height: 140px;
       resize: vertical;
       outline: none;
-      transition: all 0.2s;
+      transition: all 0.15s ease-out;
     }
 
     .cd-scratchpad-section textarea:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--glow-accent);
+      box-shadow: 0 0 0 2px var(--accent);
     }
 
     /* ========== DEBRIEF PHASE ========== */
     .cd-chat {
       background: var(--surface);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
       border: 1px solid var(--border);
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       padding: 24px;
       display: flex;
       flex-direction: column;
@@ -411,7 +403,7 @@
       background: var(--card);
       border: 1px solid var(--border);
       padding: 12px 16px;
-      border-radius: 14px;
+      border-radius: var(--radius-lg);
       font-size: 14px;
       line-height: 1.6;
       flex: 1;
@@ -436,18 +428,18 @@
       border: 1px solid var(--border);
       color: var(--text);
       padding: 14px;
-      border-radius: 10px;
+      border-radius: var(--radius-md);
       font-family: var(--font-ui);
       font-size: 14px;
       min-height: 70px;
       resize: vertical;
       outline: none;
-      transition: all 0.2s;
+      transition: all 0.15s ease-out;
     }
 
     .cd-debrief-input textarea:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--glow-accent);
+      box-shadow: 0 0 0 2px var(--accent);
     }
 
     .cd-debrief-submit {
@@ -455,17 +447,17 @@
       border: none;
       color: #fff;
       padding: 10px 20px;
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       font-weight: 800;
       cursor: pointer;
       font-size: 14px;
       align-self: flex-start;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease-out;
       box-shadow: 0 4px 10px var(--glow-accent);
     }
 
     .cd-debrief-submit:hover {
-      transform: translateY(-2px);
+      transform: translateY(0);
       box-shadow: 0 6px 16px var(--glow-accent);
     }
     
@@ -476,10 +468,8 @@
     /* ========== SUMMARY PHASE ========== */
     .cd-summary-card {
       background: var(--surface);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
       border: 1px solid rgba(168, 85, 247, 0.3);
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       padding: 28px;
       background: linear-gradient(135deg, rgba(168, 85, 247, 0.05), transparent);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
@@ -531,7 +521,7 @@
       padding: 28px;
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       box-shadow: 0 4px 15px rgba(0,0,0,0.15);
     }
 
