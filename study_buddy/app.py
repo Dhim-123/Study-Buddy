@@ -140,7 +140,23 @@ def init_db():
 
             CREATE INDEX IF NOT EXISTS idx_conv_user    ON conversations(user_id, updated_at DESC);
             CREATE INDEX IF NOT EXISTS idx_msg_conv     ON messages(conversation_id, created_at ASC);
+
+            CREATE TABLE IF NOT EXISTS living_notebook (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                subject     TEXT    NOT NULL DEFAULT 'General',
+                category    TEXT    NOT NULL CHECK(category IN ('Key Points', 'Formulas', 'Definitions', 'Mistakes I Made')),
+                content     TEXT    NOT NULL,
+                position    INTEGER NOT NULL DEFAULT 0,
+                created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+                updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_notebook_user ON living_notebook(user_id, subject, category);
         """)
+        try:
+            conn.execute("ALTER TABLE living_notebook ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass
 
 
 # =====================================================================
@@ -729,6 +745,246 @@ def chat():
         error_msg = str(e)
         print(f"[ERROR] Groq API: {error_msg}")
         return jsonify({"error": error_msg}), 500
+
+
+# ── Living Notebook Routes ───────────────────────────────────────────
+
+VALID_NOTEBOOK_CATEGORIES = {'Key Points', 'Formulas', 'Definitions', 'Mistakes I Made', 'Things to Revise', 'My Own Notes'}
+
+
+@app.route("/api/notebook", methods=["GET"])
+def get_notebook_entries():
+    """Retrieve all notebook entries for the logged-in user."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT id, user_id, subject, category, content, position, created_at, updated_at
+            FROM living_notebook
+            WHERE user_id=?
+            ORDER BY subject ASC, category ASC, position ASC, updated_at DESC
+        """, (user["id"],)).fetchall()
+
+    return jsonify({"entries": [dict(r) for r in rows]})
+
+
+@app.route("/api/notebook/reorder", methods=["POST"])
+def reorder_notebook_entries():
+    """Reorder notebook entries."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    data = request.get_json(force=True) or {}
+    orders = data.get("orders", [])
+
+    if not isinstance(orders, list):
+        return jsonify({"error": "Invalid order format."}), 400
+
+    with get_db() as conn:
+        for item in orders:
+            entry_id = item.get("id")
+            pos = item.get("position", 0)
+            if entry_id:
+                conn.execute(
+                    "UPDATE living_notebook SET position=? WHERE id=? AND user_id=?",
+                    (pos, entry_id, user["id"])
+                )
+
+    return jsonify({"ok": True})
+
+
+@app.route("/api/notebook/entry", methods=["POST"])
+def add_notebook_entry():
+    """Add a new notebook entry."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    data = request.get_json(force=True) or {}
+    subject = (data.get("subject") or "General").strip()[:50]
+    category = (data.get("category") or "Key Points").strip()
+    content = (data.get("content") or "").strip()
+
+    if category not in VALID_NOTEBOOK_CATEGORIES:
+        return jsonify({"error": f"Invalid category. Must be one of {list(VALID_NOTEBOOK_CATEGORIES)}"}), 400
+
+    if not content:
+        return jsonify({"error": "Content cannot be empty."}), 400
+
+    with get_db() as conn:
+        cur = conn.execute("""
+            INSERT INTO living_notebook (user_id, subject, category, content)
+            VALUES (?, ?, ?, ?)
+        """, (user["id"], subject, category, content))
+        entry_id = cur.lastrowid
+        row = conn.execute("SELECT * FROM living_notebook WHERE id=?", (entry_id,)).fetchone()
+
+    return jsonify(dict(row)), 201
+
+
+@app.route("/api/notebook/entry/<int:entry_id>", methods=["PATCH"])
+def update_notebook_entry(entry_id):
+    """Update an existing notebook entry."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    data = request.get_json(force=True) or {}
+    content = data.get("content")
+    subject = data.get("subject")
+    category = data.get("category")
+
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM living_notebook WHERE id=? AND user_id=?", (entry_id, user["id"])).fetchone()
+        if not row:
+            return jsonify({"error": "Entry not found."}), 404
+
+        fields = []
+        vals = []
+
+        if content is not None:
+            cleaned_content = str(content).strip()
+            if not cleaned_content:
+                return jsonify({"error": "Content cannot be empty."}), 400
+            fields.append("content=?")
+            vals.append(cleaned_content)
+
+        if subject is not None:
+            fields.append("subject=?")
+            vals.append(str(subject).strip()[:50] or "General")
+
+        if category is not None:
+            cleaned_cat = str(category).strip()
+            if cleaned_cat not in VALID_NOTEBOOK_CATEGORIES:
+                return jsonify({"error": "Invalid category."}), 400
+            fields.append("category=?")
+            vals.append(cleaned_cat)
+
+        if fields:
+            fields.append("updated_at=datetime('now')")
+            vals.append(entry_id)
+            conn.execute(f"UPDATE living_notebook SET {', '.join(fields)} WHERE id=?", vals)
+
+        updated = conn.execute("SELECT * FROM living_notebook WHERE id=?", (entry_id,)).fetchone()
+
+    return jsonify(dict(updated))
+
+
+@app.route("/api/notebook/entry/<int:entry_id>", methods=["DELETE"])
+def delete_notebook_entry(entry_id):
+    """Delete a notebook entry."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    with get_db() as conn:
+        row = conn.execute("SELECT id FROM living_notebook WHERE id=? AND user_id=?", (entry_id, user["id"])).fetchone()
+        if not row:
+            return jsonify({"error": "Entry not found."}), 404
+        conn.execute("DELETE FROM living_notebook WHERE id=?", (entry_id,))
+
+    return jsonify({"ok": True})
+
+
+@app.route("/api/notebook/ai_extract", methods=["POST"])
+def notebook_ai_extract():
+    """Extract key points, formulas, definitions, and mistakes from text or chat history and save to notebook."""
+    import json as _json
+    import re as _re
+
+    data = request.get_json(force=True) or {}
+    text_to_extract = (data.get("text") or "").strip()
+    model_name = data.get("model", "llama-3.3-70b-versatile")
+    default_subject = (data.get("subject") or "General").strip()
+
+    if not text_to_extract:
+        return jsonify({"error": "No content provided to extract notes from."}), 400
+
+    system_prompt = (
+        "You are an AI study assistant. Read the provided text or study notes carefully and extract important study information. "
+        "Categorize each extracted note into ONE of six categories: 'Key Points', 'Formulas', 'Definitions', 'Mistakes I Made', 'Things to Revise', or 'My Own Notes'. "
+        "Assign a suitable subject (e.g. Physics, Mathematics, Chemistry, Biology, History, English, General) for each note. "
+        "Keep each note content clear, concise, and educational. "
+        "Return ONLY a valid JSON object with the key 'items', where 'items' is an array of objects. "
+        "Each object must have 'subject', 'category', and 'content' fields. No markdown fences or extra text."
+    )
+
+    user_prompt = f"""Extract all key study notes from the following text:
+
+--- CONTENT START ---
+{text_to_extract}
+--- CONTENT END ---
+
+If default subject '{default_subject}' is appropriate, use it unless the content clearly specifies another subject (e.g., Physics, Math, Chemistry, Biology).
+Return ONLY JSON format:
+{{
+  "items": [
+    {{
+      "subject": "Physics",
+      "category": "Formulas",
+      "content": "F = m * a (Force = mass * acceleration)"
+    }}
+  ]
+}}
+"""
+
+    try:
+        client = get_groq_client()
+        target_model = resolve_groq_model(model_name)
+
+        response = client.chat.completions.create(
+            model=target_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            response_format={"type": "json_object"}
+        )
+
+        reply_text = response.choices[0].message.content.strip()
+        if "```" in reply_text:
+            reply_text = _re.sub(r"```(?:json)?\s*", "", reply_text)
+            reply_text = _re.sub(r"```\s*$", "", reply_text).strip()
+
+        parsed = _json.loads(reply_text)
+        items = parsed.get("items", [])
+
+        valid_items = []
+        uid = current_user_id()
+
+        with get_db() as conn:
+            for item in items:
+                subj = (item.get("subject") or default_subject or "General").strip()[:50]
+                cat = (item.get("category") or "Key Points").strip()
+                cnt = (item.get("content") or "").strip()
+
+                if cat not in VALID_NOTEBOOK_CATEGORIES:
+                    cat = "Key Points"
+
+                if cnt:
+                    inserted_id = None
+                    if uid:
+                        cur = conn.execute("""
+                            INSERT INTO living_notebook (user_id, subject, category, content)
+                            VALUES (?, ?, ?, ?)
+                        """, (uid, subj, cat, cnt))
+                        inserted_id = cur.lastrowid
+
+                    valid_items.append({
+                        "id": inserted_id,
+                        "subject": subj,
+                        "category": cat,
+                        "content": cnt
+                    })
+
+        return jsonify({"extracted": valid_items})
+
+    except Exception as e:
+        print(f"[ERROR] AI Extract: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 # ── Career Analyzer ───────────────────────────────────────────────────

@@ -239,7 +239,7 @@
     }
 
     .sb-header {
-      padding: 16px 14px 12px;
+      padding: 6px 12px 6px;
       flex-shrink: 0;
       border-bottom: 1px solid var(--border);
     }
@@ -250,7 +250,7 @@
       align-items: center;
       justify-content: flex-start;
       gap: 10px;
-      padding: 11px 16px;
+      padding: 8px 12px;
       background: rgba(99, 102, 241, 0.1);
       border: 1px solid rgba(99, 102, 241, 0.25);
       border-radius: var(--radius-md);
@@ -269,10 +269,10 @@
 
     /* Natural flow inside single scroll panel */
     .sb-conv-list {
-      padding: 16px 10px;
+      padding: 8px 10px 0;
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 8px;
     }
 
     .sb-conv-group {
@@ -411,13 +411,13 @@
       background: rgba(244, 63, 94, 0.15);
     }
 
-    /* Footer flow cleanly at the bottom of the single scroll panel */
+    /* Footer flows naturally below chat list with tight vertical spacing */
     .sb-footer {
-      padding: 16px 14px 24px;
+      padding: 10px 14px 14px;
       border-top: 1px solid var(--border);
       background: rgba(0, 0, 0, 0.12);
       flex-shrink: 0;
-      margin-top: auto;
+      margin-top: 0;
     }
 
     #left-sidebar-handle {
@@ -426,18 +426,38 @@
       border-left: none;
     }
 
-    /* ── RIGHT DICTIONARY SIDEBAR ── */
+    /* ── RIGHT SIDEBAR: DICTIONARY & LIVING NOTEBOOK ── */
     #dict-sidebar {
       width: 300px;
       min-width: 300px;
+      max-width: 300px;
+      flex-shrink: 0;
+      height: 100%;
+      max-height: 100%;
       background: var(--surface);
       border-left: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       position: relative;
       transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1), min-width 220ms cubic-bezier(0.4, 0, 0.2, 1), border-left-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
-      overflow: visible;
+      overflow-y: auto;
+      overflow-x: hidden;
+      box-sizing: border-box;
       z-index: 10;
+    }
+
+    #dict-sidebar::-webkit-scrollbar {
+      width: 5px;
+    }
+    #dict-sidebar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    #dict-sidebar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+    }
+    #dict-sidebar::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
     }
 
     #dict-sidebar.hidden {
@@ -447,8 +467,10 @@
       overflow: visible;
     }
 
-    #dict-sidebar.hidden .dict-header,
-    #dict-sidebar.hidden .dict-body {
+    #dict-sidebar.hidden .sidebar-section-container,
+    #dict-sidebar.hidden .sidebar-section-header,
+    #dict-sidebar.hidden #dict-section-content,
+    #dict-sidebar.hidden #nb-section-content {
       opacity: 0;
       pointer-events: none;
       visibility: hidden;
@@ -459,6 +481,134 @@
       left: -20px;
       border-radius: 12px 0 0 12px;
       border-right: none;
+    }
+
+    .sidebar-section-container {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .sidebar-section-header {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s ease;
+    }
+
+    .sidebar-section-header:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .section-toggle-icon {
+      font-size: 0.72rem;
+      color: var(--muted);
+      transition: transform 0.2s ease;
+      display: inline-block;
+    }
+
+    .section-toggle-icon.collapsed {
+      transform: rotate(-90deg);
+    }
+
+    .sidebar-section-content {
+      transition: opacity 0.2s ease;
+    }
+
+    .sidebar-section-content.collapsed {
+      display: none;
+    }
+
+    .nb-sidebar-header {
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .nb-sidebar-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nb-sidebar-title {
+      font-weight: 900;
+      font-size: 1.05rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.3px;
+      color: var(--text);
+    }
+
+    .nb-sidebar-title span {
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .nb-sidebar-cat-card {
+      background: rgba(30, 41, 59, 0.35);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .nb-sidebar-cat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 800;
+      font-size: 0.88rem;
+      color: var(--text);
+    }
+
+    .nb-reorder-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.75rem;
+      padding: 2px 4px;
+      border-radius: 3px;
+      transition: all 0.15s;
+    }
+
+    .nb-reorder-btn:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    /* AI Suggestion Bar under replies */
+    .ai-nb-suggestion {
+      margin-top: 10px;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(168, 85, 247, 0.08));
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.82rem;
+      color: var(--text);
+      animation: msgIn 0.25s ease;
+    }
+
+    .ai-nb-suggestion-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
     }
 
     .dict-header {
@@ -1891,6 +2041,270 @@
       .ce-career-rank { -webkit-text-fill-color:#1a1a2e !important; color:#1a1a2e; }
       .ce-subject-chip,.ce-stream-chip,.ce-alt-chip { border:1px solid #ccc !important; color:#333 !important; background:#f5f5f5 !important; }
     }
+
+    /* ═════════════════════════════════════════════════════
+       LIVING NOTEBOOK — Clean, Spacious & Dynamic Design
+       All classes prefixed with nb-
+       ═════════════════════════════════════════════════════ */
+    #notebook-section {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .nb-subject-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 24px;
+      background: rgba(17, 24, 39, 0.4);
+      padding: 10px 16px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .nb-subject-pills {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      flex: 1;
+    }
+
+    .nb-subject-pills::-webkit-scrollbar {
+      height: 4px;
+    }
+    .nb-subject-pills::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+
+    .nb-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nb-pill:hover {
+      border-color: var(--accent);
+      color: var(--text);
+      background: rgba(99, 102, 241, 0.1);
+    }
+
+    .nb-pill.active {
+      background: var(--accent-gradient);
+      color: #ffffff;
+      border-color: transparent;
+      box-shadow: 0 4px 12px var(--glow-accent);
+    }
+
+    .nb-grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 22px;
+      margin-bottom: 30px;
+    }
+
+    .nb-category-card {
+      background: rgba(30, 41, 59, 0.45);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .nb-category-card:hover {
+      border-color: rgba(99, 102, 241, 0.3);
+    }
+
+    .nb-category-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 12px;
+    }
+
+    .nb-category-title {
+      font-weight: 900;
+      font-size: 1.1rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nb-category-count {
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--accent);
+    }
+
+    .nb-entries-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 120px;
+    }
+
+    .nb-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      border: 1px dashed rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-md);
+      gap: 6px;
+    }
+
+    .nb-entry-card {
+      background: rgba(17, 24, 39, 0.6);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    .nb-entry-card:hover {
+      border-color: rgba(99, 102, 241, 0.4);
+      background: rgba(17, 24, 39, 0.8);
+    }
+
+    .nb-entry-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .nb-entry-subject-tag {
+      background: rgba(99, 102, 241, 0.12);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      border-radius: 10px;
+      padding: 2px 8px;
+      font-weight: 700;
+    }
+
+    .nb-entry-textarea {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 0.92rem;
+      line-height: 1.5;
+      resize: vertical;
+      outline: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .nb-entry-textarea:focus {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 4px;
+      box-shadow: 0 0 0 2px var(--accent);
+      padding: 4px 6px;
+    }
+
+    .nb-entry-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4px;
+    }
+
+    .nb-entry-status {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--accent3);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .nb-entry-status.visible {
+      opacity: 1;
+    }
+
+    .nb-entry-delete-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.88rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: all 0.15s ease;
+    }
+
+    .nb-entry-delete-btn:hover {
+      color: #f43f5e;
+      background: rgba(244, 63, 94, 0.12);
+    }
+
+    .nb-add-card {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 24px var(--glow-accent);
+      animation: msgIn 0.25s ease;
+    }
+
+    .nb-card-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+
+    .nb-form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    @media (max-width: 640px) {
+      .nb-form-grid {
+        grid-template-columns: 1fr;
+      }
+      .nb-grid-container {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 
@@ -1910,11 +2324,9 @@
     </div>
     <div class="header-right">
       <span id="header-notes-badge" style="display:none; background: rgba(82, 232, 160, 0.15); color: var(--accent3); border: 1px solid var(--accent3); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; margin-right: 10px; font-weight: bold; align-items: center; gap: 4px;">📝 Notes Mode</span>
-        <button class="btn-icon" id="header-career-btn">🧭 Career Explorer</button>
-        <button class="btn-icon" id="fullscreen-btn">📺 Fullscreen</button>
         <button class="btn-icon" id="clear-btn">🗑️ Clear</button>
         <button class="btn-icon" id="auth-btn">🚪 Login / Register</button>
-        <button class="btn-icon active" id="toggle-dict-btn" title="Toggle right sidebar" style="font-size: 1.2rem; padding: 6px 12px; line-height: 1;">☰</button>
+        <button class="btn-icon active" id="toggle-dict-btn" title="Toggle Living Notebook (Right Sidebar)">📔 Living Notebook</button>
     </div>
   </header>
 
@@ -1926,7 +2338,6 @@
     <button class="tab-btn" data-tab="quiz">❓ Quiz</button>
     <button class="tab-btn" data-tab="crosscheck">🧪 Crosscheck</button>
     <button class="tab-btn" data-tab="definitions">📖 Definitions</button>
-    <button class="tab-btn" data-tab="career">🧭 Career Explorer</button>
   </nav>
 
   <main>
@@ -2037,24 +2448,85 @@
 
     </div>
 
-      <!-- DICTIONARY SIDEBAR (right) -->
+      <!-- RIGHT SIDEBAR: DICTIONARY & LIVING NOTEBOOK -->
       <div id="dict-sidebar">
-        <button id="right-sidebar-handle" class="sidebar-handle" title="Collapse right sidebar" aria-label="Toggle right sidebar">
+        <button id="right-sidebar-handle" class="sidebar-handle" title="Collapse Right Sidebar" aria-label="Toggle right sidebar">
           <span class="handle-arrow">›</span>
         </button>
-        <div class="dict-header">
-          <div class="dict-title">📚 <span>Dictionary</span></div>
-          <div class="dict-search-row">
-            <input id="dict-input" type="text" placeholder="Type a word…" autocomplete="off" />
-            <button id="dict-search-btn" title="Look up">🔍</button>
+
+        <!-- 1. DICTIONARY SECTION (TOP) -->
+        <div class="sidebar-section-container" id="dict-section-container">
+          <div class="sidebar-section-header" id="dict-section-toggle">
+            <div class="dict-title" style="margin-bottom:0;">📚 <span>Dictionary</span></div>
+            <span class="section-toggle-icon" id="dict-toggle-icon">▼</span>
+          </div>
+
+          <div id="dict-section-content" class="sidebar-section-content">
+            <div class="dict-search-row" style="padding: 0 16px 12px;">
+              <input id="dict-input" type="text" placeholder="Type a word…" autocomplete="off" />
+              <button id="dict-search-btn" title="Look up">🔍</button>
+            </div>
+            <div class="dict-body" id="dict-body" style="padding: 0 16px 14px;">
+              <div class="dict-empty">
+                <span class="dict-empty-icon">📖</span>
+                Type any word above to instantly see its meaning, pronunciation, and an example sentence.
+              </div>
+            </div>
           </div>
         </div>
-        <div class="dict-body" id="dict-body">
-          <div class="dict-empty">
-            <span class="dict-empty-icon">📖</span>
-            Type any word above to instantly see its meaning, pronunciation, and an example sentence.
+
+        <div style="border-top: 1px solid var(--border); margin: 4px 0;"></div>
+
+        <!-- 2. LIVING NOTEBOOK SECTION (BELOW DICTIONARY) -->
+        <div class="sidebar-section-container" id="nb-section-container">
+          <div class="sidebar-section-header" id="nb-section-toggle">
+            <div class="nb-sidebar-title">📔 <span>Living Notebook</span></div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button id="nb-add-btn" class="ce-btn-sm ce-btn-sm-primary" type="button" title="Add new note" onclick="event.stopPropagation(); nbOpenAddForm();">➕ Note</button>
+              <span class="section-toggle-icon" id="nb-toggle-icon">▼</span>
+            </div>
+          </div>
+
+          <div id="nb-section-content" class="sidebar-section-content">
+            <!-- Subject Selector -->
+            <div class="nb-subject-select-row" style="padding: 0 16px 10px;">
+              <select id="nb-subject-select" class="input" style="padding: 6px 10px; font-size: 0.83rem; font-weight: 700; width: 100%;">
+                <!-- Subject options rendered dynamically -->
+              </select>
+            </div>
+
+            <!-- Add Note Collapsible Form -->
+            <div id="nb-add-form" class="nb-sidebar-add-form" style="display:none; padding: 12px 16px; background: rgba(30, 41, 59, 0.7); border-bottom: 1px solid var(--border); margin-bottom: 12px;">
+              <div style="font-weight: 800; font-size: 0.85rem; margin-bottom: 8px; color: var(--text);">➕ New Note</div>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <input type="text" id="nb-input-subject" class="input" placeholder="Subject (e.g. Physics, Math)" list="nb-subject-datalist" style="padding: 6px 10px; font-size: 0.82rem;" />
+                <datalist id="nb-subject-datalist"></datalist>
+                
+                <select id="nb-input-category" class="input" style="padding: 6px 10px; font-size: 0.82rem;">
+                  <option value="Key Points">📌 Key Points</option>
+                  <option value="Formulas">📐 Formulas</option>
+                  <option value="Definitions">📖 Definitions</option>
+                  <option value="Mistakes I Made">⚠️ Mistakes I Made</option>
+                  <option value="Things to Revise">🔄 Things to Revise</option>
+                  <option value="My Own Notes">📝 My Own Notes</option>
+                </select>
+
+                <textarea id="nb-input-content" class="input" rows="3" placeholder="Write key point, formula, definition, or mistake..." style="padding: 6px 10px; font-size: 0.83rem; resize: vertical;"></textarea>
+
+                <div style="display:flex; justify-content:flex-end; gap:6px;">
+                  <button id="nb-cancel-add-btn" class="ce-btn-sm ce-btn-sm-ghost" type="button">Cancel</button>
+                  <button id="nb-submit-add-btn" class="ce-btn-sm ce-btn-sm-primary" type="button">Save</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Sidebar Notebook Content Body -->
+            <div id="nb-sidebar-body" style="padding: 0 16px 16px; display: flex; flex-direction: column; gap: 14px;">
+              <!-- 4 Category Sections rendered dynamically -->
+            </div>
           </div>
         </div>
+
       </div>
 
   </main>
@@ -2136,11 +2608,6 @@
       </div>
       <div id="definitions-output" class="definitions-container"></div>
     </div>
-  </div>
-
-  <!-- CAREER EXPLORER SECTION -->
-  <div id="career-section" class="feature-section" style="display:none;">
-    <div class="ce-content" id="ce-content-inner"></div>
   </div>
 
   <script>
@@ -2430,42 +2897,16 @@
       async function init() {
         updateWelcomeGreeting();
 
-
-
-        // ── Fill in the settings sidebar with current values ──
-        buddyNameEl.value = cfg.buddyName === "Nova" ? "" : cfg.buddyName;
-        // ^ Put the buddy name into the name input
-
-
-
-       const rightNotesTextarea = document.getElementById("right-notes-textarea");
-      const rightNotesBadge = document.getElementById("right-notes-badge");
-
-      if (notesContent) {
-        const sizeText = (notesContent.length / 1024).toFixed(1) + " KB";
-        const text = `📝 Prioritizing notes: "${notesFileName}" (${sizeText})`;
-        if (welcomeBadge) {
-          welcomeBadge.textContent = text;
-          welcomeBadge.style.display = "block";
+        if (buddyNameEl) {
+          buddyNameEl.value = cfg.buddyName === "Nova" ? "" : cfg.buddyName;
         }
-        if (headerBadge) {
-          headerBadge.textContent = `📝 Notes Mode: ${notesFileName.slice(0, 15)}${notesFileName.length > 15 ? '...' : ''}`;
-          headerBadge.style.display = "inline-flex";
+
+        if (userInputEl) {
+          autoGrow(userInputEl);
         }
-      } else {
-        if (headerBadge) headerBadge.style.display = "none";
-        if (welcomeBadge) welcomeBadge.style.display = "none";
-      }
 
-        // Make the text input auto-resize when you type:
-        autoGrow(userInputEl);
-
-        // Check login status on init
         await checkLoginStatus();
-        
-        if (notesContent) {
-          updateNotesIndicators();
-        }
+        updateNotesIndicators();
       }
 
     document.getElementById("save-notes-page-btn")?.addEventListener("click", () => {
@@ -3782,6 +4223,11 @@
           }
 
           bubble.appendChild(actions);
+
+          // 💡 Suggest adding to Living Notebook (never saves automatically!)
+          if (typeof nbSuggestAiAddition === "function") {
+            nbSuggestAiAddition(lastUserMsg, text, bubble);
+          }
         }
       }
 
@@ -4054,6 +4500,7 @@
     const crosscheckSection = document.getElementById("crosscheck-section");
     const definitionsSection = document.getElementById("definitions-section");
     const careerSection = document.getElementById("career-section");
+    const notebookSection = document.getElementById("notebook-section");
     const crosscheckOutputEl = document.getElementById("crosscheck-output");
     const crosscheckQuestionEl = document.getElementById("crosscheck-question-input");
     const crosscheckAnswerEl = document.getElementById("crosscheck-answer-input");
@@ -4072,10 +4519,15 @@
         crosscheckSection.style.display = "none";
         definitionsSection.style.display = "none";
         careerSection.style.display = "none";
+        if (notebookSection) notebookSection.style.display = "none";
 
         // Show the selected section
         const tab = btn.dataset.tab;
         if (tab === "chat") chatArea.style.display = "flex";
+        else if (tab === "notebook") {
+          if (notebookSection) notebookSection.style.display = "flex";
+          if (typeof nbRender === 'function') nbRender();
+        }
         else if (tab === "podcasts") podcastsSection.style.display = "flex";
         else if (tab === "flashcards") flashcardsSection.style.display = "flex";
         else if (tab === "quiz") quizSection.style.display = "flex";
@@ -5894,8 +6346,462 @@
 
     })(); // end Career Explorer IIFE
 
-    init();
-    initDict();
+
+    // =====================================================================
+    //  LIVING NOTEBOOK SYSTEM (PERMANENT RIGHT SIDEBAR)
+    // =====================================================================
+    let nbEntries = [];
+    let nbSelectedSubject = "All";
+    let nbDebounceTimer = null;
+
+    const NB_CATEGORIES = ["Key Points", "Formulas", "Definitions", "Mistakes I Made", "Things to Revise", "My Own Notes"];
+    const NB_CATEGORY_ICONS = {
+      "Key Points": "📌",
+      "Formulas": "📐",
+      "Definitions": "📖",
+      "Mistakes I Made": "⚠️",
+      "Things to Revise": "🔄",
+      "My Own Notes": "📝"
+    };
+
+    function nbGetStorageKey() {
+      const uid = currentUser?.loggedIn ? currentUser.identifier : "guest";
+      return `sb_living_notebook_${uid}`;
+    }
+
+    async function nbLoadEntries() {
+      // 1. Load local cache first
+      try {
+        const rawLocal = localStorage.getItem(nbGetStorageKey()) || localStorage.getItem("sb_living_notebook");
+        if (rawLocal) {
+          nbEntries = JSON.parse(rawLocal) || [];
+        }
+      } catch (e) {
+        console.warn("Could not read local notebook entries:", e);
+      }
+
+      // 2. Fetch server entries if authenticated
+      if (currentUser?.loggedIn) {
+        try {
+          const res = await fetch("/api/notebook");
+          const data = await res.json();
+          if (res.ok && Array.isArray(data.entries)) {
+            nbEntries = data.entries;
+            nbSaveLocal();
+          }
+        } catch (err) {
+          console.error("Error fetching notebook entries from backend:", err);
+        }
+      }
+
+      nbRender();
+    }
+
+    function nbSaveLocal() {
+      try {
+        localStorage.setItem(nbGetStorageKey(), JSON.stringify(nbEntries));
+        localStorage.setItem("sb_living_notebook", JSON.stringify(nbEntries));
+      } catch (e) {
+        console.warn("Could not save notebook to localStorage:", e);
+      }
+    }
+
+    function nbGetAllSubjects() {
+      const subjectsSet = new Set(["General"]);
+      if (Array.isArray(cfg?.subjects)) {
+        cfg.subjects.forEach(s => s && subjectsSet.add(s));
+      }
+      nbEntries.forEach(e => {
+        if (e.subject && e.subject.trim()) {
+          subjectsSet.add(e.subject.trim());
+        }
+      });
+      return Array.from(subjectsSet);
+    }
+
+    function nbRenderSubjectSelect() {
+      const select = document.getElementById("nb-subject-select");
+      const datalist = document.getElementById("nb-subject-datalist");
+      if (!select) return;
+
+      const subjects = nbGetAllSubjects();
+
+      if (datalist) {
+        datalist.innerHTML = subjects.map(s => `<option value="${escapeHtml(s)}">`).join("");
+      }
+
+      let html = `<option value="All" ${nbSelectedSubject === 'All' ? 'selected' : ''}>🌐 All Subjects (${nbEntries.length})</option>`;
+      subjects.forEach(subj => {
+        const count = nbEntries.filter(e => e.subject === subj).length;
+        html += `<option value="${escapeHtml(subj)}" ${nbSelectedSubject === subj ? 'selected' : ''}>${escapeHtml(subj)} (${count})</option>`;
+      });
+      html += `<option value="__NEW__">➕ Add New Subject...</option>`;
+
+      select.innerHTML = html;
+    }
+
+    function nbRender() {
+      nbRenderSubjectSelect();
+      const container = document.getElementById("nb-sidebar-body");
+      if (!container) return;
+
+      const filteredEntries = nbSelectedSubject === "All"
+        ? nbEntries
+        : nbEntries.filter(e => e.subject === nbSelectedSubject);
+
+      container.innerHTML = "";
+
+      NB_CATEGORIES.forEach(category => {
+        const catEntries = filteredEntries.filter(e => e.category === category);
+        const icon = NB_CATEGORY_ICONS[category] || "📝";
+
+        const card = document.createElement("div");
+        card.className = "nb-sidebar-cat-card";
+
+        const header = document.createElement("div");
+        header.className = "nb-sidebar-cat-header";
+        header.innerHTML = `
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span>${icon}</span> <span>${escapeHtml(category)}</span>
+            <span style="font-size:0.72rem; opacity:0.7;">(${catEntries.length})</span>
+          </div>
+          <button class="ce-btn-sm ce-btn-sm-primary" style="padding:2px 8px; font-size:0.75rem;" type="button" onclick="nbOpenAddForm('${escapeHtml(nbSelectedSubject === 'All' ? 'General' : nbSelectedSubject)}', '${escapeHtml(category)}')">+ Add</button>
+        `;
+
+        const list = document.createElement("div");
+        list.style.cssText = "display:flex; flex-direction:column; gap:8px;";
+
+        if (catEntries.length === 0) {
+          list.innerHTML = `
+            <div style="text-align:center; padding:12px 8px; color:var(--muted); font-size:0.78rem; border:1px dashed rgba(255,255,255,0.06); border-radius:6px;">
+              No ${escapeHtml(category.toLowerCase())} added yet.
+            </div>
+          `;
+        } else {
+          catEntries.forEach((entry, idx) => {
+            const entryEl = document.createElement("div");
+            entryEl.className = "nb-entry-card";
+            entryEl.dataset.id = entry.id || "";
+
+            const entryHeader = document.createElement("div");
+            entryHeader.className = "nb-entry-header";
+            
+            entryHeader.innerHTML = `
+              <span class="nb-entry-subject-tag">${escapeHtml(entry.subject || 'General')}</span>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <button class="nb-reorder-btn" title="Move Up" onclick="nbMoveEntry(${entry.id}, -1)">▲</button>
+                <button class="nb-reorder-btn" title="Move Down" onclick="nbMoveEntry(${entry.id}, 1)">▼</button>
+                <button class="nb-entry-delete-btn" style="margin-left:4px;" title="Delete" onclick="nbDeleteEntry(${entry.id}, this)">🗑️</button>
+              </div>
+            `;
+
+            const textarea = document.createElement("textarea");
+            textarea.className = "nb-entry-textarea";
+            textarea.value = entry.content;
+            textarea.rows = Math.max(2, entry.content.split('\n').length);
+
+            textarea.addEventListener("input", function() {
+              this.style.height = "auto";
+              this.style.height = this.scrollHeight + "px";
+              nbHandleInlineEdit(entry.id, this.value, entryEl);
+            });
+
+            const footer = document.createElement("div");
+            footer.className = "nb-entry-footer";
+
+            const status = document.createElement("span");
+            status.className = "nb-entry-status";
+            status.textContent = "Saved ✓";
+
+            footer.appendChild(status);
+
+            entryEl.appendChild(entryHeader);
+            entryEl.appendChild(textarea);
+            entryEl.appendChild(footer);
+            list.appendChild(entryEl);
+          });
+        }
+
+        card.appendChild(header);
+        card.appendChild(list);
+        container.appendChild(card);
+      });
+    }
+
+    window.nbOpenAddForm = function(subject, category) {
+      if (dictSidebarEl && dictSidebarEl.classList.contains("hidden")) {
+        dictSidebarEl.classList.remove("hidden");
+        if (typeof updateRightSidebarState === "function") updateRightSidebarState();
+      }
+
+      const form = document.getElementById("nb-add-form");
+      const subjInput = document.getElementById("nb-input-subject");
+      const catSelect = document.getElementById("nb-input-category");
+      const contentInput = document.getElementById("nb-input-content");
+
+      if (form) {
+        form.style.display = "block";
+        if (subjInput) subjInput.value = subject || (nbSelectedSubject === "All" ? "General" : nbSelectedSubject);
+        if (catSelect) catSelect.value = category || "Key Points";
+        if (contentInput) {
+          if (!contentInput.value.trim()) contentInput.value = "";
+          contentInput.focus();
+        }
+      }
+    };
+
+    function nbHandleInlineEdit(entryId, newContent, entryEl) {
+      const statusEl = entryEl.querySelector(".nb-entry-status");
+      if (statusEl) {
+        statusEl.textContent = "Saving...";
+        statusEl.classList.add("visible");
+      }
+
+      const item = nbEntries.find(e => e.id === entryId || (e === entryId));
+      if (item) {
+        item.content = newContent;
+        item.updated_at = new Date().toISOString();
+      }
+
+      nbSaveLocal();
+
+      if (nbDebounceTimer) clearTimeout(nbDebounceTimer);
+      nbDebounceTimer = setTimeout(async () => {
+        if (currentUser?.loggedIn && entryId && typeof entryId === 'number') {
+          try {
+            await fetch(`/api/notebook/entry/${entryId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ content: newContent })
+            });
+          } catch (err) {
+            console.error("Error patching notebook entry:", err);
+          }
+        }
+        if (statusEl) {
+          statusEl.textContent = "Saved ✓";
+          setTimeout(() => statusEl.classList.remove("visible"), 1500);
+        }
+      }, 600);
+    }
+
+    async function nbAddEntry(subject, category, content) {
+      subject = (subject || "General").trim() || "General";
+      category = category || "Key Points";
+      content = (content || "").trim();
+
+      if (!content) return alert("Please enter content for your note.");
+
+      let newId = Date.now();
+
+      const newEntry = {
+        id: newId,
+        subject,
+        category,
+        content,
+        position: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      if (currentUser?.loggedIn) {
+        try {
+          const res = await fetch("/api/notebook/entry", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ subject, category, content })
+          });
+          const data = await res.json();
+          if (res.ok && data.id) {
+            newEntry.id = data.id;
+          }
+        } catch (err) {
+          console.error("Error creating entry on server:", err);
+        }
+      }
+
+      nbEntries.unshift(newEntry);
+      nbSaveLocal();
+      nbRender();
+
+      const form = document.getElementById("nb-add-form");
+      if (form) form.style.display = "none";
+    }
+
+    async function nbDeleteEntry(entryId, elem) {
+      if (!confirm("Delete this notebook entry?")) return;
+
+      nbEntries = nbEntries.filter(e => e.id !== entryId);
+      nbSaveLocal();
+      nbRender();
+
+      if (currentUser?.loggedIn && entryId && typeof entryId === 'number') {
+        try {
+          await fetch(`/api/notebook/entry/${entryId}`, { method: "DELETE" });
+        } catch (err) {
+          console.error("Error deleting entry from server:", err);
+        }
+      }
+    }
+
+    async function nbMoveEntry(entryId, direction) {
+      const idx = nbEntries.findIndex(e => e.id === entryId);
+      if (idx === -1) return;
+
+      const targetCategory = nbEntries[idx].category;
+      const targetSubject = nbEntries[idx].subject;
+
+      const catIndices = [];
+      nbEntries.forEach((e, i) => {
+        if (e.category === targetCategory && (nbSelectedSubject === "All" || e.subject === targetSubject)) {
+          catIndices.push(i);
+        }
+      });
+
+      const posInCat = catIndices.indexOf(idx);
+      const targetPosInCat = posInCat + direction;
+
+      if (targetPosInCat >= 0 && targetPosInCat < catIndices.length) {
+        const swapIdx = catIndices[targetPosInCat];
+        const temp = nbEntries[idx];
+        nbEntries[idx] = nbEntries[swapIdx];
+        nbEntries[swapIdx] = temp;
+
+        nbEntries.forEach((e, i) => e.position = i);
+
+        nbSaveLocal();
+        nbRender();
+
+        if (currentUser?.loggedIn) {
+          try {
+            const orders = nbEntries.map((e, i) => ({ id: e.id, position: i }));
+            await fetch("/api/notebook/reorder", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ orders })
+            });
+          } catch (err) {
+            console.error("Error sending reorder request:", err);
+          }
+        }
+      }
+    }
+
+    // AI suggestion function (never auto-saves without confirmation!)
+    function nbSuggestAiAddition(userMsg, replyText, bubbleEl) {
+      if (!replyText || isGreeting(userMsg)) return;
+
+      const suggestContainer = document.createElement("div");
+      suggestContainer.className = "ai-nb-suggestion";
+      suggestContainer.innerHTML = `
+        <span>💡 Add key points from this explanation to your Living Notebook?</span>
+        <div class="ai-nb-suggestion-actions">
+          <button class="ce-btn-sm ce-btn-sm-primary" type="button">✅ Add Note</button>
+          <button class="ce-btn-sm ce-btn-sm-ghost" type="button">✕ Dismiss</button>
+        </div>
+      `;
+
+      const addBtn = suggestContainer.querySelector(".ce-btn-sm-primary");
+      const dismissBtn = suggestContainer.querySelector(".ce-btn-sm-ghost");
+
+      dismissBtn.onclick = () => suggestContainer.remove();
+
+      addBtn.onclick = async () => {
+        addBtn.disabled = true;
+        addBtn.textContent = "⏳ Preparing...";
+
+        try {
+          const res = await fetch("/api/notebook/ai_extract", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: replyText, model: cfg.model })
+          });
+          const data = await res.json();
+          if (res.ok && data.extracted && data.extracted.length > 0) {
+            const first = data.extracted[0];
+            const contentInput = document.getElementById("nb-input-content");
+            if (contentInput) {
+              contentInput.value = first.content;
+            }
+            nbOpenAddForm(first.subject || "General", first.category || "Key Points");
+            suggestContainer.innerHTML = `<span style="color:var(--accent3); font-weight:700;">📝 Opened in Living Notebook right sidebar. Click Save to confirm!</span>`;
+            setTimeout(() => suggestContainer.remove(), 3000);
+          } else {
+            nbOpenAddForm("General", "Key Points");
+            const contentInput = document.getElementById("nb-input-content");
+            if (contentInput) contentInput.value = replyText.slice(0, 300);
+            suggestContainer.remove();
+          }
+        } catch (e) {
+          nbOpenAddForm("General", "Key Points");
+          suggestContainer.remove();
+        }
+      };
+
+      bubbleEl.appendChild(suggestContainer);
+    }
+
+    function initNotebook() {
+      const select = document.getElementById("nb-subject-select");
+      if (select) {
+        select.addEventListener("change", () => {
+          if (select.value === "__NEW__") {
+            const newSubj = prompt("Enter new subject name (e.g. Computer Science, Geography):");
+            if (newSubj && newSubj.trim()) {
+              nbSelectedSubject = newSubj.trim();
+              nbRender();
+              nbOpenAddForm(nbSelectedSubject, "Key Points");
+            } else {
+              select.value = nbSelectedSubject;
+            }
+          } else {
+            nbSelectedSubject = select.value;
+            nbRender();
+          }
+        });
+      }
+
+      document.getElementById("nb-add-btn")?.addEventListener("click", () => nbOpenAddForm());
+      document.getElementById("nb-cancel-add-btn")?.addEventListener("click", () => {
+        const form = document.getElementById("nb-add-form");
+        if (form) form.style.display = "none";
+      });
+
+      document.getElementById("nb-submit-add-btn")?.addEventListener("click", () => {
+        const subj = document.getElementById("nb-input-subject")?.value;
+        const cat = document.getElementById("nb-input-category")?.value;
+        const cnt = document.getElementById("nb-input-content")?.value;
+        nbAddEntry(subj, cat, cnt);
+      });
+
+      // Section Collapsible Handlers for Right Sidebar
+      document.getElementById("dict-section-toggle")?.addEventListener("click", () => {
+        const content = document.getElementById("dict-section-content");
+        const icon = document.getElementById("dict-toggle-icon");
+        if (content && icon) {
+          content.classList.toggle("collapsed");
+          icon.classList.toggle("collapsed");
+        }
+      });
+
+      document.getElementById("nb-section-toggle")?.addEventListener("click", () => {
+        const content = document.getElementById("nb-section-content");
+        const icon = document.getElementById("nb-toggle-icon");
+        if (content && icon) {
+          content.classList.toggle("collapsed");
+          icon.classList.toggle("collapsed");
+        }
+      });
+    }
+
+    async function initAll() {
+      await init();
+      initDict();
+      await nbLoadEntries();
+      initNotebook();
+    }
+
+    initAll();
 
   </script>
 </body>
