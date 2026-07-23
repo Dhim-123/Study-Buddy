@@ -1,45 +1,68 @@
-# Study Buddy 📚
+# 📚 Study Buddy
 
-An AI-powered study buddy for students, built with Flask + Gemini API.
+An AI-powered personal learning companion built to help students study smarter, revise faster, and learn interactively.
 
-## Quick Start (3 steps!)
+## ✨ Features
 
-### 1. Add your API key
-Open the `.env` file in this folder and replace the placeholder with your Gemini API key:
+- 🤖 AI Chat Assistant
+- 📖 Dictionary with Search History
+- 📝 Notes Management
+- 🎙️ AI Podcast Generator
+- 🃏 Flashcard Generator
+- ❓ AI Quiz Generator
+- ✅ Crosscheck & Answer Analysis
+- 🧭 Career Explorer
+- 💬 Persistent Chat History
+- 🔍 Smart Search
+- 👤 User Accounts & Personalized Buddy Name
+
+## 🎯 Purpose
+
+Study Buddy is designed to make learning more engaging by combining AI assistance with active learning tools such as quizzes, flashcards, podcasts, and career guidance in one application.
+
+## 🛠️ Tech Stack
+
+### Frontend
+- HTML5
+- CSS3
+- JavaScript
+
+### Backend
+- Python
+- Flask
+- SQLite
+
+### AI
+- Groq API
+
+## 🚀 Highlights
+
+- Persistent conversations
+- Personalized study experience
+- AI-generated revision tools
+- Interactive career guidance
+- Modern responsive interface
+
+## 📂 Project Structure
+
 ```
-GEMINI_API_KEY=your-actual-key-here
+Study-Buddy/
+├── static/
+├── templates/
+├── app.py
+├── requirements.txt
+├── study_buddy.db
+└── README.md
 ```
-> You can get a free key from [Google AI Studio](https://aistudio.google.com/apikey)
 
-### 2. Run the app
-**Double-click `run.bat`** — that's it!
+## 👨💻 Developer
 
-It will install everything automatically and start the server.
+**Aditya Ramanan**
 
-### 3. Open in browser
-Go to **http://localhost:5000** in your browser.
+Class 9 ICSE Student
+
+Built as an AI-powered educational assistant to make studying easier, smarter, and more interactive.
 
 ---
 
-## How it works
-
-- **Frontend** (`index.html`): The chat UI where you type questions
-- **Backend** (`app.py`): Flask server that talks to Google's Gemini AI
-- **Settings sidebar** (⚙️ button): Customize the system prompt to change how your buddy behaves
-
-## Customizing your buddy
-
-Click the ⚙️ **Settings** button in the top-right to:
-- Change the **system prompt** (personality, subjects, grade, etc.)
-- Change the **buddy name**
-- Toggle **subject chips**
-
-## Files
-
-| File | What it does |
-|------|-------------|
-| `index.html` | The chat interface (frontend) |
-| `app.py` | The Flask server (backend) |
-| `.env` | Your API key (keep this secret!) |
-| `requirements.txt` | Python packages needed |
-| `run.bat` | One-click launcher for Windows |
+⭐ Thank you for checking out Study Buddy!

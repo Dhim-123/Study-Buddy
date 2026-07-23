@@ -5,7 +5,7 @@
 
 Think of this file like the KITCHEN in a restaurant:
   - The customer (your browser) places an order (sends a message)
-  - The kitchen (this server) takes that order to the chef (Gemini AI)
+  - The kitchen (this server) takes that order to the chef (Groq AI)
   - The chef cooks up a response
   - The kitchen sends the food (AI reply) back to the customer
 
@@ -22,37 +22,61 @@ That's it! 🎉
 # =====================================================================
 
 import os
+import re
 import sqlite3
 import hashlib
 import secrets
 import json
 from datetime import datetime
 
-from flask import Flask, request, jsonify, send_from_directory, session
+from flask import Flask, request, jsonify, send_from_directory, session, redirect
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-import google.generativeai as genai
+from groq import Groq
 
 
 # =====================================================================
-#  STEP 2: LOAD THE SECRET API KEY
+#  STEP 2: LOAD THE SECRET GROQ API KEY & INITIALIZE GROQ CLIENT
 # =====================================================================
 
-load_dotenv()
+env_path_root = os.path.join(os.path.dirname(__file__), ".env")
+env_path_sub = os.path.join(os.path.dirname(__file__), "study_buddy", ".env")
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+if os.path.exists(env_path_root):
+    load_dotenv(env_path_root, override=True)
+elif os.path.exists(env_path_sub):
+    load_dotenv(env_path_sub, override=True)
+else:
+    load_dotenv(override=True)
 
-if not GEMINI_API_KEY:
-    print("\n[WARNING] No GEMINI_API_KEY found!")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
+if not GROQ_API_KEY:
+    print("\n[WARNING] No GROQ_API_KEY found!")
     print("   Create a file called  .env  in this folder and add:")
-    print("   GEMINI_API_KEY=your-key-here\n")
+    print("   GROQ_API_KEY=your-key-here\n")
 
-genai.configure(api_key=GEMINI_API_KEY)
+# Centralized Groq Client
+_groq_client_instance = None
+
+def get_groq_client():
+    key = (os.getenv("GROQ_API_KEY") or "").strip()
+    if not key:
+        raise ValueError("Server has no GROQ API key configured. Please set GROQ_API_KEY in .env.")
+    return Groq(api_key=key)
+
+DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+
+def resolve_groq_model(model_name: str) -> str:
+    return model_name if model_name else DEFAULT_GROQ_MODEL
 
 SYSTEM_PROMPT = os.getenv(
     "STUDY_BUDDY_SYSTEM_PROMPT",
-    "You are a helpful study buddy. Answer clearly, gently, and in simple language for a student. Always answer questions step by step. Number each step and include a short hint for the next step when appropriate."
+    "You are a helpful, friendly study buddy for students. "
+    "Answer clearly and in simple language. "
+    "Adapt your style to the question: be conversational for casual messages, "
+    "and thorough for educational topics."
 )
 
 
@@ -92,7 +116,7 @@ def init_db():
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 identifier  TEXT    NOT NULL UNIQUE,
                 password_hash TEXT  NOT NULL,
-                buddy_name  TEXT    NOT NULL DEFAULT 'Nova',
+                buddy_name  TEXT    NOT NULL DEFAULT 'Max',
                 created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
             );
 
@@ -161,8 +185,8 @@ def index():
 
 @app.route("/career-dreamer")
 def career_dreamer():
-    """Serve the Career Dreamer session wrapper."""
-    return send_from_directory(".", "career-dreamer.html")
+    """Redirect legacy Career Dreamer requests to home."""
+    return redirect("/")
 
 
 # ── Auth Routes ──────────────────────────────────────────────────────
@@ -191,7 +215,7 @@ def auth_register():
     data = request.get_json(force=True)
     identifier = (data.get("identifier") or "").strip()
     password   = (data.get("password")   or "").strip()
-    buddy_name = (data.get("buddyName")  or "Nova").strip()
+    buddy_name = (data.get("buddyName")  or "Max").strip()
 
     if not identifier or not password:
         return jsonify({"error": "Identifier and password are required."}), 400
@@ -250,12 +274,35 @@ def auth_update_buddy():
         return jsonify({"error": "Not logged in."}), 401
     
     data = request.get_json(force=True)
-    buddy_name = (data.get("buddyName") or "Nova").strip()
+    buddy_name = (data.get("buddyName") or "Max").strip()
     
     with get_db() as conn:
         conn.execute("UPDATE users SET buddy_name=? WHERE id=?", (buddy_name, uid))
         
     return jsonify({"ok": True, "buddyName": buddy_name})
+
+
+@app.route("/api/auth/update_username", methods=["POST"])
+def auth_update_username():
+    """Update username (identifier) for logged in user."""
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not logged in."}), 401
+    
+    data = request.get_json(force=True)
+    new_identifier = (data.get("identifier") or "").strip()
+    
+    if not new_identifier:
+        return jsonify({"error": "Username cannot be empty."}), 400
+        
+    with get_db() as conn:
+        existing = conn.execute("SELECT id FROM users WHERE identifier=?", (new_identifier,)).fetchone()
+        if existing and existing["id"] != uid:
+            return jsonify({"error": "Username already taken."}), 400
+            
+        conn.execute("UPDATE users SET identifier=? WHERE id=?", (new_identifier, uid))
+        
+    return jsonify({"ok": True, "identifier": new_identifier})
 
 
 @app.route("/api/auth/logout", methods=["POST"])
@@ -460,6 +507,42 @@ def clear_history():
     return jsonify({"ok": True})
 
 
+GREETING_TITLE_RE = re.compile(
+    r"^\s*(hi+|hello+|hey+|howdy|good\s*(morning|afternoon|evening|night)|greetings|what'?s\s*up|sup|yo|hiya|thanks?|thank\s*you|ty|thx|cheers|ok(ay)?|great|awesome|cool|nice|bye+|goodbye|see\s*ya|later|cya|got\s*it|sure|no\s*problem|np|alright|ok+)\s*[!?.]*\s*$",
+    re.IGNORECASE
+)
+
+def generate_smart_title(client, user_msg: str, target_model: str) -> str:
+    """Generate a short natural title (3-5 words) using Groq AI from conversation prompt.
+    Returns empty string if user_msg is a pure greeting/smalltalk.
+    """
+    cleaned = (user_msg or "").strip()
+    if not cleaned or GREETING_TITLE_RE.match(cleaned):
+        return ""
+
+    try:
+        title_prompt = (
+            "Generate a short, concise, natural title (3 to 5 words maximum) for a study chat conversation "
+            "based on the following student query. "
+            "Return ONLY the title text as plain text. Do not use quotes, punctuation, markdown, or prefix words.\n\n"
+            f"Student Query: {cleaned}"
+        )
+        res = client.chat.completions.create(
+            model=target_model,
+            messages=[{"role": "user", "content": title_prompt}],
+            max_tokens=15,
+            temperature=0.3
+        )
+        raw_title = (res.choices[0].message.content or "").strip()
+        raw_title = re.sub(r'^[#*"`\'\s]+|[#*"`\'\s\.]+$', '', raw_title)
+        if raw_title and len(raw_title) <= 50:
+            return raw_title
+    except Exception as e:
+        print(f"[WARNING] Failed to generate smart AI title: {e}")
+
+    return cleaned[:40].strip()
+
+
 # ── Chat (main AI endpoint) ───────────────────────────────────────────
 
 @app.route("/api/chat", methods=["POST"])
@@ -476,7 +559,7 @@ def chat():
 
     endpoint   = request.path.split("/")[-1]
     messages   = data.get("messages", [])
-    model_name = data.get("model", "gemini-2.0-flash")
+    model_name = data.get("model", "llama-3.3-70b-versatile")
     notes      = data.get("notes", "")
     conv_id    = data.get("conversation_id")   # may be None (first message)
     system_prompt = SYSTEM_PROMPT
@@ -494,10 +577,20 @@ def chat():
     if endpoint == "chat":
         system_prompt = (
             f"{system_prompt}\n\n"
-            "Always answer in numbered steps. Each step should contain only one idea and only one part. "
-            "Provide only the first step in each response, never multiple steps at once. "
-            "End by telling the user to say 'move to next step' to continue, or 'hint for next step', "
-            "or 'explain in simpler terms'."
+            "RESPONSE STYLE RULES — follow these precisely:\n\n"
+            "1. GREETINGS & SMALL TALK (e.g. 'Hello', 'Hi', 'Thanks', 'Good morning', 'Bye'):\n"
+            "   → Reply warmly in ONE or TWO natural sentences. Stop there.\n"
+            "   → Do NOT add steps, numbered lists, or any instruction like 'say move to next step'.\n\n"
+            "2. EDUCATIONAL QUESTIONS (explanations, definitions, history, biology, literature, geography):\n"
+            "   → Explain clearly and naturally. Use prose or bullet points as appropriate.\n"
+            "   → Do NOT add 'move to next step', 'hint for next step', or any similar prompt.\n\n"
+            "3. MATHS / PHYSICS / CHEMISTRY PROBLEM-SOLVING (equations, calculations, derivations, proofs):\n"
+            "   → Work through the solution in numbered steps labelled exactly: 'Step 1:', 'Step 2:', etc.\n"
+            "   → Show full working. One idea per step.\n"
+            "   → Do NOT instruct the user to type anything — the UI handles progression.\n\n"
+            "IMPORTANT: Never end any response with 'say move to next step', "
+            "'type move to next step', 'hint for next step', or 'explain in simpler terms' "
+            "as a prompt for the user. The interface provides those buttons automatically."
         )
     elif endpoint == "podcast":
         system_prompt = (
@@ -550,33 +643,32 @@ def chat():
             f"answer the question and fulfill the request fully using your general knowledge."
         )
 
-    if not GEMINI_API_KEY:
-        return jsonify({
-            "error": "Server has no API key configured. Ask the owner to add GEMINI_API_KEY to the .env file."
-        }), 500
 
     if not messages:
         return jsonify({"error": "No messages provided."}), 400
 
-    # --- Talk to Gemini AI ---
+    # --- Talk to Groq AI ---
     try:
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            system_instruction=system_prompt,
-        )
+        client = get_groq_client()
+        target_model = resolve_groq_model(model_name)
 
-        gemini_history = []
-        for msg in messages[:-1]:
-            role = "model" if msg["role"] == "assistant" else "user"
-            gemini_history.append({
+        groq_messages = []
+        if system_prompt:
+            groq_messages.append({"role": "system", "content": system_prompt})
+
+        for msg in messages:
+            role = "assistant" if msg["role"] == "assistant" else "user"
+            groq_messages.append({
                 "role": role,
-                "parts": [msg["content"]]
+                "content": msg["content"]
             })
 
-        chat_session = model.start_chat(history=gemini_history)
-        last_message = messages[-1]["content"]
-        response = chat_session.send_message(last_message)
-        reply = response.text
+        response = client.chat.completions.create(
+            model=target_model,
+            messages=groq_messages,
+        )
+        reply = response.choices[0].message.content
+        last_message = messages[-1]["content"] if messages else ""
 
         # --- Persist to DB (only for /api/chat when user is logged in) ---
         if endpoint == "chat":
@@ -585,14 +677,20 @@ def chat():
                 with get_db() as conn:
                     # Auto-create conversation if no conv_id given
                     if not conv_id:
-                        title = last_message[:60].strip()
+                        smart_title = generate_smart_title(client, last_message, target_model)
+                        title = smart_title if smart_title else "New Chat"
                         cur = conn.execute(
                             "INSERT INTO conversations (user_id, title) VALUES (?,?)",
                             (uid, title)
                         )
                         conv_id = cur.lastrowid
-                        # Save all prior messages too (first send has history=[user_msg])
-                        # Since this is first message, just save user msg + reply below
+                    else:
+                        # If conversation exists and title is still default 'New Chat', attempt smart title generation on first meaningful question
+                        conv_row = conn.execute("SELECT id, title FROM conversations WHERE id=? AND user_id=?", (conv_id, uid)).fetchone()
+                        if conv_row and conv_row["title"] == "New Chat":
+                            smart_title = generate_smart_title(client, last_message, target_model)
+                            if smart_title:
+                                conn.execute("UPDATE conversations SET title=?, updated_at=datetime('now') WHERE id=?", (smart_title, conv_id))
 
                     # Always verify conv belongs to user before writing
                     conv_row = conn.execute(
@@ -629,7 +727,7 @@ def chat():
 
     except Exception as e:
         error_msg = str(e)
-        print(f"[ERROR] Gemini API: {error_msg}")
+        print(f"[ERROR] Groq API: {error_msg}")
         return jsonify({"error": error_msg}), 500
 
 
@@ -641,12 +739,10 @@ def career_analyze():
     import json as _json
     import re as _re
 
-    if not GEMINI_API_KEY:
-        return jsonify({"error": "No API key configured."}), 200
 
     data = request.get_json(force=True)
     answers    = data.get("answers", {})
-    model_name = data.get("model", "gemini-2.5-flash")
+    model_name = data.get("model", "llama-3.3-70b-versatile")
 
     if not answers:
         return jsonify({"error": "No assessment answers provided."}), 200
@@ -701,14 +797,21 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no code 
 Provide exactly 5 careers ranked by compatibility (highest first, range 60\u201398). Be specific, realistic, and use the Indian education context."""
 
     try:
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            system_instruction=career_system_prompt,
-        )
-        chat_session = model.start_chat(history=[])
-        response = chat_session.send_message(prompt)
+        client = get_groq_client()
+        target_model = resolve_groq_model(model_name)
 
-        reply_text = response.text.strip()
+        groq_messages = [
+            {"role": "system", "content": career_system_prompt},
+            {"role": "user", "content": prompt}
+        ]
+
+        response = client.chat.completions.create(
+            model=target_model,
+            messages=groq_messages,
+            response_format={"type": "json_object"}
+        )
+
+        reply_text = response.choices[0].message.content.strip()
 
         if "```" in reply_text:
             reply_text = _re.sub(r"```(?:json)?\s*", "", reply_text)

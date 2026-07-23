@@ -154,25 +154,276 @@
       position: relative;
     }
 
-    /* ── SIDEBAR (Settings Panel) ── */
+    /* ── SIDEBAR HANDLE BASE STYLES ── */
+    .sidebar-handle {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 48px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 55;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      transition: all 220ms cubic-bezier(0.4, 0, 0.2, 1);
+      outline: none;
+      user-select: none;
+      padding: 0;
+    }
+
+    .sidebar-handle:hover {
+      background: var(--surface-hover, #282a3d);
+      color: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 4px 16px rgba(82, 232, 160, 0.3);
+      filter: brightness(1.15);
+    }
+
+    .sidebar-handle .handle-arrow {
+      font-size: 14px;
+      font-weight: bold;
+      line-height: 1;
+      transition: transform 220ms ease;
+    }
+
+    /* ── SIDEBAR (Unified Single Scroll Panel) ── */
     #sidebar {
-      width: 340px;
-      min-width: 340px;
+      width: 290px;
+      min-width: 290px;
       background: var(--surface);
       border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
+      height: 100%;
       position: relative;
-      transition: all 0.15s ease-out;
-      overflow: visible;
-      z-index: 5;
+      transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1), min-width 220ms cubic-bezier(0.4, 0, 0.2, 1), border-right-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
+      overflow-y: auto;
+      overflow-x: hidden;
+      z-index: 10;
+    }
+
+    /* Custom smooth thin scrollbar for single-panel #sidebar */
+    #sidebar::-webkit-scrollbar {
+      width: 5px;
+    }
+    #sidebar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    #sidebar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+    }
+    #sidebar::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
     }
 
     #sidebar.hidden {
       min-width: 0;
       width: 0;
       border-right-width: 0;
+      overflow: visible;
+    }
+
+    #sidebar.hidden .sb-header,
+    #sidebar.hidden .sb-conv-list,
+    #sidebar.hidden .sb-footer {
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+      transition: opacity 150ms ease;
+    }
+
+    .sb-header {
+      padding: 16px 14px 12px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    #new-chat-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 10px;
+      padding: 11px 16px;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      border-radius: var(--radius-md);
+      color: var(--text);
+      font-weight: 700;
+      font-size: 0.92rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    #new-chat-btn:hover {
+      background: rgba(99, 102, 241, 0.22);
+      border-color: var(--accent);
+      box-shadow: 0 0 12px var(--glow-accent);
+    }
+
+    /* Natural flow inside single scroll panel */
+    .sb-conv-list {
+      padding: 16px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .sb-conv-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .sb-conv-group-title {
+      font-size: 0.73rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.9px;
+      color: var(--muted);
+      padding: 6px 12px 4px;
+      user-select: none;
+    }
+
+    .sb-conv-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      color: var(--text);
+      font-size: 0.89rem;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.15s ease, color 0.15s ease;
+      user-select: none;
+    }
+
+    .sb-conv-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .sb-conv-item.active {
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    .sb-conv-icon {
+      font-size: 0.95rem;
+      opacity: 0.8;
+      flex-shrink: 0;
+    }
+
+    .sb-conv-title {
+      flex: 1;
+      white-space: nowrap;
       overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 0.89rem;
+      line-height: 1.3;
+    }
+
+    .sb-conv-menu-btn {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 1.15rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+
+    .sb-conv-item:hover .sb-conv-menu-btn,
+    .sb-conv-item.active .sb-conv-menu-btn,
+    .sb-conv-menu-btn.active-menu {
+      opacity: 1;
+    }
+
+    .sb-conv-menu-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--text);
+    }
+
+    /* Hidden ⋮ Menu Dropdown — Styled with Study Buddy palette */
+    .sb-conv-menu-dropdown {
+      position: absolute;
+      right: 10px;
+      top: 38px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      display: none;
+      flex-direction: column;
+      padding: 5px;
+      z-index: 100;
+      min-width: 150px;
+      animation: menuFadeIn 0.15s ease both;
+    }
+
+    @keyframes menuFadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .sb-conv-menu-dropdown.show {
+      display: flex;
+    }
+
+    .sb-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 0.83rem;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      transition: background 0.12s ease;
+    }
+
+    .sb-menu-item:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .sb-menu-item.danger {
+      color: #f43f5e;
+    }
+
+    .sb-menu-item.danger:hover {
+      background: rgba(244, 63, 94, 0.15);
+    }
+
+    /* Footer flow cleanly at the bottom of the single scroll panel */
+    .sb-footer {
+      padding: 16px 14px 24px;
+      border-top: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.12);
+      flex-shrink: 0;
+      margin-top: auto;
+    }
+
+    #left-sidebar-handle {
+      right: -20px;
+      border-radius: 0 12px 12px 0;
+      border-left: none;
     }
 
     /* ── RIGHT DICTIONARY SIDEBAR ── */
@@ -183,15 +434,31 @@
       border-left: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      transition: all 0.15s ease-out;
-      overflow: hidden;
-      z-index: 5;
+      position: relative;
+      transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1), min-width 220ms cubic-bezier(0.4, 0, 0.2, 1), border-left-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: visible;
+      z-index: 10;
     }
 
     #dict-sidebar.hidden {
       min-width: 0;
       width: 0;
       border-left-width: 0;
+      overflow: visible;
+    }
+
+    #dict-sidebar.hidden .dict-header,
+    #dict-sidebar.hidden .dict-body {
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+      transition: opacity 150ms ease;
+    }
+
+    #right-sidebar-handle {
+      left: -20px;
+      border-radius: 12px 0 0 12px;
+      border-right: none;
     }
 
     .dict-header {
@@ -1643,7 +1910,7 @@
     </div>
     <div class="header-right">
       <span id="header-notes-badge" style="display:none; background: rgba(82, 232, 160, 0.15); color: var(--accent3); border: 1px solid var(--accent3); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; margin-right: 10px; font-weight: bold; align-items: center; gap: 4px;">📝 Notes Mode</span>
-        <a href="/career-dreamer" class="btn-icon" style="text-decoration: none; color: inherit;">🎯 Career Dreamer</a>
+        <button class="btn-icon" id="header-career-btn">🧭 Career Explorer</button>
         <button class="btn-icon" id="fullscreen-btn">📺 Fullscreen</button>
         <button class="btn-icon" id="clear-btn">🗑️ Clear</button>
         <button class="btn-icon" id="auth-btn">🚪 Login / Register</button>
@@ -1666,9 +1933,12 @@
 
     <!-- SETTINGS SIDEBAR -->
       <div id="sidebar">
+        <button id="left-sidebar-handle" class="sidebar-handle" title="Collapse left sidebar" aria-label="Toggle left sidebar">
+          <span class="handle-arrow">‹</span>
+        </button>
         <div class="sb-header">
-          <button id="new-chat-btn" class="btn-primary" style="display:flex; align-items:center; gap:8px; justify-content:center;">
-            <span>✏️</span> New Chat
+          <button id="new-chat-btn" class="sb-new-chat-btn" type="button">
+            <span style="font-size:1.1rem; line-height:1;">➕</span> New Chat
           </button>
         </div>
         <div class="sb-conv-list" id="conv-list">
@@ -1695,30 +1965,43 @@
               <button class="btn-icon" id="auth-toggle-btn" type="button" style="flex:1; justify-content:center;">Register</button>
             </div>
             <div id="auth-message" class="hint-box" style="display:none; margin-top: 10px;"></div>
-            <button class="btn-icon" id="logout-btn" type="button" style="width:100%; margin-top:15px; background:rgba(244,63,94,0.1); border-color:rgba(244,63,94,0.2); color:#f43f5e; display:none;">🚪 Log out</button>
+            
           </div>
           
-          <div class="field logged-in-only" style="display:none;">
-            <label>Buddy Name</label>
-            <input type="text" class="input" id="buddy-name-input" placeholder="Enter name" />
+          <!-- SETTINGS & NOTES PANEL -->
+          <div class="settings-notes-panel" style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
+            <!-- Compact Focus Timer (Occupies minimal vertical space under Chat History) -->
+            <div class="compact-focus-bar" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: var(--radius-md); padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <span style="font-weight: 800; font-size: 0.82rem; color: var(--text); display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                ⏱️ Focus <span id="timer-display" style="font-family: monospace; font-size: 0.95rem; font-weight: 900; color: #ffffff;">25:00</span>
+              </span>
+              <div style="display: flex; gap: 4px; align-items: center;">
+                <button id="timer-toggle-btn" class="btn-primary" type="button" style="padding: 3px 10px; font-size: 0.75rem; font-weight: 700;">▶ Start</button>
+                <button id="timer-reset-btn" class="btn-icon" type="button" style="padding: 3px 6px; font-size: 0.75rem;" title="Reset Timer">🔄</button>
+              </div>
+            </div>
+
+            <!-- 2. Clean Horizontal Divider -->
+            <hr style="border: none; border-top: 1px solid var(--border); margin: 4px 0;" />
+
+            <!-- 3. Buddy Name -->
+            <div class="field logged-in-only" style="display:none;">
+              <label style="font-weight: 700; font-size: 0.85rem; margin-bottom: 4px; display: block;">Buddy Name</label>
+              <input type="text" class="input" id="buddy-name-input" placeholder="Enter buddy name" style="padding: 6px 10px; font-size: 0.85rem;" />
+            </div>
+
+            <!-- 4. Username -->
+            <div class="field logged-in-only" style="display:none;">
+              <label style="font-weight: 700; font-size: 0.85rem; margin-bottom: 4px; display: block;">Username</label>
+              <input type="text" class="input" id="username-input" placeholder="Enter username" style="padding: 6px 10px; font-size: 0.85rem;" />
+            </div>
+
+            <!-- 5. Save Settings Button -->
+            <button class="btn-primary logged-in-only" id="save-settings-btn" style="display:none; width: 100%; padding: 8px 12px; font-weight: 700;">💾 Save Settings</button>
+
+            <!-- 6. Logout Button -->
+            <button class="btn-icon logged-in-only" id="logout-btn" type="button" style="width:100%; background:rgba(244,63,94,0.1); border-color:rgba(244,63,94,0.2); color:#f43f5e; display:none; padding: 8px 12px;">🚪 Log out</button>
           </div>
-
-          <div class="field logged-in-only" style="display:none;">
-            <label>Upload Notes <small>(optional)</small></label>
-            <input type="file" class="input file-input" id="upload-input-sidebar" accept=".txt" />
-            <button class="btn-primary" id="upload-sidebar-btn">📤 Upload Notes</button>
-            <div id="upload-sidebar-status" class="hint-box" style="display:none; margin-top: 8px;"></div>
-          </div>
-
-
-
-        <button class="btn-primary" id="save-settings-btn">💾 Save Settings</button>
-
-        <div class="hint-box" style="margin-top:auto">
-          <strong>🛠️ For developers</strong>
-          Edit the <code style="color:var(--accent3)">CONFIG</code> object at the top of
-          the &lt;script&gt; tag to change defaults. No build step needed!
-        </div>
 
       </div>
     </div>
@@ -1732,9 +2015,8 @@
       <div id="messages">
         <div id="welcome">
           <div class="welcome-icon">🤖</div>
-          <h2 id="welcome-title">Hey! I'm your Study Buddy</h2>
-          <p id="welcome-desc">Ask me anything about your syllabus. I'll explain, quiz you, or help you revise —
-            whatever you need.</p>
+          <h2 id="welcome-title">Hi! 👋 I'm Max.</h2>
+          <p id="welcome-desc">Please set your username in Settings. What would you like to learn today?</p>
           <div class="upload-card">
             <strong>Upload your study notes</strong>
             <p>Upload a plain text file (.txt). Once uploaded, the AI will prioritize these notes and answer questions mainly with respect to them.</p>
@@ -1757,6 +2039,9 @@
 
       <!-- DICTIONARY SIDEBAR (right) -->
       <div id="dict-sidebar">
+        <button id="right-sidebar-handle" class="sidebar-handle" title="Collapse right sidebar" aria-label="Toggle right sidebar">
+          <span class="handle-arrow">›</span>
+        </button>
         <div class="dict-header">
           <div class="dict-title">📚 <span>Dictionary</span></div>
           <div class="dict-search-row">
@@ -1871,13 +2156,13 @@
       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       1. You type a message in the chat box
       2. JavaScript sends your message to our Python server (app.py)
-      3. The server sends it to Google's Gemini AI
-      4. Gemini thinks and sends back a reply
+      3. The server sends it to Groq's Llama AI
+      4. Groq thinks and sends back a reply
       5. JavaScript shows the reply in a chat bubble
     
       Think of it like texting:
         You → Phone → Cell Tower → Friend → Cell Tower → Phone → You
-        You → Browser → Server → Gemini AI → Server → Browser → You
+        You → Browser → Server → Groq AI → Server → Browser → You
     */
 
 
@@ -1909,9 +2194,8 @@
         "What's photosynthesis in simple terms?",
       ],
 
-      // 🤖 AI model — this tells the server which Gemini model to use
-      //    "gemini-2.5-flash" is the correct model for your API key.
-      model: "gemini-2.5-flash",
+      // 🤖 AI model — this tells the server which Groq model to use
+      model: "llama-3.3-70b-versatile",
     };
 
 
@@ -2003,6 +2287,34 @@
     const welcomeDesc = document.getElementById("welcome-desc");
     // ^ The description text under the welcome heading
 
+    function updateWelcomeGreeting() {
+      const welcomeTitle = document.getElementById("welcome-title");
+      const welcomeDesc = document.getElementById("welcome-desc");
+      if (!welcomeTitle || !welcomeDesc) return;
+
+      let buddyName = (currentUser?.buddyName || cfg?.buddyName || "").trim();
+      if (!buddyName || buddyName === "Nova") {
+        buddyName = "Max";
+      }
+
+      if (!currentUser?.loggedIn) {
+        welcomeTitle.textContent = `Hi! 👋 I'm ${buddyName}.`;
+        welcomeDesc.textContent = "What would you like to learn today?";
+        return;
+      }
+
+      const rawId = (currentUser.identifier || "").trim();
+      const isEmail = rawId.includes("@");
+
+      if (!isEmail && rawId.length > 0) {
+        welcomeTitle.textContent = `Hi ${rawId}! 👋 I'm ${buddyName}.`;
+        welcomeDesc.textContent = "What would you like to learn today?";
+      } else {
+        welcomeTitle.textContent = `Hi! 👋 I'm ${buddyName}.`;
+        welcomeDesc.textContent = "Please set your username in Settings. What would you like to learn today?";
+      }
+    }
+
 
       // =====================================================================
       //  AUTH STATE & UI UPDATES
@@ -2019,6 +2331,10 @@
         const buddyNameField = document.getElementById("buddy-name-field");
         const authBuddyNameInput = document.getElementById("auth-buddy-name");
         const loggedInOnlyElements = document.querySelectorAll(".logged-in-only");
+        const authIdentifierInput = document.getElementById("auth-identifier");
+        const authPasswordInput = document.getElementById("auth-password");
+
+        const usernameInputEl = document.getElementById("username-input");
 
         authMessage.style.display = "none";
         authBuddyNameInput.value = currentUser?.buddyName || "Nova";
@@ -2035,7 +2351,11 @@
           buddyNameField.style.display = "none";
 
           loggedInOnlyElements.forEach(el => el.style.display = "block");
-          buddyNameEl.value = currentUser.buddyName;
+          if (buddyNameEl) buddyNameEl.value = currentUser.buddyName || "Nova";
+          if (usernameInputEl) usernameInputEl.value = currentUser.identifier || "";
+          cfg.buddyName = currentUser.buddyName || "Nova";
+          localStorage.setItem("sb_config", JSON.stringify({ buddyName: cfg.buddyName }));
+          updateWelcomeGreeting();
         } else {
           authModeTitle.textContent = "Login";
           authSubmitBtn.style.display = "block";
@@ -2047,7 +2367,8 @@
           logoutBtn.style.display = "none";
 
           loggedInOnlyElements.forEach(el => el.style.display = "none");
-          buddyNameEl.value = "";
+          if (buddyNameEl) buddyNameEl.value = "";
+          if (usernameInputEl) usernameInputEl.value = "";
         }
 
         if (authCard.dataset.mode === "register") {
@@ -2107,11 +2428,7 @@
       // =====================================================================
 
       async function init() {
-        // Set the welcome message to use the buddy's name:
-        welcomeTitle.textContent = `Hi! I'm (Enter name ex: Nova, Max, etc.)`;
-        // ^ Template literal (backticks ` `) let us insert variables with ${...}
-
-        welcomeDesc.textContent = "Ask me anything about your syllabus. I'll explain, quiz you, or help you revise — whatever you need!";
+        updateWelcomeGreeting();
 
 
 
@@ -2120,6 +2437,25 @@
         // ^ Put the buddy name into the name input
 
 
+
+       const rightNotesTextarea = document.getElementById("right-notes-textarea");
+      const rightNotesBadge = document.getElementById("right-notes-badge");
+
+      if (notesContent) {
+        const sizeText = (notesContent.length / 1024).toFixed(1) + " KB";
+        const text = `📝 Prioritizing notes: "${notesFileName}" (${sizeText})`;
+        if (welcomeBadge) {
+          welcomeBadge.textContent = text;
+          welcomeBadge.style.display = "block";
+        }
+        if (headerBadge) {
+          headerBadge.textContent = `📝 Notes Mode: ${notesFileName.slice(0, 15)}${notesFileName.length > 15 ? '...' : ''}`;
+          headerBadge.style.display = "inline-flex";
+        }
+      } else {
+        if (headerBadge) headerBadge.style.display = "none";
+        if (welcomeBadge) welcomeBadge.style.display = "none";
+      }
 
         // Make the text input auto-resize when you type:
         autoGrow(userInputEl);
@@ -2131,6 +2467,27 @@
           updateNotesIndicators();
         }
       }
+
+    document.getElementById("save-notes-page-btn")?.addEventListener("click", () => {
+      const notesPageTextarea = document.getElementById("notes-page-textarea");
+      if (notesPageTextarea) {
+        notesContent = notesPageTextarea.value;
+        notesFileName = notesContent ? "Pasted Notes" : "";
+        if (notesContent) {
+          localStorage.setItem("sb_notes_content", notesContent);
+          localStorage.setItem("sb_notes_filename", notesFileName);
+        } else {
+          localStorage.removeItem("sb_notes_content");
+          localStorage.removeItem("sb_notes_filename");
+        }
+        updateNotesIndicators();
+        
+        const btn = document.getElementById("save-notes-page-btn");
+        const origText = btn.textContent;
+        btn.textContent = "✅ Saved!";
+        setTimeout(() => { btn.textContent = origText; }, 2000);
+      }
+    });
 
     function showUploadStatus(el, message, isError = false) {
       el.textContent = message;
@@ -2162,6 +2519,11 @@
         if (welcomeBadge) {
           welcomeBadge.style.display = "none";
         }
+      }
+      
+      const notesPageTextarea = document.getElementById("notes-page-textarea");
+      if (notesPageTextarea) {
+        notesPageTextarea.value = notesContent || "";
       }
     }
 
@@ -2198,17 +2560,11 @@
         updateNotesIndicators();
 
         // Sync inputs if applicable
-        const welcomeInput = document.getElementById("upload-input-welcome");
-        const sidebarInput = document.getElementById("upload-input-sidebar");
         const welcomeStatus = document.getElementById("upload-welcome-status");
-        const sidebarStatusEl = document.getElementById("upload-sidebar-status");
-        
+        const rightStatus = document.getElementById("upload-right-status");
         const successMsg = `Loaded notes: ${notesFileName}`;
-        if (statusEl === welcomeStatus && sidebarStatusEl) {
-          showUploadStatus(sidebarStatusEl, successMsg);
-        } else if (statusEl === sidebarStatusEl && welcomeStatus) {
-          showUploadStatus(welcomeStatus, successMsg);
-        }
+        if (welcomeStatus) showUploadStatus(welcomeStatus, successMsg);
+        if (rightStatus) showUploadStatus(rightStatus, successMsg);
       };
       reader.onerror = () => {
         showUploadStatus(statusEl, "Unable to read the file.", true);
@@ -2218,42 +2574,102 @@
 
 
     // =====================================================================
-    //  SAVE SETTINGS — What happens when you type in buddyNameEl
+    //  SAVE SETTINGS — Save Buddy Name and Username Together
     // =====================================================================
 
-    document.getElementById("save-settings-btn").style.display = "none";
-    let buddyUpdateTimeout = null;
-    
-    buddyNameEl.addEventListener("input", () => {
-      cfg.buddyName = buddyNameEl.value.trim() || "Nova";
+    const saveSettingsBtn = document.getElementById("save-settings-btn");
+    const usernameInputEl = document.getElementById("username-input");
 
-      localStorage.setItem("sb_config", JSON.stringify({
-        buddyName: cfg.buddyName,
-      }));
+    if (saveSettingsBtn) {
+      saveSettingsBtn.addEventListener("click", async () => {
+        const newBuddyName = buddyNameEl ? (buddyNameEl.value.trim() || "Nova") : "Nova";
+        const newUsername = usernameInputEl ? usernameInputEl.value.trim() : "";
 
-      welcomeTitle.textContent = `Hey! I'm ${cfg.buddyName} 👋`;
+        cfg.buddyName = newBuddyName;
+        localStorage.setItem("sb_config", JSON.stringify({
+          buddyName: cfg.buddyName,
+        }));
+        updateWelcomeGreeting();
 
-      history = [];
+        let ok = true;
 
-      const saved = document.createElement("span");
-      saved.style.cssText = "color:var(--accent3);font-weight:800;font-size:.85rem";
-      saved.textContent = "✅ Saved!";
-      const btn = document.getElementById("save-settings-btn");
-      btn.after(saved);
+        if (typeof currentUser !== 'undefined' && currentUser?.loggedIn) {
+          currentUser.buddyName = newBuddyName;
+          
+          // 1. Save Buddy Name
+          try {
+            await fetch("/api/auth/update_buddy", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ buddyName: newBuddyName })
+            });
+          } catch(err) {
+            console.error("Error updating buddy name:", err);
+            ok = false;
+          }
 
-      setTimeout(() => saved.remove(), 2000);
-      
-      if (typeof currentUser !== 'undefined' && currentUser?.loggedIn) {
-        currentUser.buddyName = cfg.buddyName;
-        clearTimeout(buddyUpdateTimeout);
-        buddyUpdateTimeout = setTimeout(() => {
-          fetch("/api/auth/update_buddy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ buddyName: cfg.buddyName })
-          }).catch(err => console.error(err));
-        }, 500);
+          // 2. Save Username
+          if (newUsername && newUsername !== currentUser.identifier) {
+            try {
+              const res = await fetch("/api/auth/update_username", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ identifier: newUsername })
+              });
+              const data = await res.json();
+              if (res.ok) {
+                currentUser.identifier = data.identifier;
+                authIdentifierInput.value = data.identifier;
+                localStorage.setItem("sb_auth_identifier", data.identifier);
+                updateAuthUI();
+              } else {
+                showAuthMessage(data.error || "Failed to update username", true);
+                ok = false;
+              }
+            } catch(err) {
+              console.error("Error updating username:", err);
+              ok = false;
+            }
+          }
+        }
+
+        const saved = document.createElement("span");
+        saved.style.cssText = "color:var(--accent3);font-weight:800;font-size:.85rem;margin-left:8px;";
+        saved.textContent = ok ? "✅ Saved!" : "⚠️ Save error";
+        if (!ok) saved.style.color = "#f43f5e";
+        saveSettingsBtn.after(saved);
+        setTimeout(() => saved.remove(), 2000);
+      });
+    }
+
+    document.getElementById("right-save-notes-btn")?.addEventListener("click", () => {
+      const ta = document.getElementById("right-notes-textarea");
+      if (ta) {
+        notesContent = ta.value.trim();
+        notesFileName = notesContent ? "Pasted Notes" : "";
+        if (notesContent) {
+          localStorage.setItem("sb_notes_content", notesContent);
+          localStorage.setItem("sb_notes_filename", notesFileName);
+        } else {
+          localStorage.removeItem("sb_notes_content");
+          localStorage.removeItem("sb_notes_filename");
+        }
+        updateNotesIndicators();
+        const btn = document.getElementById("right-save-notes-btn");
+        const origText = btn.textContent;
+        btn.textContent = "✅ Saved!";
+        setTimeout(() => { btn.textContent = origText; }, 2000);
       }
+    });
+
+    document.getElementById("right-clear-notes-btn")?.addEventListener("click", () => {
+      notesContent = "";
+      notesFileName = "";
+      localStorage.removeItem("sb_notes_content");
+      localStorage.removeItem("sb_notes_filename");
+      const ta = document.getElementById("right-notes-textarea");
+      if (ta) ta.value = "";
+      updateNotesIndicators();
     });
 
 
@@ -2278,22 +2694,49 @@
     const dictSidebarEl = document.getElementById("dict-sidebar");
     const settingsBtn = document.getElementById("settings-btn");
 
+    const leftSidebarHandle = document.getElementById("left-sidebar-handle");
+    const rightSidebarHandle = document.getElementById("right-sidebar-handle");
+
     function updateLeftSidebarState() {
       const isHidden = sidebarEl.classList.contains("hidden");
-      if (isHidden) {
-        toggleSidebarBtn.classList.remove("active");
-      } else {
-        toggleSidebarBtn.classList.add("active");
+      if (toggleSidebarBtn) {
+        if (isHidden) toggleSidebarBtn.classList.remove("active");
+        else toggleSidebarBtn.classList.add("active");
+      }
+      if (leftSidebarHandle) {
+        const arrow = leftSidebarHandle.querySelector(".handle-arrow");
+        if (arrow) arrow.textContent = isHidden ? "›" : "‹";
+        leftSidebarHandle.setAttribute("title", isHidden ? "Expand left sidebar" : "Collapse left sidebar");
       }
     }
 
     function updateRightSidebarState() {
       const isHidden = dictSidebarEl.classList.contains("hidden");
-      if (isHidden) {
-        toggleDictBtn.classList.remove("active");
-      } else {
-        toggleDictBtn.classList.add("active");
+      if (toggleDictBtn) {
+        if (isHidden) toggleDictBtn.classList.remove("active");
+        else toggleDictBtn.classList.add("active");
       }
+      if (rightSidebarHandle) {
+        const arrow = rightSidebarHandle.querySelector(".handle-arrow");
+        if (arrow) arrow.textContent = isHidden ? "‹" : "›";
+        rightSidebarHandle.setAttribute("title", isHidden ? "Expand right sidebar" : "Collapse right sidebar");
+      }
+    }
+
+    if (leftSidebarHandle) {
+      leftSidebarHandle.onclick = (e) => {
+        e.stopPropagation();
+        sidebarEl.classList.toggle("hidden");
+        updateLeftSidebarState();
+      };
+    }
+
+    if (rightSidebarHandle) {
+      rightSidebarHandle.onclick = (e) => {
+        e.stopPropagation();
+        dictSidebarEl.classList.toggle("hidden");
+        updateRightSidebarState();
+      };
     }
 
     if (toggleSidebarBtn) {
@@ -2418,6 +2861,11 @@
         }
       });
 
+      document.getElementById("header-career-btn")?.addEventListener("click", () => {
+        const careerTab = [...document.querySelectorAll(".tab-btn")].find(b => b.dataset.tab === "career");
+        if (careerTab) careerTab.click();
+      });
+
       // Handle Logout
       logoutBtn.addEventListener("click", async () => {
         try {
@@ -2468,81 +2916,121 @@
         const listEl = document.getElementById("conv-list");
         if (!listEl) return;
         listEl.innerHTML = "";
-        
+
         const pinned = conversations.filter(c => c.pinned);
         const unpinned = conversations.filter(c => !c.pinned && !c.archived);
         const archived = conversations.filter(c => c.archived);
-        
+
         function renderGroup(title, convs) {
           if (convs.length === 0) return;
           const group = document.createElement("div");
           group.className = "sb-conv-group";
-          
+
           if (title) {
             const groupTitle = document.createElement("div");
             groupTitle.className = "sb-conv-group-title";
             groupTitle.textContent = title;
             group.appendChild(groupTitle);
           }
-          
+
           convs.forEach(c => {
             const item = document.createElement("div");
             item.className = `sb-conv-item ${c.id === currentConvId ? 'active' : ''}`;
+            item.title = c.title;
             item.onclick = (e) => {
               if (isLoading) return;
               if (e.target.closest('.sb-conv-menu-btn') || e.target.closest('.sb-conv-menu-dropdown')) return;
               sbLoadMessages(c.id);
             };
-            
+
+            const iconEl = document.createElement("span");
+            iconEl.className = "sb-conv-icon";
+            iconEl.textContent = c.pinned ? "📌" : (c.archived ? "🗄️" : "💬");
+
             const titleEl = document.createElement("div");
             titleEl.className = "sb-conv-title";
-            titleEl.textContent = (c.pinned ? "📌 " : "") + c.title;
-            
+            titleEl.textContent = c.title || "New Chat";
+
             const menuBtn = document.createElement("button");
             menuBtn.className = "sb-conv-menu-btn";
             menuBtn.innerHTML = "⋮";
-            
+            menuBtn.type = "button";
+            menuBtn.title = "Chat options";
+
             const menuDropdown = document.createElement("div");
             menuDropdown.className = "sb-conv-menu-dropdown";
-            
+
             const renameBtn = document.createElement("button");
             renameBtn.className = "sb-menu-item";
-            renameBtn.textContent = "✏️ Rename";
-            renameBtn.onclick = () => sbRenameConversation(c.id, c.title);
-            
+            renameBtn.type = "button";
+            renameBtn.innerHTML = "✏️ <span>Rename</span>";
+            renameBtn.onclick = (e) => {
+              e.stopPropagation();
+              menuDropdown.classList.remove('show');
+              sbRenameConversation(c.id, c.title);
+            };
+
             const pinBtn = document.createElement("button");
             pinBtn.className = "sb-menu-item";
-            pinBtn.textContent = c.pinned ? "📌 Unpin" : "📌 Pin";
-            pinBtn.onclick = () => sbUpdateConversation(c.id, { pinned: !c.pinned });
-            
+            pinBtn.type = "button";
+            pinBtn.innerHTML = c.pinned ? "📌 <span>Unpin</span>" : "📌 <span>Pin</span>";
+            pinBtn.onclick = (e) => {
+              e.stopPropagation();
+              menuDropdown.classList.remove('show');
+              sbUpdateConversation(c.id, { pinned: !c.pinned });
+            };
+
             const archiveBtn = document.createElement("button");
             archiveBtn.className = "sb-menu-item";
-            archiveBtn.textContent = c.archived ? "📤 Unarchive" : "🗄️ Archive";
-            archiveBtn.onclick = () => sbUpdateConversation(c.id, { archived: !c.archived });
-            
+            archiveBtn.type = "button";
+            archiveBtn.innerHTML = c.archived ? "📤 <span>Unarchive</span>" : "🗄️ <span>Archive</span>";
+            archiveBtn.onclick = (e) => {
+              e.stopPropagation();
+              menuDropdown.classList.remove('show');
+              sbUpdateConversation(c.id, { archived: !c.archived });
+            };
+
             const shareBtn = document.createElement("button");
             shareBtn.className = "sb-menu-item";
-            shareBtn.textContent = "🔗 Share";
-            shareBtn.onclick = () => { alert("Sharing link copied to clipboard!"); };
-            
+            shareBtn.type = "button";
+            shareBtn.innerHTML = "🔗 <span>Share</span>";
+            shareBtn.onclick = (e) => {
+              e.stopPropagation();
+              menuDropdown.classList.remove('show');
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(window.location.href);
+              }
+              alert("Chat link copied to clipboard!");
+            };
+
             const deleteBtn = document.createElement("button");
             deleteBtn.className = "sb-menu-item danger";
-            deleteBtn.textContent = "🗑️ Delete";
-            deleteBtn.onclick = () => sbDeleteConversation(c.id);
-            
+            deleteBtn.type = "button";
+            deleteBtn.innerHTML = "🗑️ <span>Delete</span>";
+            deleteBtn.onclick = (e) => {
+              e.stopPropagation();
+              menuDropdown.classList.remove('show');
+              sbDeleteConversation(c.id);
+            };
+
             menuDropdown.appendChild(renameBtn);
             menuDropdown.appendChild(pinBtn);
             menuDropdown.appendChild(archiveBtn);
             menuDropdown.appendChild(shareBtn);
             menuDropdown.appendChild(deleteBtn);
-            
+
             menuBtn.onclick = (e) => {
               e.stopPropagation();
-              // Close others
+              const isShowing = menuDropdown.classList.contains('show');
               document.querySelectorAll('.sb-conv-menu-dropdown.show').forEach(el => el.classList.remove('show'));
-              menuDropdown.classList.toggle('show');
+              document.querySelectorAll('.sb-conv-menu-btn.active-menu').forEach(el => el.classList.remove('active-menu'));
+              if (!isShowing) {
+                menuDropdown.classList.add('show');
+                menuBtn.classList.add('active-menu');
+              }
             };
-            
+
+            item.appendChild(iconEl);
             item.appendChild(titleEl);
             item.appendChild(menuBtn);
             item.appendChild(menuDropdown);
@@ -2550,7 +3038,7 @@
           });
           listEl.appendChild(group);
         }
-        
+
         renderGroup("Pinned", pinned);
         renderGroup(pinned.length > 0 ? "Recent" : "", unpinned);
         renderGroup("Archived", archived);
@@ -2560,6 +3048,7 @@
       document.addEventListener("click", (e) => {
         if (!e.target.closest(".sb-conv-menu-btn") && !e.target.closest(".sb-conv-menu-dropdown")) {
           document.querySelectorAll('.sb-conv-menu-dropdown.show').forEach(el => el.classList.remove('show'));
+          document.querySelectorAll('.sb-conv-menu-btn.active-menu').forEach(el => el.classList.remove('active-menu'));
         }
       });
 
@@ -2599,6 +3088,7 @@
         currentConvId = null;
         history = [];
         messagesEl.innerHTML = "";
+        updateWelcomeGreeting();
         messagesEl.appendChild(welcomeEl);
         welcomeEl.style.display = "flex";
         sbRenderConversations();
@@ -2670,11 +3160,66 @@
       readTextFile(inputEl, statusEl);
     };
 
-    document.getElementById("upload-sidebar-btn").onclick = () => {
-      const inputEl = document.getElementById("upload-input-sidebar");
-      const statusEl = document.getElementById("upload-sidebar-status");
-      readTextFile(inputEl, statusEl);
-    };
+
+    // =====================================================================
+    //  QUICK FOCUS TIMER (Pomodoro Widget in Sidebar)
+    // =====================================================================
+    let timerSeconds = 25 * 60;
+    let timerInterval = null;
+    let timerRunning = false;
+
+    const timerDisplay = document.getElementById("timer-display");
+    const timerToggleBtn = document.getElementById("timer-toggle-btn");
+    const timerResetBtn = document.getElementById("timer-reset-btn");
+
+    function updateTimerDisplay() {
+      if (!timerDisplay) return;
+      const mins = Math.floor(timerSeconds / 60);
+      const secs = timerSeconds % 60;
+      timerDisplay.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    if (timerToggleBtn) {
+      timerToggleBtn.onclick = () => {
+        if (timerRunning) {
+          clearInterval(timerInterval);
+          timerRunning = false;
+          timerToggleBtn.textContent = "▶ Start";
+          timerToggleBtn.style.background = "";
+        } else {
+          timerRunning = true;
+          timerToggleBtn.textContent = "⏸ Pause";
+          timerToggleBtn.style.background = "var(--accent2)";
+          timerInterval = setInterval(() => {
+            if (timerSeconds > 0) {
+              timerSeconds--;
+              updateTimerDisplay();
+            } else {
+              clearInterval(timerInterval);
+              timerRunning = false;
+              timerToggleBtn.textContent = "▶ Start";
+              timerToggleBtn.style.background = "";
+              alert("🎉 Focus session complete! Take a 5-minute break.");
+              timerSeconds = 25 * 60;
+              updateTimerDisplay();
+            }
+          }, 1000);
+        }
+      };
+    }
+
+    if (timerResetBtn) {
+      timerResetBtn.onclick = () => {
+        clearInterval(timerInterval);
+        timerRunning = false;
+        timerSeconds = 25 * 60;
+        if (timerToggleBtn) {
+          timerToggleBtn.textContent = "▶ Start";
+          timerToggleBtn.style.background = "";
+        }
+        updateTimerDisplay();
+      };
+    }
 
 
     // =====================================================================
@@ -2714,13 +3259,8 @@
 
         const welcomeInput = document.getElementById("upload-input-welcome");
         if (welcomeInput) welcomeInput.value = "";
-        const sidebarInput = document.getElementById("upload-input-sidebar");
-        if (sidebarInput) sidebarInput.value = "";
-
         const welcomeStatus = document.getElementById("upload-welcome-status");
         if (welcomeStatus) welcomeStatus.style.display = "none";
-        const sidebarStatusEl = document.getElementById("upload-sidebar-status");
-        if (sidebarStatusEl) sidebarStatusEl.style.display = "none";
       };
 
 
@@ -2862,7 +3402,7 @@
         //
         //   body = the actual data we're sending:
         //     - messages: the full conversation history
-        //     - model: which Gemini model to use
+        //     - model: which Groq model to use
         //
         //   JSON.stringify() converts our JavaScript object into a JSON string
         //   because fetch can only send text, not raw objects.
@@ -2895,8 +3435,9 @@
         // ^ Get the reply text from the server's response.
         //   If for some reason it's empty, show "(no response)".
 
-        appendBubble("ai", reply);
-        // ^ Show the AI's reply as a chat bubble on the left side
+        appendBubble("ai", reply, text);
+        // ^ Show the AI's reply as a chat bubble on the left side.
+        //   'text' is passed so the bubble can decide which action buttons to show.
 
         history.push({ role: "assistant", content: reply });
         // ^ Add the AI's reply to our conversation history
@@ -3059,7 +3600,57 @@
       return parts;
     }
 
-    function appendBubble(role, text) {
+    // =====================================================================
+    //  RESPONSE MODE DETECTION
+    //  Three modes decide which action buttons appear under an AI reply:
+    //    "greeting"    → no buttons (small talk / acknowledgements)
+    //    "educational" → Podcast + Quiz (+ Crosscheck if Math/Physics)
+    //    "step_by_step"→ all of the above + Next Step + Hint + Simpler
+    // =====================================================================
+
+    // Mode 1 detector — user's message is a greeting or small talk.
+    // Checks the USER message (not the reply) because we want to suppress
+    // ALL buttons even if the AI's polite reply accidentally contains a
+    // number-like character.
+    const GREETING_RE = /^\s*(hi+|hello+|hey+|howdy|good\s*(morning|afternoon|evening|night)|greetings|what'?s\s*up|sup|yo|hiya|thanks?|thank\s*you|ty|thx|cheers|ok(ay)?|great|awesome|cool|nice|bye+|goodbye|see\s*ya|later|cya|got\s*it|sure|no\s*problem|np|alright|ok+)\s*[!?.]*\s*$/i;
+
+    function isGreeting(userMsg) {
+      return GREETING_RE.test((userMsg || "").trim());
+    }
+
+    // Mode 3 detector — reply contains explicit "Step N:" walkthrough labels.
+    // Deliberately strict: only matches "Step 1:" / "Step 2:" etc.
+    // Plain numbered lists in educational answers (1. 2. 3.) do NOT qualify.
+    function isMultiStep(text) {
+      const stepMatches = text.match(/(?:^|\n)\s*step\s*\d+\s*[:\-\.]/gi);
+      return !!(stepMatches && stepMatches.length >= 2);
+    }
+
+    // Crosscheck subject gating — Mathematics or Physics context ONLY.
+    const MATH_PHYS_USER_RE = new RegExp(
+      "\\b(math|mathematics|physics|algebra|geometry|trigonometry|calculus|mechanics|thermodynamics|" +
+      "newton|ohm|faraday|coulomb|kepler|archimedes|" +
+      "derivative|integral|differentiat|integrat|solve|calculate|compute|evaluate|simplify|" +
+      "force|velocity|acceleration|momentum|torque|friction|" +
+      "voltage|resistance|wavelength|frequency|amplitude|capacitor|resistor|circuit)\\b|" +
+      "law\\s+of|second\\s+law|third\\s+law|first\\s+law",
+      "i"
+    );
+
+    // AI REPLY: strict check — unambiguous Math/Physics problem-solving notation in response.
+    const MATH_PHYS_REPLY_RE = new RegExp(
+      "\\bderivative\\b|\\bintegral\\b|\\bsolve\\s+for\\b|\\bproof\\b|\\bderive\\b|" +
+      "\\bF\\s*=\\s*m|\\bE\\s*=\\s*m|\\bv\\s*=\\s*u|\\ba\\s*=|" +
+      "\\bsin\\b|\\bcos\\b|\\btan\\b|\\btheta\\b|" +
+      "\\b\\d+x\\b|\\b\\d+y\\b|\\bx\\^|\\bx²|\\bx³",
+      "i"
+    );
+
+    function isMathPhysics(userMsg, replyText) {
+      return MATH_PHYS_USER_RE.test(userMsg || "") || MATH_PHYS_REPLY_RE.test(replyText || "");
+    }
+
+    function appendBubble(role, text, lastUserMsg) {
       // Create the outer container for the message:
       const msg = document.createElement("div");
       msg.className = `msg ${role}`;
@@ -3107,82 +3698,93 @@
         bubble.innerHTML = renderMarkdown(text);
       }
 
+      // ── Action buttons (AI replies only) ─────────────────────────────
       if (role === "ai") {
-        const actions = document.createElement("div");
-        actions.className = "bubble-actions";
+        // Determine response mode
+        const greeting    = isGreeting(lastUserMsg);
+        const stepByStep  = isMultiStep(text);
+        const mathPhysics = isMathPhysics(lastUserMsg, text);
 
-        const podcastBtn = document.createElement("button");
-        podcastBtn.className = "step-btn secondary";
-        podcastBtn.type = "button";
-        podcastBtn.textContent = "🎧 Podcast";
-        podcastBtn.onclick = () => {
-          if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
-          generatePodcast("", true);
-        };
+        // Mode 1 — greeting/small talk: show no buttons at all
+        if (greeting) {
+          // intentionally empty — keep the reply clean
+        } else {
+          // Modes 2 & 3 both show Podcast and Quiz
+          const actions = document.createElement("div");
+          actions.className = "bubble-actions";
 
-        const flashBtn = document.createElement("button");
-        flashBtn.className = "step-btn secondary";
-        flashBtn.type = "button";
-        flashBtn.textContent = "🎯 Flashcards";
-        flashBtn.onclick = () => {
-          if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
-          generateFlashcardsFromAnswer(text);
-        };
+          // 🎧 Podcast — always shown for educational + step-by-step
+          const podcastBtn = document.createElement("button");
+          podcastBtn.className = "step-btn secondary";
+          podcastBtn.type = "button";
+          podcastBtn.textContent = "🎧 Podcast";
+          podcastBtn.onclick = () => {
+            if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
+            generatePodcast("", true);
+          };
+          actions.appendChild(podcastBtn);
 
-        const quizBtn = document.createElement("button");
-        quizBtn.className = "step-btn secondary";
-        quizBtn.type = "button";
-        quizBtn.textContent = "❓ Quiz";
-        quizBtn.onclick = () => {
-          if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
-          generateQuizFromAnswer(text);
-        };
+          // ❓ Quiz — always shown for educational + step-by-step
+          const quizBtn = document.createElement("button");
+          quizBtn.className = "step-btn secondary";
+          quizBtn.type = "button";
+          quizBtn.textContent = "❓ Quiz";
+          quizBtn.onclick = () => {
+            if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
+            generateQuizFromAnswer(text);
+          };
+          actions.appendChild(quizBtn);
 
-        const crosscheckBtn = document.createElement("button");
-        crosscheckBtn.className = "step-btn secondary";
-        crosscheckBtn.type = "button";
-        crosscheckBtn.textContent = "🧪 Crosscheck";
-        crosscheckBtn.onclick = () => {
-          if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
-          generateCrosscheck(text);
-        };
+          // ✅ Crosscheck — Math/Physics only (both modes 2 and 3)
+          if (mathPhysics) {
+            const crosscheckBtn = document.createElement("button");
+            crosscheckBtn.className = "step-btn secondary";
+            crosscheckBtn.type = "button";
+            crosscheckBtn.textContent = "✅ Crosscheck";
+            crosscheckBtn.onclick = () => {
+              if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
+              generateCrosscheck(text);
+            };
+            actions.appendChild(crosscheckBtn);
+          }
 
-        const hintNextBtn = document.createElement("button");
-        hintNextBtn.className = "step-btn secondary";
-        hintNextBtn.type = "button";
-        hintNextBtn.textContent = "💡 Hint for next step";
-        hintNextBtn.onclick = () => {
-          if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
-          sendMessage(`Hint for the next step based on the previous assistant answer:\n\n${text}`);
-        };
+          // Mode 3 only — step-by-step progression controls
+          if (stepByStep) {
+            const moveNextBtn = document.createElement("button");
+            moveNextBtn.className = "step-btn secondary";
+            moveNextBtn.type = "button";
+            moveNextBtn.textContent = "➡️ Next Step";
+            moveNextBtn.onclick = () => {
+              if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
+              sendMessage(`Continue with the next step of the solution based on the previous assistant answer:\n\n${text}`);
+            };
+            actions.appendChild(moveNextBtn);
 
-        const moveNextBtn = document.createElement("button");
-        moveNextBtn.className = "step-btn secondary";
-        moveNextBtn.type = "button";
-        moveNextBtn.textContent = "➡️ Move to next step";
-        moveNextBtn.onclick = () => {
-          if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
-          sendMessage(`Move to the next step based on the previous assistant answer:\n\n${text}`);
-        };
+            const hintBtn = document.createElement("button");
+            hintBtn.className = "step-btn secondary";
+            hintBtn.type = "button";
+            hintBtn.textContent = "💡 Hint for Next Step";
+            hintBtn.onclick = () => {
+              if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
+              sendMessage(`Give me a hint for the next step based on the previous assistant answer:\n\n${text}`);
+            };
+            actions.appendChild(hintBtn);
 
-        const simplerBtn = document.createElement("button");
-        simplerBtn.className = "step-btn secondary";
-        simplerBtn.type = "button";
-        simplerBtn.textContent = "🔁 Re-explain in simpler terms";
-        simplerBtn.onclick = () => {
-          if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
-          sendMessage(`Re-explain the previous assistant answer in simpler terms:\n\n${text}`);
-        };
+            const simplerBtn = document.createElement("button");
+            simplerBtn.className = "step-btn secondary";
+            simplerBtn.type = "button";
+            simplerBtn.textContent = "🔍 Explain Simpler";
+            simplerBtn.onclick = () => {
+              if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
+              sendMessage(`Re-explain the previous assistant answer in simpler terms:\n\n${text}`);
+            };
+            actions.appendChild(simplerBtn);
+          }
 
-        actions.appendChild(podcastBtn);
-        actions.appendChild(flashBtn);
-        actions.appendChild(quizBtn);
-        actions.appendChild(crosscheckBtn);
-        actions.appendChild(hintNextBtn);
-        actions.appendChild(moveNextBtn);
-        actions.appendChild(simplerBtn);
-        bubble.appendChild(actions);
+          bubble.appendChild(actions);
+        }
       }
+
       // ^ renderMarkdown() converts plain text into formatted HTML.
       //   For example, **bold** becomes <strong>bold</strong>.
       //   We use innerHTML (not textContent) because we want the HTML to render.
@@ -3496,9 +4098,9 @@
       return lastUserMessage ? lastUserMessage.content.trim() : "";
     }
 
-    function resolveFeaturePrompt(rawInput) {
+    function resolveFeaturePrompt(rawInput, fallbackText) {
       const cleaned = rawInput.trim();
-      return cleaned || getLatestUserPrompt();
+      return cleaned || fallbackText;
     }
 
     function buildMessagesWithPrompt(prompt) {
@@ -3636,6 +4238,7 @@
         flashcardsSection.style.display = "none";
         quizSection.style.display = "none";
         crosscheckSection.style.display = "flex";
+        notesSection.style.display = "none";
       }
 
       crosscheckOutputEl.innerHTML = `<div style="display:flex; align-items:center; gap:10px; min-height:120px;"><div class="loading-spinner"></div> Checking your answer...</div>`;
@@ -3645,7 +4248,6 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: buildMessagesWithPrompt(prompt),
             messages: buildMessagesWithPrompt(prompt),
             model: cfg.model,
             notes: notesContent,
@@ -3673,6 +4275,7 @@
         flashcardsSection.style.display = "none";
         quizSection.style.display = "none";
         crosscheckSection.style.display = "none";
+        notesSection.style.display = "none";
       }
 
       const output = document.getElementById("podcast-output");
@@ -3992,7 +4595,7 @@
 
     document.getElementById("generate-flashcard-btn").addEventListener("click", async () => {
       const rawInput = document.getElementById("flashcard-input").value;
-      const prompt = resolveFeaturePrompt(rawInput);
+      const prompt = resolveFeaturePrompt(rawInput, "Generate flashcards covering the entire conversation.");
       if (!prompt) {
         alert("Ask a question in the chat first or type a topic.");
         return;
@@ -4060,7 +4663,7 @@
 
     document.getElementById("generate-quiz-btn").addEventListener("click", async () => {
       const rawInput = document.getElementById("quiz-input").value;
-      const prompt = resolveFeaturePrompt(rawInput);
+      const prompt = resolveFeaturePrompt(rawInput, "Generate a quiz covering the entire conversation.");
       if (!prompt) {
         alert("Ask a question in the chat first or type a topic.");
         return;
@@ -4749,7 +5352,7 @@
               <p class="ce-hero-subtitle">AI-powered career guidance for Grade 9–10 ICSE students. Answer 30 personalised questions and discover your ideal career path.</p>
               <div class="ce-hero-badges">
                 <span class="ce-badge">🎯 8 Categories</span>
-                <span class="ce-badge">🤖 Gemini AI Analysis</span>
+                <span class="ce-badge">🤖 Groq AI Analysis</span>
                 <span class="ce-badge">📊 Top 5 Careers</span>
                 <span class="ce-badge">📄 PDF Export</span>
                 <span class="ce-badge">📝 History & Compare</span>
@@ -4990,7 +5593,7 @@
           try {
             const res = await fetch('/api/career-analyze', {
               method:'POST', headers:{'Content-Type':'application/json'},
-              body:JSON.stringify({ answers:promptAns, model:typeof cfg!=='undefined'?cfg.model:'gemini-2.5-flash' })
+              body:JSON.stringify({ answers:promptAns, model:typeof cfg!=='undefined'?cfg.model:'llama-3.3-70b-versatile' })
             });
             clearInterval(stpInt);
             if (!res.ok) { const errText=await res.text(); throw new Error('Server error '+res.status); }
