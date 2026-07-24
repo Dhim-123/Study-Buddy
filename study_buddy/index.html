@@ -159,33 +159,32 @@
       position: absolute;
       top: 50%;
       transform: translateY(-50%);
-      width: 20px;
-      height: 48px;
-      background: var(--surface);
+      width: 24px;
+      height: 56px;
+      background: #25272b;
       border: 1px solid var(--border);
       color: var(--text);
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      z-index: 55;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05);
-      transition: all 220ms cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 999;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
       outline: none;
       user-select: none;
       padding: 0;
     }
 
     .sidebar-handle:hover {
-      background: var(--surface-hover, #282a3d);
-      color: var(--accent);
+      background: var(--accent);
+      color: #ffffff;
       border-color: var(--accent);
-      box-shadow: 0 4px 16px rgba(82, 232, 160, 0.3);
-      filter: brightness(1.15);
+      box-shadow: 0 4px 18px rgba(99, 102, 241, 0.5);
     }
 
     .sidebar-handle .handle-arrow {
-      font-size: 14px;
+      font-size: 16px;
       font-weight: bold;
       line-height: 1;
       transition: transform 220ms ease;
@@ -202,23 +201,32 @@
       height: 100%;
       position: relative;
       transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1), min-width 220ms cubic-bezier(0.4, 0, 0.2, 1), border-right-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
-      overflow-y: auto;
-      overflow-x: hidden;
-      z-index: 10;
+      overflow: visible !important;
+      z-index: 100;
     }
 
-    /* Custom smooth thin scrollbar for single-panel #sidebar */
-    #sidebar::-webkit-scrollbar {
+    .sidebar-content {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+      box-sizing: border-box;
+    }
+
+    /* Custom smooth thin scrollbar for sidebar-content */
+    .sidebar-content::-webkit-scrollbar {
       width: 5px;
     }
-    #sidebar::-webkit-scrollbar-track {
+    .sidebar-content::-webkit-scrollbar-track {
       background: transparent;
     }
-    #sidebar::-webkit-scrollbar-thumb {
+    .sidebar-content::-webkit-scrollbar-thumb {
       background: rgba(255, 255, 255, 0.12);
       border-radius: 4px;
     }
-    #sidebar::-webkit-scrollbar-thumb:hover {
+    .sidebar-content::-webkit-scrollbar-thumb:hover {
       background: var(--accent);
     }
 
@@ -226,12 +234,10 @@
       min-width: 0;
       width: 0;
       border-right-width: 0;
-      overflow: visible;
+      overflow: visible !important;
     }
 
-    #sidebar.hidden .sb-header,
-    #sidebar.hidden .sb-conv-list,
-    #sidebar.hidden .sb-footer {
+    #sidebar.hidden .sidebar-content {
       opacity: 0;
       pointer-events: none;
       visibility: hidden;
@@ -421,8 +427,8 @@
     }
 
     #left-sidebar-handle {
-      right: -20px;
-      border-radius: 0 12px 12px 0;
+      right: -24px;
+      border-radius: 0 14px 14px 0;
       border-left: none;
     }
 
@@ -440,37 +446,19 @@
       flex-direction: column;
       position: relative;
       transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1), min-width 220ms cubic-bezier(0.4, 0, 0.2, 1), border-left-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
-      overflow-y: auto;
-      overflow-x: hidden;
+      overflow: visible !important;
       box-sizing: border-box;
-      z-index: 10;
-    }
-
-    #dict-sidebar::-webkit-scrollbar {
-      width: 5px;
-    }
-    #dict-sidebar::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    #dict-sidebar::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.12);
-      border-radius: 4px;
-    }
-    #dict-sidebar::-webkit-scrollbar-thumb:hover {
-      background: var(--accent);
+      z-index: 100;
     }
 
     #dict-sidebar.hidden {
       min-width: 0;
       width: 0;
       border-left-width: 0;
-      overflow: visible;
+      overflow: visible !important;
     }
 
-    #dict-sidebar.hidden .sidebar-section-container,
-    #dict-sidebar.hidden .sidebar-section-header,
-    #dict-sidebar.hidden #dict-section-content,
-    #dict-sidebar.hidden #nb-section-content {
+    #dict-sidebar.hidden .sidebar-content {
       opacity: 0;
       pointer-events: none;
       visibility: hidden;
@@ -478,8 +466,8 @@
     }
 
     #right-sidebar-handle {
-      left: -20px;
-      border-radius: 12px 0 0 12px;
+      left: -24px;
+      border-radius: 14px 0 0 14px;
       border-right: none;
     }
 
@@ -1407,6 +1395,131 @@
       padding-bottom: 40px;
     }
 
+    /* ── LEARNING DNA DASHBOARD ── */
+    .dna-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 14px;
+    }
+    .dna-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(10px);
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .dna-card:hover {
+      border-color: rgba(99, 102, 241, 0.3);
+      transform: translateY(-2px);
+    }
+    .kpi-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .kpi-icon {
+      font-size: 24px;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .kpi-info {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .kpi-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+    .kpi-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin: 2px 0;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+    .kpi-value.highlight-green {
+      color: #34d399;
+    }
+    .kpi-value.highlight-rose {
+      color: #fb7185;
+    }
+    .kpi-sub {
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .chart-container-card {
+      display: flex;
+      flex-direction: column;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .card-header h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .card-tag {
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 10px;
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      font-weight: 600;
+    }
+    .card-tag.tag-rose {
+      background: rgba(244, 63, 94, 0.15);
+      color: #fb7185;
+    }
+    .dna-mistakes-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+    .dna-mistake-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+    .dna-mistake-badge {
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(244, 63, 94, 0.15);
+      color: #f43f5e;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .dna-mistake-text {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
     .def-card {
       background: rgba(30, 41, 59, 0.55);
       border: 1px solid var(--border);
@@ -2317,16 +2430,14 @@
 
   <!-- HEADER -->
   <header>
-    <button class="btn-icon active" id="toggle-sidebar-btn" title="Toggle left sidebar" style="font-size: 1.2rem; padding: 6px 12px; line-height: 1;">☰</button>
-    <div class="logo" id="logo-toggle" title="Toggle settings sidebar">
+    <div class="logo" id="logo-toggle" title="Study Buddy">
       <div class="logo-icon">🤖</div>
       Study<span>Buddy</span>
     </div>
     <div class="header-right">
       <span id="header-notes-badge" style="display:none; background: rgba(82, 232, 160, 0.15); color: var(--accent3); border: 1px solid var(--accent3); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; margin-right: 10px; font-weight: bold; align-items: center; gap: 4px;">📝 Notes Mode</span>
-        <button class="btn-icon" id="clear-btn">🗑️ Clear</button>
-        <button class="btn-icon" id="auth-btn">🚪 Login / Register</button>
-        <button class="btn-icon active" id="toggle-dict-btn" title="Toggle Living Notebook (Right Sidebar)">📔 Living Notebook</button>
+      <button class="btn-icon" id="clear-btn">🗑️ Clear</button>
+      <button class="btn-icon" id="auth-btn">🚪 Login / Register</button>
     </div>
   </header>
 
@@ -2347,73 +2458,80 @@
         <button id="left-sidebar-handle" class="sidebar-handle" title="Collapse left sidebar" aria-label="Toggle left sidebar">
           <span class="handle-arrow">‹</span>
         </button>
-        <div class="sb-header">
-          <button id="new-chat-btn" class="sb-new-chat-btn" type="button">
-            <span style="font-size:1.1rem; line-height:1;">➕</span> New Chat
-          </button>
-        </div>
-        <div class="sb-conv-list" id="conv-list">
-          <!-- Conversations injected here -->
-        </div>
-        <div class="sb-footer">
-
-          <div class="auth-card" id="auth-card">
-            <h3 id="auth-mode-title">Login</h3>
-            <div class="field">
-              <label for="auth-identifier">Email or Mobile</label>
-              <input type="text" class="input" id="auth-identifier" placeholder="email@example.com or +91XXXXXXXXXX" />
-            </div>
-            <div class="field" style="margin-top: 10px;">
-              <label for="auth-password">Password</label>
-              <input type="password" class="input" id="auth-password" placeholder="Minimum 6 characters" />
-            </div>
-            <div class="field" id="buddy-name-field" style="margin-top: 10px; display: none;">
-              <label for="auth-buddy-name">Buddy Name <small>(for new accounts)</small></label>
-              <input type="text" class="input" id="auth-buddy-name" placeholder="Enter name" />
-            </div>
-            <div style="display:flex; gap:10px; margin-top:15px;">
-              <button class="btn-primary" id="auth-submit-btn" style="flex:1;">Login</button>
-              <button class="btn-icon" id="auth-toggle-btn" type="button" style="flex:1; justify-content:center;">Register</button>
-            </div>
-            <div id="auth-message" class="hint-box" style="display:none; margin-top: 10px;"></div>
-            
+        <div class="sidebar-content">
+          <div class="sb-header">
+            <button id="new-chat-btn" class="sb-new-chat-btn" type="button">
+              <span style="font-size:1.1rem; line-height:1;">➕</span> New Chat
+            </button>
           </div>
-          
-          <!-- SETTINGS & NOTES PANEL -->
-          <div class="settings-notes-panel" style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
-            <!-- Compact Focus Timer (Occupies minimal vertical space under Chat History) -->
-            <div class="compact-focus-bar" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: var(--radius-md); padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-              <span style="font-weight: 800; font-size: 0.82rem; color: var(--text); display: flex; align-items: center; gap: 6px; white-space: nowrap;">
-                ⏱️ Focus <span id="timer-display" style="font-family: monospace; font-size: 0.95rem; font-weight: 900; color: #ffffff;">25:00</span>
-              </span>
-              <div style="display: flex; gap: 4px; align-items: center;">
-                <button id="timer-toggle-btn" class="btn-primary" type="button" style="padding: 3px 10px; font-size: 0.75rem; font-weight: 700;">▶ Start</button>
-                <button id="timer-reset-btn" class="btn-icon" type="button" style="padding: 3px 6px; font-size: 0.75rem;" title="Reset Timer">🔄</button>
+          <div class="sb-conv-list" id="conv-list">
+            <!-- Conversations injected here -->
+          </div>
+          <div class="sb-footer">
+
+            <div class="auth-card" id="auth-card">
+              <h3 id="auth-mode-title">Login</h3>
+              <div class="field">
+                <label for="auth-identifier">Email or Mobile</label>
+                <input type="text" class="input" id="auth-identifier" placeholder="email@example.com or +91XXXXXXXXXX" />
               </div>
+              <div class="field" style="margin-top: 10px;">
+                <label for="auth-password">Password</label>
+                <input type="password" class="input" id="auth-password" placeholder="Minimum 6 characters" />
+              </div>
+              <div class="field" id="buddy-name-field" style="margin-top: 10px; display: none;">
+                <label for="auth-buddy-name">Buddy Name <small>(for new accounts)</small></label>
+                <input type="text" class="input" id="auth-buddy-name" placeholder="Enter name" />
+              </div>
+              <div style="display:flex; gap:10px; margin-top:15px;">
+                <button class="btn-primary" id="auth-submit-btn" style="flex:1;">Login</button>
+                <button class="btn-icon" id="auth-toggle-btn" type="button" style="flex:1; justify-content:center;">Register</button>
+              </div>
+              <div id="auth-message" class="hint-box" style="display:none; margin-top: 10px;"></div>
+              
+            </div>
+            
+            <!-- SETTINGS & NOTES PANEL -->
+            <div class="settings-notes-panel" style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
+              <!-- 1. Learning DNA Dashboard Button (Logged-in Only) -->
+              <button class="btn-primary logged-in-only" id="sidebar-learning-dna-btn" type="button" style="display:none; width: 100%; padding: 10px 12px; font-weight: 800; background: linear-gradient(135deg, #6366f1, #a855f7); border: none; border-radius: var(--radius-md); color: #fff; cursor: pointer; justify-content: center; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);">
+                🧬 Learning DNA Dashboard
+              </button>
+
+              <!-- Compact Focus Timer (Occupies minimal vertical space under Chat History) -->
+              <div class="compact-focus-bar" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: var(--radius-md); padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <span style="font-weight: 800; font-size: 0.82rem; color: var(--text); display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                  ⏱️ Focus <span id="timer-display" style="font-family: monospace; font-size: 0.95rem; font-weight: 900; color: #ffffff;">25:00</span>
+                </span>
+                <div style="display: flex; gap: 4px; align-items: center;">
+                  <button id="timer-toggle-btn" class="btn-primary" type="button" style="padding: 3px 10px; font-size: 0.75rem; font-weight: 700;">▶ Start</button>
+                  <button id="timer-reset-btn" class="btn-icon" type="button" style="padding: 3px 6px; font-size: 0.75rem;" title="Reset Timer">🔄</button>
+                </div>
+              </div>
+
+              <!-- 2. Clean Horizontal Divider -->
+              <hr style="border: none; border-top: 1px solid var(--border); margin: 4px 0;" />
+
+              <!-- 3. Buddy Name -->
+              <div class="field logged-in-only" style="display:none;">
+                <label style="font-weight: 700; font-size: 0.85rem; margin-bottom: 4px; display: block;">Buddy Name</label>
+                <input type="text" class="input" id="buddy-name-input" placeholder="Enter buddy name" style="padding: 6px 10px; font-size: 0.85rem;" />
+              </div>
+
+              <!-- 4. Username -->
+              <div class="field logged-in-only" style="display:none;">
+                <label style="font-weight: 700; font-size: 0.85rem; margin-bottom: 4px; display: block;">Username</label>
+                <input type="text" class="input" id="username-input" placeholder="Enter username" style="padding: 6px 10px; font-size: 0.85rem;" />
+              </div>
+
+              <!-- 5. Save Settings Button -->
+              <button class="btn-primary logged-in-only" id="save-settings-btn" style="display:none; width: 100%; padding: 8px 12px; font-weight: 700;">💾 Save Settings</button>
+
+              <!-- 6. Logout Button -->
+              <button class="btn-icon logged-in-only" id="logout-btn" type="button" style="width:100%; background:rgba(244,63,94,0.1); border-color:rgba(244,63,94,0.2); color:#f43f5e; display:none; padding: 8px 12px;">🚪 Log out</button>
             </div>
 
-            <!-- 2. Clean Horizontal Divider -->
-            <hr style="border: none; border-top: 1px solid var(--border); margin: 4px 0;" />
-
-            <!-- 3. Buddy Name -->
-            <div class="field logged-in-only" style="display:none;">
-              <label style="font-weight: 700; font-size: 0.85rem; margin-bottom: 4px; display: block;">Buddy Name</label>
-              <input type="text" class="input" id="buddy-name-input" placeholder="Enter buddy name" style="padding: 6px 10px; font-size: 0.85rem;" />
-            </div>
-
-            <!-- 4. Username -->
-            <div class="field logged-in-only" style="display:none;">
-              <label style="font-weight: 700; font-size: 0.85rem; margin-bottom: 4px; display: block;">Username</label>
-              <input type="text" class="input" id="username-input" placeholder="Enter username" style="padding: 6px 10px; font-size: 0.85rem;" />
-            </div>
-
-            <!-- 5. Save Settings Button -->
-            <button class="btn-primary logged-in-only" id="save-settings-btn" style="display:none; width: 100%; padding: 8px 12px; font-weight: 700;">💾 Save Settings</button>
-
-            <!-- 6. Logout Button -->
-            <button class="btn-icon logged-in-only" id="logout-btn" type="button" style="width:100%; background:rgba(244,63,94,0.1); border-color:rgba(244,63,94,0.2); color:#f43f5e; display:none; padding: 8px 12px;">🚪 Log out</button>
-          </div>
-
+        </div>
       </div>
     </div>
 
@@ -2454,75 +2572,77 @@
           <span class="handle-arrow">›</span>
         </button>
 
-        <!-- 1. DICTIONARY SECTION (TOP) -->
-        <div class="sidebar-section-container" id="dict-section-container">
-          <div class="sidebar-section-header" id="dict-section-toggle">
-            <div class="dict-title" style="margin-bottom:0;">📚 <span>Dictionary</span></div>
-            <span class="section-toggle-icon" id="dict-toggle-icon">▼</span>
-          </div>
-
-          <div id="dict-section-content" class="sidebar-section-content">
-            <div class="dict-search-row" style="padding: 0 16px 12px;">
-              <input id="dict-input" type="text" placeholder="Type a word…" autocomplete="off" />
-              <button id="dict-search-btn" title="Look up">🔍</button>
+        <div class="sidebar-content">
+          <!-- 1. DICTIONARY SECTION (TOP) -->
+          <div class="sidebar-section-container" id="dict-section-container">
+            <div class="sidebar-section-header" id="dict-section-toggle">
+              <div class="dict-title" style="margin-bottom:0;">📚 <span>Dictionary</span></div>
+              <span class="section-toggle-icon" id="dict-toggle-icon">▼</span>
             </div>
-            <div class="dict-body" id="dict-body" style="padding: 0 16px 14px;">
-              <div class="dict-empty">
-                <span class="dict-empty-icon">📖</span>
-                Type any word above to instantly see its meaning, pronunciation, and an example sentence.
+
+            <div id="dict-section-content" class="sidebar-section-content">
+              <div class="dict-search-row" style="padding: 0 16px 12px;">
+                <input id="dict-input" type="text" placeholder="Type a word…" autocomplete="off" />
+                <button id="dict-search-btn" title="Look up">🔍</button>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div style="border-top: 1px solid var(--border); margin: 4px 0;"></div>
-
-        <!-- 2. LIVING NOTEBOOK SECTION (BELOW DICTIONARY) -->
-        <div class="sidebar-section-container" id="nb-section-container">
-          <div class="sidebar-section-header" id="nb-section-toggle">
-            <div class="nb-sidebar-title">📔 <span>Living Notebook</span></div>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <button id="nb-add-btn" class="ce-btn-sm ce-btn-sm-primary" type="button" title="Add new note" onclick="event.stopPropagation(); nbOpenAddForm();">➕ Note</button>
-              <span class="section-toggle-icon" id="nb-toggle-icon">▼</span>
-            </div>
-          </div>
-
-          <div id="nb-section-content" class="sidebar-section-content">
-            <!-- Subject Selector -->
-            <div class="nb-subject-select-row" style="padding: 0 16px 10px;">
-              <select id="nb-subject-select" class="input" style="padding: 6px 10px; font-size: 0.83rem; font-weight: 700; width: 100%;">
-                <!-- Subject options rendered dynamically -->
-              </select>
-            </div>
-
-            <!-- Add Note Collapsible Form -->
-            <div id="nb-add-form" class="nb-sidebar-add-form" style="display:none; padding: 12px 16px; background: rgba(30, 41, 59, 0.7); border-bottom: 1px solid var(--border); margin-bottom: 12px;">
-              <div style="font-weight: 800; font-size: 0.85rem; margin-bottom: 8px; color: var(--text);">➕ New Note</div>
-              <div style="display:flex; flex-direction:column; gap:8px;">
-                <input type="text" id="nb-input-subject" class="input" placeholder="Subject (e.g. Physics, Math)" list="nb-subject-datalist" style="padding: 6px 10px; font-size: 0.82rem;" />
-                <datalist id="nb-subject-datalist"></datalist>
-                
-                <select id="nb-input-category" class="input" style="padding: 6px 10px; font-size: 0.82rem;">
-                  <option value="Key Points">📌 Key Points</option>
-                  <option value="Formulas">📐 Formulas</option>
-                  <option value="Definitions">📖 Definitions</option>
-                  <option value="Mistakes I Made">⚠️ Mistakes I Made</option>
-                  <option value="Things to Revise">🔄 Things to Revise</option>
-                  <option value="My Own Notes">📝 My Own Notes</option>
-                </select>
-
-                <textarea id="nb-input-content" class="input" rows="3" placeholder="Write key point, formula, definition, or mistake..." style="padding: 6px 10px; font-size: 0.83rem; resize: vertical;"></textarea>
-
-                <div style="display:flex; justify-content:flex-end; gap:6px;">
-                  <button id="nb-cancel-add-btn" class="ce-btn-sm ce-btn-sm-ghost" type="button">Cancel</button>
-                  <button id="nb-submit-add-btn" class="ce-btn-sm ce-btn-sm-primary" type="button">Save</button>
+              <div class="dict-body" id="dict-body" style="padding: 0 16px 14px;">
+                <div class="dict-empty">
+                  <span class="dict-empty-icon">📖</span>
+                  Type any word above to instantly see its meaning, pronunciation, and an example sentence.
                 </div>
               </div>
             </div>
+          </div>
 
-            <!-- Right Sidebar Notebook Content Body -->
-            <div id="nb-sidebar-body" style="padding: 0 16px 16px; display: flex; flex-direction: column; gap: 14px;">
-              <!-- 4 Category Sections rendered dynamically -->
+          <div style="border-top: 1px solid var(--border); margin: 4px 0;"></div>
+
+          <!-- 2. LIVING NOTEBOOK SECTION (BELOW DICTIONARY) -->
+          <div class="sidebar-section-container" id="nb-section-container">
+            <div class="sidebar-section-header" id="nb-section-toggle">
+              <div class="nb-sidebar-title">📔 <span>Living Notebook</span></div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <button id="nb-add-btn" class="ce-btn-sm ce-btn-sm-primary" type="button" title="Add new note" onclick="event.stopPropagation(); nbOpenAddForm();">➕ Note</button>
+                <span class="section-toggle-icon" id="nb-toggle-icon">▼</span>
+              </div>
+            </div>
+
+            <div id="nb-section-content" class="sidebar-section-content">
+              <!-- Subject Selector -->
+              <div class="nb-subject-select-row" style="padding: 0 16px 10px;">
+                <select id="nb-subject-select" class="input" style="padding: 6px 10px; font-size: 0.83rem; font-weight: 700; width: 100%;">
+                  <!-- Subject options rendered dynamically -->
+                </select>
+              </div>
+
+              <!-- Add Note Collapsible Form -->
+              <div id="nb-add-form" class="nb-sidebar-add-form" style="display:none; padding: 12px 16px; background: rgba(30, 41, 59, 0.7); border-bottom: 1px solid var(--border); margin-bottom: 12px;">
+                <div style="font-weight: 800; font-size: 0.85rem; margin-bottom: 8px; color: var(--text);">➕ New Note</div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <input type="text" id="nb-input-subject" class="input" placeholder="Subject (e.g. Physics, Math)" list="nb-subject-datalist" style="padding: 6px 10px; font-size: 0.82rem;" />
+                  <datalist id="nb-subject-datalist"></datalist>
+                  
+                  <select id="nb-input-category" class="input" style="padding: 6px 10px; font-size: 0.82rem;">
+                    <option value="Key Points">📌 Key Points</option>
+                    <option value="Formulas">📐 Formulas</option>
+                    <option value="Definitions">📖 Definitions</option>
+                    <option value="Mistakes I Made">⚠️ Mistakes I Made</option>
+                    <option value="Things to Revise">🔄 Things to Revise</option>
+                    <option value="My Own Notes">📝 My Own Notes</option>
+                  </select>
+
+                  <textarea id="nb-input-content" class="input" rows="3" placeholder="Write key point, formula, definition, or mistake..." style="padding: 6px 10px; font-size: 0.83rem; resize: vertical;"></textarea>
+
+                  <div style="display:flex; justify-content:flex-end; gap:6px;">
+                    <button id="nb-cancel-add-btn" class="ce-btn-sm ce-btn-sm-ghost" type="button">Cancel</button>
+                    <button id="nb-submit-add-btn" class="ce-btn-sm ce-btn-sm-primary" type="button">Save</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right Sidebar Notebook Content Body -->
+              <div id="nb-sidebar-body" style="padding: 0 16px 16px; display: flex; flex-direction: column; gap: 14px;">
+                <!-- 4 Category Sections rendered dynamically -->
+              </div>
             </div>
           </div>
         </div>
@@ -2607,6 +2727,133 @@
         <button id="generate-definitions-btn" class="btn-primary" style="max-width:300px;">🔍 Extract Definitions from Chat</button>
       </div>
       <div id="definitions-output" class="definitions-container"></div>
+    </div>
+  </div>
+
+  <!-- LEARNING DNA SECTION -->
+  <div id="learning-dna-section" class="feature-section" style="display:none;">
+    <div class="section-container" style="max-width: 1000px; margin: 0 auto; width: 100%;">
+      
+      <!-- Dashboard Header -->
+      <div class="feature-header" style="text-align: center; margin-bottom: 18px;">
+        <div style="display:inline-flex; align-items:center; gap:8px; padding:4px 12px; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:20px; color:#818cf8; font-size:12px; font-weight:600; margin-bottom:8px;">
+          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span> Personal Learning Profile Dashboard
+        </div>
+        <h2>🧬 Learning DNA</h2>
+        <p>Your comprehensive personal dashboard tracking performance, accuracy, habits, and progress.</p>
+      </div>
+
+      <!-- ZERO-DATA FRIENDLY BANNER (Hidden when user has data) -->
+      <div id="dna-welcome-banner" class="dna-card" style="display:none; background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.15)); border: 1px solid rgba(99,102,241,0.3); padding: 16px 20px; text-align: center; margin-bottom: 20px;">
+        <div style="font-size: 24px; margin-bottom: 6px;">🌱</div>
+        <div style="font-size: 15px; font-weight: 700; color: var(--text);">Keep studying to unlock your full Learning DNA!</div>
+        <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">As you ask questions, read notes, and complete quizzes, your personalized learning metrics will build automatically right here.</div>
+      </div>
+
+      <!-- ROW 1: 4 CORE KPI CARDS (Strongest, Weakest, Accuracy, Study Time) -->
+      <div class="dna-kpi-grid">
+        <!-- 1. Strongest Subjects -->
+        <div class="dna-card kpi-card">
+          <div class="kpi-icon">🏆</div>
+          <div class="kpi-info">
+            <div class="kpi-label">Strongest Subjects</div>
+            <div class="kpi-value highlight-green" id="dna-strongest">General</div>
+            <div class="kpi-sub" id="dna-strongest-sub">Top accuracy</div>
+          </div>
+        </div>
+
+        <!-- 2. Weakest Subjects -->
+        <div class="dna-card kpi-card">
+          <div class="kpi-icon">⚠️</div>
+          <div class="kpi-info">
+            <div class="kpi-label">Weakest Subjects</div>
+            <div class="kpi-value highlight-rose" id="dna-weakest">None yet</div>
+            <div class="kpi-sub" id="dna-weakest-sub">Needs practice</div>
+          </div>
+        </div>
+
+        <!-- 3. Quiz Accuracy -->
+        <div class="dna-card kpi-card">
+          <div class="kpi-icon">🎯</div>
+          <div class="kpi-info">
+            <div class="kpi-label">Quiz Accuracy</div>
+            <div class="kpi-value" id="dna-accuracy">0%</div>
+            <div class="kpi-sub" id="dna-quiz-count">0 quizzes taken</div>
+          </div>
+        </div>
+
+        <!-- 4. Study Time -->
+        <div class="dna-card kpi-card">
+          <div class="kpi-icon">⏱️</div>
+          <div class="kpi-info">
+            <div class="kpi-label">Study Time</div>
+            <div class="kpi-value" id="dna-study-time">0m</div>
+            <div class="kpi-sub">Total active time</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW 2: BUDDY'S ADVICE CARD (AI Encouragement & Guidance) -->
+      <div class="dna-card" style="margin-top: 16px; background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(49, 46, 129, 0.4)); border-color: rgba(99, 102, 241, 0.3);">
+        <div class="card-header" style="margin-bottom: 8px;">
+          <h3 style="display:flex; align-items:center; gap:8px;">🤖 Buddy's Advice</h3>
+          <span class="card-tag">Personalized Tip</span>
+        </div>
+        <div id="dna-buddy-advice" style="font-size: 14px; color: var(--text); line-height: 1.5; font-weight: 500;">
+          Hi! I'm Max, your Study Buddy. Keep studying, read notes, and take your first quiz to unlock full Learning DNA insights!
+        </div>
+      </div>
+
+      <!-- ROW 3: TOPICS MASTERED & TOPICS TO REVISE GRID -->
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+        <!-- 5. Topics Mastered -->
+        <div class="dna-card">
+          <div class="card-header">
+            <h3>✅ Topics Mastered</h3>
+            <span class="card-tag" style="background:rgba(16,185,129,0.15); color:#34d399;" id="dna-mastered-count">0 topics</span>
+          </div>
+          <div id="dna-mastered-list" class="dna-list-container" style="display:flex; flex-direction:column; gap:8px; max-height:220px; overflow-y:auto;">
+            <div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Keep studying and scoring 75%+ in quizzes to master your first topic!</div>
+          </div>
+        </div>
+
+        <!-- 6. Topics to Revise -->
+        <div class="dna-card">
+          <div class="card-header">
+            <h3>🔄 Topics to Revise</h3>
+            <span class="card-tag tag-rose" id="dna-revise-count">0 items</span>
+          </div>
+          <div id="dna-revise-list" class="dna-list-container" style="display:flex; flex-direction:column; gap:8px; max-height:220px; overflow-y:auto;">
+            <div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">No revision items flagged yet. Add notes to 'Things to Revise' in Living Notebook or take a quiz!</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW 4: RECENT PROGRESS & CHARTS -->
+      <div class="dna-charts-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top:16px; margin-bottom: 40px;">
+        <!-- 7. Recent Progress (Chart 1: Subject Accuracy Breakdown) -->
+        <div class="dna-card chart-container-card">
+          <div class="card-header">
+            <h3>📈 Recent Progress (Accuracy Breakdown)</h3>
+            <span class="card-tag">Quiz Performance</span>
+          </div>
+          <div style="position:relative; height:220px; width:100%;">
+            <canvas id="dnaAccuracyChart"></canvas>
+          </div>
+        </div>
+
+        <!-- 8. Study Time Distribution (Chart 2: Time Spent) -->
+        <div class="dna-card chart-container-card">
+          <div class="card-header">
+            <h3>⏳ Study Time Distribution</h3>
+            <span class="card-tag">Time Analytics</span>
+          </div>
+          <div style="position:relative; height:220px; width:100%;">
+            <canvas id="dnaTimeChart"></canvas>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -3217,6 +3464,10 @@
         document.getElementById("auth-card").scrollIntoView({ behavior: "smooth" });
       };
     }
+
+    // Initial state update for handles
+    updateLeftSidebarState();
+    updateRightSidebarState();
 
 
       // =====================================================================
@@ -4092,20 +4343,23 @@
     }
 
     function appendBubble(role, text, lastUserMsg) {
+      const isAI = (role === "ai" || role === "assistant");
+      const roleClass = isAI ? "ai" : "user";
+
       // Create the outer container for the message:
       const msg = document.createElement("div");
-      msg.className = `msg ${role}`;
+      msg.className = `msg ${roleClass}`;
 
       // Create the avatar:
       const avatar = document.createElement("div");
       avatar.className = "avatar";
-      avatar.textContent = role === "user" ? "🧑" : "🤖";
+      avatar.textContent = isAI ? "🤖" : "🧑";
 
       // Create the bubble:
       const bubble = document.createElement("div");
       bubble.className = "bubble";
 
-      if (role === "ai") {
+      if (isAI) {
         // Parse out any [CHART]...[/CHART] blocks, render the rest as markdown/steps
         const segments = parseChartBlocks(text);
         // Combine all text segments for the step-flow parser
@@ -4140,7 +4394,7 @@
       }
 
       // ── Action buttons (AI replies only) ─────────────────────────────
-      if (role === "ai") {
+      if (isAI) {
         // Determine response mode
         const greeting    = isGreeting(lastUserMsg);
         const stepByStep  = isMultiStep(text);
@@ -4499,6 +4753,7 @@
     const quizSection = document.getElementById("quiz-section");
     const crosscheckSection = document.getElementById("crosscheck-section");
     const definitionsSection = document.getElementById("definitions-section");
+    const learningDnaSection = document.getElementById("learning-dna-section");
     const careerSection = document.getElementById("career-section");
     const notebookSection = document.getElementById("notebook-section");
     const crosscheckOutputEl = document.getElementById("crosscheck-output");
@@ -4518,6 +4773,7 @@
         quizSection.style.display = "none";
         crosscheckSection.style.display = "none";
         definitionsSection.style.display = "none";
+        if (learningDnaSection) learningDnaSection.style.display = "none";
         careerSection.style.display = "none";
         if (notebookSection) notebookSection.style.display = "none";
 
@@ -4537,6 +4793,10 @@
         else if (tab === "definitions") {
           definitionsSection.style.display = "flex";
         }
+        else if (tab === "learning-dna") {
+          if (learningDnaSection) learningDnaSection.style.display = "flex";
+          if (typeof renderLearningDnaDashboard === 'function') renderLearningDnaDashboard();
+        }
         else if (tab === "career") {
           careerSection.style.display = "flex";
           // Trigger Career Explorer render on first load
@@ -4544,6 +4804,28 @@
         }
       });
     });
+
+    const sidebarLearningDnaBtn = document.getElementById("sidebar-learning-dna-btn");
+    if (sidebarLearningDnaBtn) {
+      sidebarLearningDnaBtn.addEventListener("click", () => {
+        // Remove active state from top feature tabs
+        tabButtons.forEach(b => b.classList.remove("active"));
+
+        // Hide all sections
+        chatArea.style.display = "none";
+        podcastsSection.style.display = "none";
+        flashcardsSection.style.display = "none";
+        quizSection.style.display = "none";
+        crosscheckSection.style.display = "none";
+        definitionsSection.style.display = "none";
+        careerSection.style.display = "none";
+        if (notebookSection) notebookSection.style.display = "none";
+
+        // Show Learning DNA dashboard
+        if (learningDnaSection) learningDnaSection.style.display = "flex";
+        if (typeof renderLearningDnaDashboard === 'function') renderLearningDnaDashboard();
+      });
+    }
 
     function getLatestUserPrompt() {
       const lastUserMessage = [...history].reverse().find(msg => msg.role === "user");
@@ -5309,6 +5591,191 @@
         output.innerHTML = `<div class="def-empty"><span class="def-empty-icon">❌</span>Network error: ${escapeHtml(err.message)}</div>`;
       }
     });
+
+    // =====================================================================
+    //  LEARNING DNA DASHBOARD & ANALYTICS
+    // =====================================================================
+
+    let dnaAccuracyChartInstance = null;
+    let dnaTimeChartInstance = null;
+    let dnaStudyTimer = null;
+
+    async function renderLearningDnaDashboard() {
+      const bannerEl = document.getElementById("dna-welcome-banner");
+      const adviceEl = document.getElementById("dna-buddy-advice");
+      const masteredListEl = document.getElementById("dna-mastered-list");
+      const reviseListEl = document.getElementById("dna-revise-list");
+
+      if (!currentUser || !currentUser.loggedIn) {
+        if (bannerEl) bannerEl.style.display = "block";
+        document.getElementById("dna-study-time").textContent = "0m";
+        document.getElementById("dna-accuracy").textContent = "0%";
+        document.getElementById("dna-quiz-count").textContent = "0 quizzes taken";
+        document.getElementById("dna-strongest").textContent = "Log in required";
+        document.getElementById("dna-weakest").textContent = "Log in required";
+        if (adviceEl) adviceEl.textContent = "Please log in to track your personal Learning DNA profile!";
+        if (masteredListEl) masteredListEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Log in to view your mastered topics.</div>`;
+        if (reviseListEl) reviseListEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Log in to view your topics to revise.</div>`;
+        renderDnaCharts([]);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/learning_dna");
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // 1. Study Time Card
+        const mins = data.totalStudyMinutes || 0;
+        const hours = (mins / 60).toFixed(1);
+        document.getElementById("dna-study-time").textContent = mins >= 60 ? `${hours} hrs` : `${mins} mins`;
+        
+        // 2. Quiz Accuracy Card
+        const totalQuizzes = data.totalQuizzes || 0;
+        const acc = data.accuracy || 0;
+        document.getElementById("dna-accuracy").textContent = `${acc}%`;
+        document.getElementById("dna-quiz-count").textContent = `${totalQuizzes} quizzes taken`;
+        
+        // 3. Strongest Subjects Card
+        const strongest = (data.strongestSubjects && data.strongestSubjects.length) ? data.strongestSubjects.join(", ") : "General";
+        document.getElementById("dna-strongest").textContent = strongest;
+
+        // 4. Weakest Subjects Card
+        const weakest = (data.weakestSubjects && data.weakestSubjects.length) ? data.weakestSubjects.join(", ") : "None yet";
+        document.getElementById("dna-weakest").textContent = weakest;
+
+        // Zero-data welcome banner visibility
+        if (mins === 0 && totalQuizzes === 0) {
+          if (bannerEl) bannerEl.style.display = "block";
+        } else {
+          if (bannerEl) bannerEl.style.display = "none";
+        }
+
+        // 5. Buddy's Advice Card
+        if (adviceEl) {
+          adviceEl.textContent = data.buddyAdvice || "Hi! Keep studying and taking quizzes to unlock tailored advice from your Study Buddy Max.";
+        }
+
+        // 6. Topics Mastered Card
+        const mastered = data.topicsMastered || [];
+        document.getElementById("dna-mastered-count").textContent = `${mastered.length} topics`;
+        if (mastered.length === 0) {
+          masteredListEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Keep studying to unlock your Learning DNA! Score 75%+ on quiz subjects to list them here.</div>`;
+        } else {
+          masteredListEl.innerHTML = mastered.map(m => `
+            <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); border-radius:8px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-weight:700; font-size:13px; color:var(--text);">🌟 ${escapeHtml(m.subject)}</span>
+              <span style="font-size:12px; font-weight:800; color:#34d399;">${m.accuracy}% accuracy</span>
+            </div>
+          `).join("");
+        }
+
+        // 7. Topics to Revise Card
+        const revise = data.topicsToRevise || [];
+        document.getElementById("dna-revise-count").textContent = `${revise.length} items`;
+        if (revise.length === 0) {
+          reviseListEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">No revision items flagged yet. Save entries to 'Things to Revise' in Living Notebook or take a quiz!</div>`;
+        } else {
+          reviseListEl.innerHTML = revise.map(r => `
+            <div style="background:rgba(244,63,94,0.08); border:1px solid rgba(244,63,94,0.2); border-radius:8px; padding:8px 12px; display:flex; flex-direction:column; gap:4px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:700; font-size:12px; color:#f43f5e;">⚠️ ${escapeHtml(r.subject || "General")}</span>
+                <span style="font-size:10px; padding:2px 6px; background:rgba(244,63,94,0.2); border-radius:10px; color:#fda4af; font-weight:700;">${escapeHtml(r.category || "Revision")}</span>
+              </div>
+              <div style="font-size:12px; color:var(--text); line-height:1.3;">${escapeHtml(r.content || "")}</div>
+            </div>
+          `).join("");
+        }
+
+        // 8. Recent Progress & Charts
+        renderDnaCharts(data.subjectBreakdown || []);
+      } catch (err) {
+        console.error("Failed to load Learning DNA:", err);
+      }
+    }
+
+    function renderDnaCharts(subjects) {
+      if (typeof Chart === 'undefined') return;
+
+      const labels = subjects.length ? subjects.map(s => s.subject) : ["Physics", "Math", "Chemistry", "Biology", "General"];
+      const accuracyData = subjects.length ? subjects.map(s => s.accuracy) : [85, 70, 90, 65, 80];
+      const timeData = subjects.length ? subjects.map(s => s.study_minutes || 5) : [25, 30, 15, 10, 20];
+
+      // Chart 1: Bar chart for Subject Accuracy
+      const ctxAcc = document.getElementById("dnaAccuracyChart");
+      if (ctxAcc) {
+        if (dnaAccuracyChartInstance) dnaAccuracyChartInstance.destroy();
+        dnaAccuracyChartInstance = new Chart(ctxAcc, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Accuracy (%)',
+              data: accuracyData,
+              backgroundColor: 'rgba(99, 102, 241, 0.7)',
+              borderColor: '#6366f1',
+              borderWidth: 1.5,
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { beginAtZero: true, max: 100, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+              x: { ticks: { color: '#9ca3af' }, grid: { display: false } }
+            },
+            plugins: {
+              legend: { display: false }
+            }
+          }
+        });
+      }
+
+      // Chart 2: Doughnut chart for Time Distribution
+      const ctxTime = document.getElementById("dnaTimeChart");
+      if (ctxTime) {
+        if (dnaTimeChartInstance) dnaTimeChartInstance.destroy();
+        dnaTimeChartInstance = new Chart(ctxTime, {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: timeData,
+              backgroundColor: [
+                '#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4'
+              ],
+              borderWidth: 2,
+              borderColor: '#1E1F22'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'right', labels: { color: '#9ca3af', font: { size: 11 } } }
+            }
+          }
+        });
+      }
+    }
+
+    // Background heartbeat to track study pings automatically
+    function startDnaHeartbeat() {
+      if (dnaStudyTimer) clearInterval(dnaStudyTimer);
+      // Send a study ping every 2 minutes of active use
+      dnaStudyTimer = setInterval(async () => {
+        if (currentUser && currentUser.loggedIn) {
+          try {
+            await fetch("/api/learning_dna/track", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ studyMinutes: 2, subject: "General" })
+            });
+          } catch (e) {}
+        }
+      }, 120000);
+    }
 
     // =====================================================================
     //  DICTIONARY SIDEBAR FUNCTIONALITY
@@ -6799,6 +7266,7 @@
       initDict();
       await nbLoadEntries();
       initNotebook();
+      if (typeof startDnaHeartbeat === 'function') startDnaHeartbeat();
     }
 
     initAll();

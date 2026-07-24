@@ -133,7 +133,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS messages (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-                role            TEXT    NOT NULL CHECK(role IN ('user','assistant')),
+                role            TEXT    NOT NULL CHECK(role IN ('user','assistant','ai')),
                 content         TEXT    NOT NULL,
                 created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
             );
@@ -145,18 +145,78 @@ def init_db():
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 subject     TEXT    NOT NULL DEFAULT 'General',
-                category    TEXT    NOT NULL CHECK(category IN ('Key Points', 'Formulas', 'Definitions', 'Mistakes I Made')),
+                category    TEXT    NOT NULL CHECK(category IN ('Key Points', 'Formulas', 'Definitions', 'Mistakes I Made', 'Things to Revise', 'My Own Notes')),
                 content     TEXT    NOT NULL,
                 position    INTEGER NOT NULL DEFAULT 0,
                 created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
                 updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
             );
             CREATE INDEX IF NOT EXISTS idx_notebook_user ON living_notebook(user_id, subject, category);
+
+            CREATE TABLE IF NOT EXISTS learning_dna (
+                id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id                 INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                total_study_minutes     INTEGER NOT NULL DEFAULT 0,
+                total_quizzes           INTEGER NOT NULL DEFAULT 0,
+                total_quiz_questions    INTEGER NOT NULL DEFAULT 0,
+                correct_quiz_questions  INTEGER NOT NULL DEFAULT 0,
+                preferred_style         TEXT    NOT NULL DEFAULT 'Step-by-Step',
+                learning_pace           TEXT    NOT NULL DEFAULT 'Steady',
+                updated_at              TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS subject_analytics (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                subject           TEXT    NOT NULL,
+                questions_taken   INTEGER NOT NULL DEFAULT 0,
+                questions_correct INTEGER NOT NULL DEFAULT 0,
+                study_minutes     INTEGER NOT NULL DEFAULT 0,
+                updated_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(user_id, subject)
+            );
+
+            CREATE TABLE IF NOT EXISTS student_mistakes (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                subject     TEXT    NOT NULL DEFAULT 'General',
+                mistake     TEXT    NOT NULL,
+                created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_mistakes_user ON student_mistakes(user_id, subject);
         """)
         try:
             conn.execute("ALTER TABLE living_notebook ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
         except Exception:
             pass
+
+        # Migration check for living_notebook table CHECK constraint to support all 6 categories without data loss
+        row = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='living_notebook'").fetchone()
+        if row and row["sql"] and "Things to Revise" not in row["sql"]:
+            print("[DB] Migrating living_notebook schema to support all 6 categories...")
+            conn.execute("PRAGMA foreign_keys=OFF")
+            conn.execute("""
+                CREATE TABLE living_notebook_migration (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    subject     TEXT    NOT NULL DEFAULT 'General',
+                    category    TEXT    NOT NULL CHECK(category IN ('Key Points', 'Formulas', 'Definitions', 'Mistakes I Made', 'Things to Revise', 'My Own Notes')),
+                    content     TEXT    NOT NULL,
+                    position    INTEGER NOT NULL DEFAULT 0,
+                    created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+                    updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+                );
+            """)
+            conn.execute("""
+                INSERT INTO living_notebook_migration (id, user_id, subject, category, content, position, created_at, updated_at)
+                SELECT id, user_id, subject, category, content, COALESCE(position, 0), created_at, updated_at
+                FROM living_notebook;
+            """)
+            conn.execute("DROP TABLE living_notebook")
+            conn.execute("ALTER TABLE living_notebook_migration RENAME TO living_notebook")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_notebook_user ON living_notebook(user_id, subject, category)")
+            conn.execute("PRAGMA foreign_keys=ON")
+            print("[DB] Migration completed successfully.")
 
 
 # =====================================================================
@@ -463,6 +523,9 @@ def post_message(conv_id):
     role    = data.get("role", "user")
     content = (data.get("content") or "").strip()
 
+    if role in ("assistant", "ai"):
+        role = "assistant"
+
     if role not in ("user", "assistant") or not content:
         return jsonify({"error": "Invalid role or empty content."}), 400
 
@@ -566,9 +629,10 @@ def generate_smart_title(client, user_msg: str, target_model: str) -> str:
 @app.route("/api/flashcards", methods=["POST"])
 @app.route("/api/quiz", methods=["POST"])
 @app.route("/api/crosscheck", methods=["POST"])
+@app.route("/api/definitions", methods=["POST"])
 def chat():
     """
-    Handle chat, podcast generation, flashcard generation, quiz generation, and crosscheck generation.
+    Handle chat, podcast generation, flashcard generation, quiz generation, crosscheck generation, and definitions extraction.
     For /api/chat: also persists messages to SQLite (auto-creates conversation on first message).
     """
     data = request.get_json(force=True)
@@ -580,11 +644,11 @@ def chat():
     conv_id    = data.get("conversation_id")   # may be None (first message)
     system_prompt = SYSTEM_PROMPT
 
-    # Clean messages
+    # Clean messages (support both 'assistant' and 'ai' roles)
     messages = [
         msg for msg in messages
         if isinstance(msg, dict)
-        and msg.get("role") in {"user", "assistant"}
+        and msg.get("role") in {"user", "assistant", "ai"}
         and isinstance(msg.get("content"), str)
         and msg["content"].strip()
     ]
@@ -645,6 +709,17 @@ def chat():
             "where it is incorrect, show how to fix it, and reveal the correct answer. Do not only "
             "give hints; provide a clear correction and the correct response."
         )
+    elif endpoint == "definitions":
+        system_prompt = (
+            f"{system_prompt}\n\n"
+            "Using the full conversation history from the entire chat session and any provided study notes, "
+            "extract key terms, concepts, or vocabulary words along with their clear, concise definitions.\n"
+            "Format each definition on a new line EXACTLY as:\n"
+            "1. [Term]: [Definition]\n"
+            "2. [Term]: [Definition]\n"
+            "Extract 3 to 10 terms if available.\n"
+            "If no clear key terms or definitions are discussed or found, reply ONLY with the exact string: NO_DEFINITIONS"
+        )
 
     if isinstance(notes, str) and notes.strip():
         notes_stripped = notes.strip()
@@ -673,7 +748,7 @@ def chat():
             groq_messages.append({"role": "system", "content": system_prompt})
 
         for msg in messages:
-            role = "assistant" if msg["role"] == "assistant" else "user"
+            role = "assistant" if msg["role"] in ("assistant", "ai") else "user"
             groq_messages.append({
                 "role": role,
                 "content": msg["content"]
@@ -1085,6 +1160,230 @@ Provide exactly 5 careers ranked by compatibility (highest first, range 60\u2013
     except Exception as e:
         error_msg = str(e)
         return jsonify({"error": error_msg}), 200
+
+
+# ── Learning DNA Routes ───────────────────────────────────────────────
+
+def get_or_create_learning_dna(conn, user_id: int):
+    """Fetch or initialize learning_dna row for user."""
+    row = conn.execute("SELECT * FROM learning_dna WHERE user_id=?", (user_id,)).fetchone()
+    if not row:
+        conn.execute("INSERT OR IGNORE INTO learning_dna (user_id) VALUES (?)", (user_id,))
+        row = conn.execute("SELECT * FROM learning_dna WHERE user_id=?", (user_id,)).fetchone()
+    return dict(row) if row else {}
+
+
+@app.route("/api/learning_dna", methods=["GET"])
+def get_learning_dna():
+    """Retrieve full Learning DNA personal learning profile for logged in user."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    uid = user["id"]
+    with get_db() as conn:
+        profile = get_or_create_learning_dna(conn, uid)
+
+        # Subject analytics
+        subj_rows = conn.execute(
+            "SELECT subject, questions_taken, questions_correct, study_minutes FROM subject_analytics WHERE user_id=? ORDER BY study_minutes DESC, questions_taken DESC",
+            (uid,)
+        ).fetchall()
+
+        subject_breakdown = []
+        for r in subj_rows:
+            d = dict(r)
+            qt = d["questions_taken"]
+            qc = d["questions_correct"]
+            acc = round((qc / qt * 100.0), 1) if qt > 0 else 0.0
+            d["accuracy"] = acc
+            subject_breakdown.append(d)
+
+        # Sort for strongest & weakest
+        sorted_by_acc = sorted(
+            [s for s in subject_breakdown if s["questions_taken"] > 0 or s["study_minutes"] > 0],
+            key=lambda x: (x["accuracy"], x["study_minutes"]),
+            reverse=True
+        )
+
+        if len(sorted_by_acc) == 1:
+            strongest_subjects = [sorted_by_acc[0]["subject"]]
+            weakest_subjects = []
+        elif len(sorted_by_acc) > 1:
+            mid = max(1, len(sorted_by_acc) // 2)
+            strongest_subjects = [s["subject"] for s in sorted_by_acc[:mid]]
+            weakest_subjects = [s["subject"] for s in reversed(sorted_by_acc) if s["subject"] not in strongest_subjects][:2]
+        else:
+            strongest_subjects = ["General"]
+            weakest_subjects = []
+
+        # Common mistakes: combine student_mistakes table and Living Notebook category 'Mistakes I Made'
+        mistakes_rows = conn.execute(
+            "SELECT id, subject, mistake, created_at FROM student_mistakes WHERE user_id=? ORDER BY id DESC LIMIT 10",
+            (uid,)
+        ).fetchall()
+        mistakes_list = [dict(m) for m in mistakes_rows]
+
+        nb_mistakes = conn.execute(
+            "SELECT id, subject, content as mistake, created_at FROM living_notebook WHERE user_id=? AND category='Mistakes I Made' ORDER BY id DESC LIMIT 10",
+            (uid,)
+        ).fetchall()
+
+        # Combine without duplicates
+        existing_texts = {m["mistake"].strip().lower() for m in mistakes_list}
+        for nbm in nb_mistakes:
+            text = nbm["mistake"].strip()
+            if text.lower() not in existing_texts:
+                mistakes_list.append({
+                    "id": f"nb_{nbm['id']}",
+                    "subject": nbm["subject"],
+                    "mistake": text,
+                    "created_at": nbm["created_at"]
+                })
+                existing_texts.add(text.lower())
+
+        tq = profile.get("total_quiz_questions", 0)
+        cq = profile.get("correct_quiz_questions", 0)
+        overall_accuracy = round((cq / tq * 100.0), 1) if tq > 0 else 0.0
+
+        # Topics Mastered: subjects with accuracy >= 75% and at least 2 questions
+        topics_mastered = [
+            {"subject": s["subject"], "accuracy": s["accuracy"], "questionsTaken": s["questions_taken"]}
+            for s in subject_breakdown if s["questions_taken"] >= 2 and s["accuracy"] >= 75.0
+        ]
+
+        # Topics to Revise: Living Notebook items under 'Things to Revise' & 'Mistakes I Made'
+        revision_rows = conn.execute("""
+            SELECT id, subject, category, content FROM living_notebook
+            WHERE user_id=? AND category IN ('Things to Revise', 'Mistakes I Made')
+            ORDER BY id DESC LIMIT 8
+        """, (uid,)).fetchall()
+        topics_to_revise = [dict(r) for r in revision_rows]
+
+        # Also append low-accuracy subjects (<60%) if not already present
+        for s in subject_breakdown:
+            if s["questions_taken"] >= 2 and s["accuracy"] < 60.0:
+                if not any(r["subject"].lower() == s["subject"].lower() for r in topics_to_revise):
+                    topics_to_revise.append({
+                        "id": f"subj_{s['subject']}",
+                        "subject": s["subject"],
+                        "category": "Focus Subject",
+                        "content": f"Accuracy is {s['accuracy']}% in {s['subject']}. Practice more questions!"
+                    })
+
+        # Buddy Advice generation
+        buddy_name = user["buddy_name"] if "buddy_name" in user.keys() and user["buddy_name"] else "Max"
+        if tq == 0 and profile.get("total_study_minutes", 0) < 5:
+            buddy_advice = f"Hi! I'm {buddy_name}, your Study Buddy. Keep studying, read notes, and take your first quiz to unlock full Learning DNA insights!"
+        elif overall_accuracy >= 80.0:
+            strong_str = ", ".join(strongest_subjects) if strongest_subjects else "your core subjects"
+            buddy_advice = f"Awesome work! You're performing brilliantly in {strong_str} with {overall_accuracy}% overall quiz accuracy. Keep up the high score!"
+        elif overall_accuracy >= 60.0:
+            weak_str = ", ".join(weakest_subjects) if weakest_subjects else "your focus topics"
+            buddy_advice = f"Solid progress! Your overall accuracy is {overall_accuracy}%. Review your notes in {weak_str} to boost your mastery level."
+        else:
+            weak_str = ", ".join(weakest_subjects) if weakest_subjects else "your key subjects"
+            buddy_advice = f"Don't worry! Practice makes progress. Focus on reviewing {weak_str} in the Living Notebook and take a short 5-question quiz."
+
+    return jsonify({
+        "totalStudyMinutes": profile.get("total_study_minutes", 0),
+        "totalQuizzes": profile.get("total_quizzes", 0),
+        "totalQuestions": tq,
+        "correctQuestions": cq,
+        "accuracy": overall_accuracy,
+        "preferredStyle": profile.get("preferred_style", "Step-by-Step"),
+        "learningPace": profile.get("learning_pace", "Steady"),
+        "strongestSubjects": strongest_subjects,
+        "weakestSubjects": weakest_subjects,
+        "subjectBreakdown": subject_breakdown,
+        "commonMistakes": mistakes_list[:10],
+        "topicsMastered": topics_mastered,
+        "topicsToRevise": topics_to_revise[:10],
+        "buddyAdvice": buddy_advice,
+        "recentProgress": {
+            "totalSessions": profile.get("total_quizzes", 0) + (1 if profile.get("total_study_minutes", 0) > 0 else 0),
+            "studyMinutes": profile.get("total_study_minutes", 0),
+            "accuracy": overall_accuracy
+        }
+    })
+
+
+@app.route("/api/learning_dna/track", methods=["POST"])
+def track_learning_dna():
+    """Track study pings, quiz metrics, style preferences, and mistakes."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    uid = user["id"]
+    data = request.get_json(force=True) or {}
+
+    study_mins = int(data.get("studyMinutes", 0))
+    subject = (data.get("subject") or "General").strip()[:50]
+    quiz_res = data.get("quizResult") # {"questionsTaken": 5, "questionsCorrect": 4, "subject": "Physics"}
+    pref_style = data.get("preferredStyle")
+    pace = data.get("learningPace")
+    mistake_text = (data.get("mistake") or "").strip()
+
+    with get_db() as conn:
+        profile = get_or_create_learning_dna(conn, uid)
+
+        fields = ["updated_at=datetime('now')"]
+        vals = []
+
+        if study_mins > 0:
+            fields.append("total_study_minutes = total_study_minutes + ?")
+            vals.append(study_mins)
+
+        if isinstance(quiz_res, dict):
+            qt = max(0, int(quiz_res.get("questionsTaken", 0)))
+            qc = max(0, int(quiz_res.get("questionsCorrect", 0)))
+            q_subj = (quiz_res.get("subject") or subject).strip()[:50]
+
+            fields.append("total_quizzes = total_quizzes + 1")
+            fields.append("total_quiz_questions = total_quiz_questions + ?")
+            vals.append(qt)
+            fields.append("correct_quiz_questions = correct_quiz_questions + ?")
+            vals.append(qc)
+
+            # Update subject analytics
+            conn.execute("""
+                INSERT INTO subject_analytics (user_id, subject, questions_taken, questions_correct, study_minutes)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, subject) DO UPDATE SET
+                    questions_taken = questions_taken + excluded.questions_taken,
+                    questions_correct = questions_correct + excluded.questions_correct,
+                    updated_at = datetime('now')
+            """, (uid, q_subj, qt, qc, study_mins))
+
+        elif study_mins > 0:
+            conn.execute("""
+                INSERT INTO subject_analytics (user_id, subject, questions_taken, questions_correct, study_minutes)
+                VALUES (?, ?, 0, 0, ?)
+                ON CONFLICT(user_id, subject) DO UPDATE SET
+                    study_minutes = study_minutes + excluded.study_minutes,
+                    updated_at = datetime('now')
+            """, (uid, subject, study_mins))
+
+        if pref_style:
+            fields.append("preferred_style = ?")
+            vals.append(str(pref_style).strip()[:50])
+
+        if pace:
+            fields.append("learning_pace = ?")
+            vals.append(str(pace).strip()[:50])
+
+        if len(fields) > 1:
+            vals.append(uid)
+            conn.execute(f"UPDATE learning_dna SET {', '.join(fields)} WHERE user_id=?", vals)
+
+        if mistake_text:
+            conn.execute(
+                "INSERT INTO student_mistakes (user_id, subject, mistake) VALUES (?,?,?)",
+                (uid, subject, mistake_text[:200])
+            )
+
+    return jsonify({"ok": True})
 
 
 # =====================================================================
