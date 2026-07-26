@@ -24,6 +24,7 @@ That's it! 🎉
 import os
 import re
 import sqlite3
+
 import hashlib
 import secrets
 import json
@@ -41,16 +42,20 @@ from groq import Groq
 # =====================================================================
 
 env_path_root = os.path.join(os.path.dirname(__file__), ".env")
+env_path_root_txt = os.path.join(os.path.dirname(__file__), ".env.txt")
 env_path_sub = os.path.join(os.path.dirname(__file__), "study_buddy", ".env")
 
 if os.path.exists(env_path_root):
     load_dotenv(env_path_root, override=True)
+elif os.path.exists(env_path_root_txt):
+    load_dotenv(env_path_root_txt, override=True)
 elif os.path.exists(env_path_sub):
     load_dotenv(env_path_sub, override=True)
 else:
     load_dotenv(override=True)
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+# Store API key in module variable to avoid environment access issues during runtime
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 
 if not GROQ_API_KEY:
     print("\n[WARNING] No GROQ_API_KEY found!")
@@ -61,10 +66,11 @@ if not GROQ_API_KEY:
 _groq_client_instance = None
 
 def get_groq_client():
-    key = (os.getenv("GROQ_API_KEY") or "").strip()
-    if not key:
+    # Use module-level variable instead of os.getenv to avoid runtime environment access issues
+    global GROQ_API_KEY
+    if not GROQ_API_KEY:
         raise ValueError("Server has no GROQ API key configured. Please set GROQ_API_KEY in .env.")
-    return Groq(api_key=key)
+    return Groq(api_key=GROQ_API_KEY)
 
 DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
 
@@ -177,13 +183,21 @@ def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS student_mistakes (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                subject     TEXT    NOT NULL DEFAULT 'General',
-                mistake     TEXT    NOT NULL,
-                created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                subject         TEXT    NOT NULL DEFAULT 'General',
+                topic           TEXT    NOT NULL DEFAULT 'General',
+                question        TEXT    NOT NULL,
+                wrong_answer    TEXT    NOT NULL,
+                correct_answer  TEXT    NOT NULL,
+                explanation     TEXT    NOT NULL,
+                mastered        INTEGER NOT NULL DEFAULT 0,
+                source_type     TEXT    NOT NULL DEFAULT 'quiz', -- 'quiz', 'crosscheck', 'practice'
+                created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+                mastered_at     TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_mistakes_user ON student_mistakes(user_id, subject);
+            CREATE INDEX IF NOT EXISTS idx_mistakes_mastered ON student_mistakes(user_id, mastered);
         """)
         try:
             conn.execute("ALTER TABLE living_notebook ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
@@ -218,6 +232,50 @@ def init_db():
             conn.execute("PRAGMA foreign_keys=ON")
             print("[DB] Migration completed successfully.")
 
+        # Migration check for student_mistakes table to support enhanced Mistake Vault
+        mistake_row = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='student_mistakes'").fetchone()
+        if mistake_row and mistake_row["sql"] and "question" not in mistake_row["sql"]:
+            print("[DB] Migrating student_mistakes schema for Mistake Vault...")
+            conn.execute("PRAGMA foreign_keys=OFF")
+            
+            # Check if old table has data
+            old_data = conn.execute("SELECT COUNT(*) as count FROM student_mistakes").fetchone()
+            has_old_data = old_data and old_data["count"] > 0
+            
+            conn.execute("""
+                CREATE TABLE student_mistakes_new (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    subject         TEXT    NOT NULL DEFAULT 'General',
+                    topic           TEXT    NOT NULL DEFAULT 'General',
+                    question        TEXT    NOT NULL,
+                    wrong_answer    TEXT    NOT NULL,
+                    correct_answer  TEXT    NOT NULL,
+                    explanation     TEXT    NOT NULL,
+                    mastered        INTEGER NOT NULL DEFAULT 0,
+                    source_type     TEXT    NOT NULL DEFAULT 'quiz',
+                    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+                    mastered_at     TEXT
+                );
+            """)
+            
+            # Migrate old data if exists
+            if has_old_data:
+                conn.execute("""
+                    INSERT INTO student_mistakes_new (user_id, subject, topic, question, wrong_answer, correct_answer, explanation, source_type, created_at)
+                    SELECT user_id, subject, 'General', 
+                           COALESCE(SUBSTR(mistake, 1, 200), 'Legacy mistake'), 
+                           'Unknown', 'See explanation', mistake, 'legacy', created_at
+                    FROM student_mistakes
+                """)
+            
+            conn.execute("DROP TABLE student_mistakes")
+            conn.execute("ALTER TABLE student_mistakes_new RENAME TO student_mistakes")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_mistakes_user ON student_mistakes(user_id, subject)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_mistakes_mastered ON student_mistakes(user_id, mastered)")
+            conn.execute("PRAGMA foreign_keys=ON")
+            print("[DB] Mistake Vault migration complete!")
+
 
 # =====================================================================
 #  STEP 5: AUTH HELPERS
@@ -245,6 +303,22 @@ def require_auth():
         session.clear()
         return None, (jsonify({"error": "User not found."}), 401)
     return row, None
+
+
+def save_mistake_to_vault(user_id: int, subject: str, topic: str, question: str, 
+                         wrong_answer: str, correct_answer: str, explanation: str, 
+                         source_type: str = "quiz"):
+    """Helper function to automatically save mistakes to the vault."""
+    try:
+        with get_db() as conn:
+            conn.execute("""
+                INSERT INTO student_mistakes (user_id, subject, topic, question, wrong_answer, correct_answer, explanation, source_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, subject, topic, question, wrong_answer, correct_answer, explanation, source_type))
+        return True
+    except Exception as e:
+        print(f"[ERROR] Failed to save mistake to vault: {e}")
+        return False
 
 
 # =====================================================================
@@ -623,6 +697,7 @@ def generate_smart_title(client, user_msg: str, target_model: str) -> str:
 
 
 # ── Chat (main AI endpoint) ───────────────────────────────────────────
+
 
 @app.route("/api/chat", methods=["POST"])
 @app.route("/api/podcast", methods=["POST"])
@@ -1175,18 +1250,21 @@ def get_or_create_learning_dna(conn, user_id: int):
 
 @app.route("/api/learning_dna", methods=["GET"])
 def get_learning_dna():
-    """Retrieve full Learning DNA personal learning profile for logged in user."""
+    """Comprehensive AI Learning Analytics Dashboard - Retrieve full Learning DNA profile with extensive insights."""
     user, err = require_auth()
     if err:
         return err
 
     uid = user["id"]
     with get_db() as conn:
+        import json
+        from datetime import datetime, timedelta
+        
         profile = get_or_create_learning_dna(conn, uid)
 
-        # Subject analytics
+        # Subject analytics with enhanced metrics
         subj_rows = conn.execute(
-            "SELECT subject, questions_taken, questions_correct, study_minutes FROM subject_analytics WHERE user_id=? ORDER BY study_minutes DESC, questions_taken DESC",
+            "SELECT subject, questions_taken, questions_correct, study_minutes, updated_at FROM subject_analytics WHERE user_id=? ORDER BY study_minutes DESC, questions_taken DESC",
             (uid,)
         ).fetchall()
 
@@ -1199,7 +1277,7 @@ def get_learning_dna():
             d["accuracy"] = acc
             subject_breakdown.append(d)
 
-        # Sort for strongest & weakest
+        # Enhanced strongest/weakest analysis
         sorted_by_acc = sorted(
             [s for s in subject_breakdown if s["questions_taken"] > 0 or s["study_minutes"] > 0],
             key=lambda x: (x["accuracy"], x["study_minutes"]),
@@ -1207,85 +1285,258 @@ def get_learning_dna():
         )
 
         if len(sorted_by_acc) == 1:
-            strongest_subjects = [sorted_by_acc[0]["subject"]]
+            strongest_subjects = [{"subject": sorted_by_acc[0]["subject"], "accuracy": sorted_by_acc[0]["accuracy"]}]
             weakest_subjects = []
         elif len(sorted_by_acc) > 1:
+            # Show ALL strongest subjects (top 50%) and ALL weakest subjects (bottom subjects not in strongest)
             mid = max(1, len(sorted_by_acc) // 2)
-            strongest_subjects = [s["subject"] for s in sorted_by_acc[:mid]]
-            weakest_subjects = [s["subject"] for s in reversed(sorted_by_acc) if s["subject"] not in strongest_subjects][:2]
+            strongest_subjects = [{"subject": s["subject"], "accuracy": s["accuracy"]} for s in sorted_by_acc[:mid]]
+            weakest_subjects = [{"subject": s["subject"], "accuracy": s["accuracy"]} for s in reversed(sorted_by_acc) if s["subject"] not in [st["subject"] for st in strongest_subjects]]
         else:
-            strongest_subjects = ["General"]
+            strongest_subjects = [{"subject": "General", "accuracy": 0}]
             weakest_subjects = []
 
-        # Common mistakes: combine student_mistakes table and Living Notebook category 'Mistakes I Made'
-        mistakes_rows = conn.execute(
-            "SELECT id, subject, mistake, created_at FROM student_mistakes WHERE user_id=? ORDER BY id DESC LIMIT 10",
-            (uid,)
-        ).fetchall()
-        mistakes_list = [dict(m) for m in mistakes_rows]
+        # Chapter-level analysis from chat history and mistakes
+        chat_messages = conn.execute("""
+            SELECT m.content, m.created_at, c.title 
+            FROM messages m 
+            JOIN conversations c ON m.conversation_id = c.id 
+            WHERE c.user_id = ? AND m.role = 'user' 
+            ORDER BY m.created_at DESC LIMIT 100
+        """, (uid,)).fetchall()
 
-        nb_mistakes = conn.execute(
-            "SELECT id, subject, content as mistake, created_at FROM living_notebook WHERE user_id=? AND category='Mistakes I Made' ORDER BY id DESC LIMIT 10",
-            (uid,)
-        ).fetchall()
+        # Extract topics/chapters from chat messages using basic keyword analysis
+        topic_mentions = {}
+        for msg in chat_messages:
+            content = msg["content"].lower()
+            # Simple topic extraction - look for common chapter/topic patterns
+            words = content.split()
+            for i, word in enumerate(words):
+                if word in ['chapter', 'unit', 'lesson', 'topic'] and i + 1 < len(words):
+                    topic = words[i + 1]
+                    if topic not in topic_mentions:
+                        topic_mentions[topic] = 0
+                    topic_mentions[topic] += 1
 
-        # Combine without duplicates
-        existing_texts = {m["mistake"].strip().lower() for m in mistakes_list}
-        for nbm in nb_mistakes:
-            text = nbm["mistake"].strip()
-            if text.lower() not in existing_texts:
-                mistakes_list.append({
-                    "id": f"nb_{nbm['id']}",
-                    "subject": nbm["subject"],
-                    "mistake": text,
-                    "created_at": nbm["created_at"]
+        # Show ALL chapters mentioned, sorted by frequency
+        strongest_chapters = sorted(topic_mentions.items(), key=lambda x: x[1], reverse=True)
+        weakest_chapters = sorted(topic_mentions.items(), key=lambda x: x[1])
+
+        # Quiz performance history (last 30 days)
+        thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+        quiz_history = []
+        
+        # Get recent quiz sessions from learning_dna tracking calls
+        # We'll simulate this with subject analytics updated dates
+        for subj in subject_breakdown:  # ALL subjects with quiz history
+            if subj["questions_taken"] > 0:
+                quiz_history.append({
+                    "date": subj.get("updated_at", datetime.now().strftime('%Y-%m-%d')),
+                    "subject": subj["subject"],
+                    "accuracy": subj["accuracy"],
+                    "questions": subj["questions_taken"]
                 })
-                existing_texts.add(text.lower())
 
+        # Chat activity analysis
+        chat_stats = conn.execute("""
+            SELECT DATE(m.created_at) as date, COUNT(*) as messages
+            FROM messages m 
+            JOIN conversations c ON m.conversation_id = c.id 
+            WHERE c.user_id = ? AND m.role = 'user' AND DATE(m.created_at) >= ?
+            GROUP BY DATE(m.created_at) 
+            ORDER BY date DESC LIMIT 60
+        """, (uid, thirty_days_ago)).fetchall()
+
+        daily_chat_activity = [{"date": row["date"], "messages": row["messages"]} for row in chat_stats]
+
+        # Mistake Vault enhanced analysis
+        mistakes_analysis = conn.execute("""
+            SELECT subject, COUNT(*) as mistake_count, 
+                   SUM(CASE WHEN mastered = 1 THEN 1 ELSE 0 END) as mastered_count
+            FROM student_mistakes 
+            WHERE user_id = ? 
+            GROUP BY subject 
+            ORDER BY mistake_count DESC
+        """, (uid,)).fetchall()
+
+        mistake_vault_stats = [{"subject": row["subject"], "total": row["mistake_count"], "mastered": row["mastered_count"]} for row in mistakes_analysis]
+
+        # Study streak calculation
+        study_dates = set()
+        for row in chat_stats:
+            study_dates.add(row["date"])
+        
+        # Add quiz dates
+        for subj in subject_breakdown:
+            if subj.get("updated_at"):
+                study_dates.add(subj["updated_at"][:10])  # Extract date part
+
+        # Calculate current streak
+        today = datetime.now().date()
+        streak = 0
+        current_date = today
+        
+        while current_date.strftime('%Y-%m-%d') in study_dates:
+            streak += 1
+            current_date -= timedelta(days=1)
+
+        # Learning pace analysis
+        total_study_time = profile.get("total_study_minutes", 0)
+        total_days = max(1, len(study_dates))
+        avg_daily_time = round(total_study_time / total_days, 1) if total_days > 0 else 0
+
+        # Determine learning pace
+        if avg_daily_time >= 60:
+            pace_category = "Intensive"
+        elif avg_daily_time >= 30:
+            pace_category = "Steady"
+        elif avg_daily_time >= 15:
+            pace_category = "Moderate"
+        else:
+            pace_category = "Light"
+
+        # Exam readiness calculation
         tq = profile.get("total_quiz_questions", 0)
         cq = profile.get("correct_quiz_questions", 0)
         overall_accuracy = round((cq / tq * 100.0), 1) if tq > 0 else 0.0
 
-        # Topics Mastered: subjects with accuracy >= 75% and at least 2 questions
+        # Complex readiness algorithm
+        accuracy_score = min(overall_accuracy, 100) * 0.4  # 40% weight
+        volume_score = min(tq / 50 * 100, 100) * 0.3      # 30% weight (50 questions = 100%)
+        consistency_score = min(streak / 7 * 100, 100) * 0.2  # 20% weight (7 days = 100%)
+        breadth_score = min(len(subject_breakdown) / 5 * 100, 100) * 0.1  # 10% weight (5 subjects = 100%)
+
+        exam_readiness = round(accuracy_score + volume_score + consistency_score + breadth_score, 1)
+
+        # Topics mastered (enhanced)
         topics_mastered = [
-            {"subject": s["subject"], "accuracy": s["accuracy"], "questionsTaken": s["questions_taken"]}
+            {
+                "subject": s["subject"], 
+                "accuracy": s["accuracy"], 
+                "questionsTaken": s["questions_taken"],
+                "studyTime": s["study_minutes"]
+            }
             for s in subject_breakdown if s["questions_taken"] >= 2 and s["accuracy"] >= 75.0
         ]
 
-        # Topics to Revise: Living Notebook items under 'Things to Revise' & 'Mistakes I Made'
+        # Topics needing revision (enhanced)
         revision_rows = conn.execute("""
-            SELECT id, subject, category, content FROM living_notebook
+            SELECT id, subject, category, content, created_at FROM living_notebook
             WHERE user_id=? AND category IN ('Things to Revise', 'Mistakes I Made')
-            ORDER BY id DESC LIMIT 8
+            ORDER BY created_at DESC LIMIT 15
         """, (uid,)).fetchall()
         topics_to_revise = [dict(r) for r in revision_rows]
 
-        # Also append low-accuracy subjects (<60%) if not already present
+        # Add low-accuracy subjects
         for s in subject_breakdown:
             if s["questions_taken"] >= 2 and s["accuracy"] < 60.0:
                 if not any(r["subject"].lower() == s["subject"].lower() for r in topics_to_revise):
                     topics_to_revise.append({
                         "id": f"subj_{s['subject']}",
                         "subject": s["subject"],
-                        "category": "Focus Subject",
-                        "content": f"Accuracy is {s['accuracy']}% in {s['subject']}. Practice more questions!"
+                        "category": "Low Accuracy",
+                        "content": f"Current accuracy: {s['accuracy']}% - Needs focused practice",
+                        "created_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     })
 
-        # Buddy Advice generation
+        # AI-powered personalized recommendations (Generate ALL applicable insights)
         buddy_name = user["buddy_name"] if "buddy_name" in user.keys() and user["buddy_name"] else "Max"
-        if tq == 0 and profile.get("total_study_minutes", 0) < 5:
-            buddy_advice = f"Hi! I'm {buddy_name}, your Study Buddy. Keep studying, read notes, and take your first quiz to unlock full Learning DNA insights!"
-        elif overall_accuracy >= 80.0:
-            strong_str = ", ".join(strongest_subjects) if strongest_subjects else "your core subjects"
-            buddy_advice = f"Awesome work! You're performing brilliantly in {strong_str} with {overall_accuracy}% overall quiz accuracy. Keep up the high score!"
-        elif overall_accuracy >= 60.0:
-            weak_str = ", ".join(weakest_subjects) if weakest_subjects else "your focus topics"
-            buddy_advice = f"Solid progress! Your overall accuracy is {overall_accuracy}%. Review your notes in {weak_str} to boost your mastery level."
+        
+        recommendations = []
+        
+        # Accuracy-based recommendations
+        if overall_accuracy < 70 and tq > 10:
+            recommendations.append("Focus on reviewing your mistake vault - understanding errors leads to better scores!")
+        elif overall_accuracy >= 85:
+            recommendations.append("Outstanding accuracy! Consider tackling more challenging topics to push your limits.")
+        elif overall_accuracy >= 70:
+            recommendations.append("Good accuracy! Aim for 80%+ by reviewing incorrect answers more carefully.")
+        
+        # Study streak recommendations
+        if streak == 0:
+            recommendations.append("Start a study streak! Even 15 minutes daily builds momentum.")
+        elif streak >= 7:
+            recommendations.append(f"Amazing {streak}-day streak! Keep this consistency to maximize retention.")
+        elif streak >= 3:
+            recommendations.append(f"Great {streak}-day streak! Try to reach a full week of daily study.")
+        
+        # Subject balance recommendations
+        if len(strongest_subjects) > 0 and len(weakest_subjects) > 0:
+            recommendations.append(f"Balance your study: maintain strength in {strongest_subjects[0]['subject']} while improving {weakest_subjects[0]['subject']}.")
+        elif len(strongest_subjects) > 2:
+            recommendations.append("You're excelling in multiple subjects! Consider teaching others to reinforce your knowledge.")
+        elif len(subject_breakdown) == 1:
+            recommendations.append("Explore additional subjects to build a well-rounded knowledge base.")
+        
+        # Activity-based recommendations
+        if total_study_time > 0 and tq == 0:
+            recommendations.append("You're chatting well! Try taking a quiz to test your knowledge retention.")
+        elif tq > 20 and total_study_time < 60:
+            recommendations.append("You're quiz-active! Balance with more reading and note-taking for deeper understanding.")
+        elif total_study_time > 120 and tq < 5:
+            recommendations.append("Great study time! Test your knowledge with more quizzes to identify gaps.")
+        
+        # Content management recommendations
+        if len(topics_to_revise) > 5:
+            recommendations.append("Your revision list is growing. Pick 2-3 priority topics to focus on this week.")
+        elif len(topics_mastered) > 3:
+            recommendations.append("Excellent mastery! Review mastered topics monthly to maintain long-term retention.")
+        
+        # Exam readiness recommendations
+        if exam_readiness < 40:
+            recommendations.append("Build your exam readiness: Take more quizzes and maintain daily study habits.")
+        elif exam_readiness >= 80:
+            recommendations.append("You're exam-ready! Practice under timed conditions and review edge cases.")
+        elif exam_readiness >= 60:
+            recommendations.append("Good exam prep progress! Focus on your weaker subjects to boost overall readiness.")
+        
+        # Time management recommendations
+        if avg_daily_time < 15:
+            recommendations.append("Try studying for at least 25 minutes daily - the optimal focus duration.")
+        elif avg_daily_time > 120:
+            recommendations.append("Impressive study time! Make sure to take breaks every 45-60 minutes for optimal retention.")
+        
+        # Engagement pattern recommendations
+        if len(daily_chat_activity) > 0:
+            avg_daily_messages = sum(d['messages'] for d in daily_chat_activity) / len(daily_chat_activity)
+            if avg_daily_messages > 20:
+                recommendations.append("High engagement! Try converting some chat questions into quiz practice.")
+            elif avg_daily_messages < 5:
+                recommendations.append("Ask more questions! Active learning through chat boosts understanding.")
+
+        # Always provide at least one recommendation
+        if not recommendations:
+            recommendations.append("Keep up the great work! You're building solid learning habits.")
+
+        # Suggested next study session
+        if len(weakest_subjects) > 0:
+            next_session = f"Practice {weakest_subjects[0]['subject']} for 25 minutes, then take a short quiz"
+        elif len(topics_to_revise) > 0:
+            next_session = f"Review notes on {topics_to_revise[0]['subject']} and identify key concepts to practice"
         else:
-            weak_str = ", ".join(weakest_subjects) if weakest_subjects else "your key subjects"
-            buddy_advice = f"Don't worry! Practice makes progress. Focus on reviewing {weak_str} in the Living Notebook and take a short 5-question quiz."
+            next_session = "Explore a new topic or deepen your strongest subject knowledge"
+
+        # Weekly and monthly progress
+        week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        month_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+
+        weekly_messages = len([msg for msg in daily_chat_activity if msg["date"] >= week_ago])
+        monthly_messages = len([msg for msg in daily_chat_activity if msg["date"] >= month_ago])
+
+        # Enhanced buddy advice with more personality
+        if tq == 0 and profile.get("total_study_minutes", 0) < 5:
+            buddy_advice = f"Hi there! I'm {buddy_name}, your AI Study Buddy 🤖. I'm excited to help you learn! Start by asking questions or taking your first quiz to unlock your complete Learning DNA dashboard with detailed analytics, progress tracking, and personalized recommendations!"
+        elif exam_readiness >= 80:
+            buddy_advice = f"🎉 Outstanding! You're at {exam_readiness}% exam readiness with {overall_accuracy}% accuracy. You're clearly mastering the material. Keep this momentum going!"
+        elif exam_readiness >= 60:
+            buddy_advice = f"💪 Great progress! You're at {exam_readiness}% exam readiness. " + (recommendations[0] if recommendations else "Keep practicing consistently!")
+        elif streak >= 3:
+            buddy_advice = f"🔥 Love your {streak}-day study streak! Consistency is key to mastery. " + (recommendations[0] if recommendations else "You're building excellent habits!")
+        else:
+            buddy_advice = f"Let's boost your learning! " + (recommendations[0] if recommendations else "Take it one step at a time - you've got this!")
 
     return jsonify({
+        # Core metrics (existing)
         "totalStudyMinutes": profile.get("total_study_minutes", 0),
         "totalQuizzes": profile.get("total_quizzes", 0),
         "totalQuestions": tq,
@@ -1293,17 +1544,61 @@ def get_learning_dna():
         "accuracy": overall_accuracy,
         "preferredStyle": profile.get("preferred_style", "Step-by-Step"),
         "learningPace": profile.get("learning_pace", "Steady"),
+        
+        # Enhanced subject analysis
         "strongestSubjects": strongest_subjects,
         "weakestSubjects": weakest_subjects,
         "subjectBreakdown": subject_breakdown,
-        "commonMistakes": mistakes_list[:10],
+        
+        # NEW: Chapter-level insights
+        "strongestChapters": [{"chapter": ch[0], "mentions": ch[1]} for ch in strongest_chapters],
+        "weakestChapters": [{"chapter": ch[0], "mentions": ch[1]} for ch in weakest_chapters],
+        
+        # NEW: Performance tracking
+        "quizPerformanceHistory": quiz_history[-30:],  # Last 30 entries
+        "dailyChatActivity": daily_chat_activity,
+        
+        # NEW: Mistake analysis
+        "mistakeVaultAnalysis": mistake_vault_stats,
+        
+        # Enhanced learning metrics
         "topicsMastered": topics_mastered,
-        "topicsToRevise": topics_to_revise[:10],
+        "topicsToRevise": topics_to_revise[:15],
+        
+        # NEW: Advanced analytics
+        "studyStreak": streak,
+        "learningPaceCategory": pace_category,
+        "averageDailyStudyTime": avg_daily_time,
+        "examReadiness": exam_readiness,
+        
+        # NEW: AI recommendations
+        "personalizedRecommendations": recommendations,
+        "suggestedNextSession": next_session,
+        
+        # NEW: Progress tracking
+        "weeklyProgress": {
+            "chatMessages": weekly_messages,
+            "studyDays": len([d for d in study_dates if d >= week_ago]),
+            "avgAccuracy": overall_accuracy
+        },
+        "monthlyProgress": {
+            "chatMessages": monthly_messages,
+            "studyDays": len([d for d in study_dates if d >= month_ago]),
+            "totalQuizzes": profile.get("total_quizzes", 0),
+            "totalStudyTime": profile.get("total_study_minutes", 0)
+        },
+        
+        # Enhanced buddy interaction
         "buddyAdvice": buddy_advice,
+        
+        # Legacy compatibility
+        "commonMistakes": mistake_vault_stats,
         "recentProgress": {
             "totalSessions": profile.get("total_quizzes", 0) + (1 if profile.get("total_study_minutes", 0) > 0 else 0),
             "studyMinutes": profile.get("total_study_minutes", 0),
-            "accuracy": overall_accuracy
+            "accuracy": overall_accuracy,
+            "streak": streak,
+            "examReadiness": exam_readiness
         }
     })
 
@@ -1378,12 +1673,185 @@ def track_learning_dna():
             conn.execute(f"UPDATE learning_dna SET {', '.join(fields)} WHERE user_id=?", vals)
 
         if mistake_text:
-            conn.execute(
-                "INSERT INTO student_mistakes (user_id, subject, mistake) VALUES (?,?,?)",
-                (uid, subject, mistake_text[:200])
-            )
+            # Use the new enhanced mistakes format
+            conn.execute("""
+                INSERT INTO student_mistakes (user_id, subject, topic, question, wrong_answer, correct_answer, explanation, source_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (uid, subject, 'General', 'Legacy mistake entry', 'Unknown', 'See explanation', mistake_text[:500], 'learning_dna'))
 
     return jsonify({"ok": True})
+
+
+# ── Mistake Vault Routes ─────────────────────────────────────────────
+
+@app.route("/api/mistakes", methods=["GET"])
+def get_mistakes():
+    """Get all mistakes for the logged-in user with optional filtering."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    subject = request.args.get('subject', '').strip()
+    search = request.args.get('search', '').strip()
+    mastered_only = request.args.get('mastered') == 'true'
+    unmastered_only = request.args.get('unmastered') == 'true'
+
+    with get_db() as conn:
+        query = """
+            SELECT id, subject, topic, question, wrong_answer, correct_answer, 
+                   explanation, mastered, source_type, created_at, mastered_at
+            FROM student_mistakes 
+            WHERE user_id=?
+        """
+        params = [user["id"]]
+
+        if subject:
+            query += " AND subject=?"
+            params.append(subject)
+
+        if search:
+            query += " AND (question LIKE ? OR explanation LIKE ? OR topic LIKE ?)"
+            search_term = f"%{search}%"
+            params.extend([search_term, search_term, search_term])
+
+        if mastered_only:
+            query += " AND mastered=1"
+        elif unmastered_only:
+            query += " AND mastered=0"
+
+        query += " ORDER BY created_at DESC"
+
+        rows = conn.execute(query, params).fetchall()
+
+    return jsonify({"mistakes": [dict(r) for r in rows]})
+
+
+@app.route("/api/mistakes", methods=["POST"])
+def add_mistake():
+    """Add a new mistake to the vault."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    data = request.get_json(force=True) or {}
+    subject = (data.get("subject") or "General").strip()
+    topic = (data.get("topic") or "General").strip()
+    question = (data.get("question") or "").strip()
+    wrong_answer = (data.get("wrong_answer") or "").strip()
+    correct_answer = (data.get("correct_answer") or "").strip()
+    explanation = (data.get("explanation") or "").strip()
+    source_type = (data.get("source_type") or "manual").strip()
+
+    if not question or not correct_answer or not explanation:
+        return jsonify({"error": "Question, correct answer, and explanation are required."}), 400
+
+    with get_db() as conn:
+        cur = conn.execute("""
+            INSERT INTO student_mistakes (user_id, subject, topic, question, wrong_answer, correct_answer, explanation, source_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user["id"], subject, topic, question, wrong_answer, correct_answer, explanation, source_type))
+        
+        mistake_id = cur.lastrowid
+        row = conn.execute("SELECT * FROM student_mistakes WHERE id=?", (mistake_id,)).fetchone()
+
+    return jsonify(dict(row)), 201
+
+
+@app.route("/api/mistakes/<int:mistake_id>", methods=["PATCH"])
+def update_mistake(mistake_id):
+    """Update a mistake (mainly for marking as mastered)."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    data = request.get_json(force=True) or {}
+
+    with get_db() as conn:
+        # Verify ownership
+        row = conn.execute("SELECT * FROM student_mistakes WHERE id=? AND user_id=?", (mistake_id, user["id"])).fetchone()
+        if not row:
+            return jsonify({"error": "Mistake not found."}), 404
+
+        fields = []
+        vals = []
+
+        if "mastered" in data:
+            mastered = 1 if data["mastered"] else 0
+            fields.append("mastered=?")
+            vals.append(mastered)
+            
+            if mastered:
+                fields.append("mastered_at=datetime('now')")
+            else:
+                fields.append("mastered_at=NULL")
+
+        if "subject" in data and data["subject"].strip():
+            fields.append("subject=?")
+            vals.append(data["subject"].strip())
+
+        if "topic" in data and data["topic"].strip():
+            fields.append("topic=?")
+            vals.append(data["topic"].strip())
+
+        if "question" in data and data["question"].strip():
+            fields.append("question=?")
+            vals.append(data["question"].strip())
+
+        if "wrong_answer" in data:
+            fields.append("wrong_answer=?")
+            vals.append(data["wrong_answer"].strip())
+
+        if "correct_answer" in data and data["correct_answer"].strip():
+            fields.append("correct_answer=?")
+            vals.append(data["correct_answer"].strip())
+
+        if "explanation" in data and data["explanation"].strip():
+            fields.append("explanation=?")
+            vals.append(data["explanation"].strip())
+
+        if fields:
+            vals.append(mistake_id)
+            conn.execute(f"UPDATE student_mistakes SET {', '.join(fields)} WHERE id=?", vals)
+
+        updated = conn.execute("SELECT * FROM student_mistakes WHERE id=?", (mistake_id,)).fetchone()
+
+    return jsonify(dict(updated))
+
+
+@app.route("/api/mistakes/<int:mistake_id>", methods=["DELETE"])
+def delete_mistake(mistake_id):
+    """Delete a mistake."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    with get_db() as conn:
+        row = conn.execute("SELECT id FROM student_mistakes WHERE id=? AND user_id=?", (mistake_id, user["id"])).fetchone()
+        if not row:
+            return jsonify({"error": "Mistake not found."}), 404
+        
+        conn.execute("DELETE FROM student_mistakes WHERE id=?", (mistake_id,))
+
+    return jsonify({"ok": True})
+
+
+@app.route("/api/mistakes/subjects", methods=["GET"])
+def get_mistake_subjects():
+    """Get all subjects that have mistakes."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT DISTINCT subject, COUNT(*) as count
+            FROM student_mistakes 
+            WHERE user_id=?
+            GROUP BY subject
+            ORDER BY count DESC, subject ASC
+        """, (user["id"],)).fetchall()
+
+    return jsonify({"subjects": [dict(r) for r in rows]})
 
 
 # =====================================================================

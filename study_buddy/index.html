@@ -1457,6 +1457,15 @@
     .kpi-value.highlight-rose {
       color: #fb7185;
     }
+    .kpi-value.highlight-blue {
+      color: #60a5fa;
+    }
+    .kpi-value.highlight-purple {
+      color: #c084fc;
+    }
+    .kpi-value.highlight-orange {
+      color: #fb923c;
+    }
     .kpi-sub {
       font-size: 10px;
       color: var(--muted);
@@ -1487,6 +1496,29 @@
     .card-tag.tag-rose {
       background: rgba(244, 63, 94, 0.15);
       color: #fb7185;
+    }
+    .card-tag.tag-blue {
+      background: rgba(96, 165, 250, 0.15);
+      color: #60a5fa;
+    }
+    .card-tag.tag-green {
+      background: rgba(52, 211, 153, 0.15);
+      color: #34d399;
+    }
+    .card-tag.tag-purple {
+      background: rgba(192, 132, 252, 0.15);
+      color: #c084fc;
+    }
+    .card-tag.tag-orange {
+      background: rgba(251, 146, 60, 0.15);
+      color: #fb923c;
+    }
+
+    /* Animation for the status indicator */
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
     }
     .dna-mistakes-container {
       display: flex;
@@ -1823,6 +1855,227 @@
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 
+    /* Mistake Vault Specific */
+    .mistake-vault-controls {
+      background: rgba(30, 41, 59, 0.3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .mistake-list {
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+
+    .mistake-item {
+      background: rgba(17, 24, 39, 0.5);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 16px;
+      transition: all 0.2s ease-out;
+    }
+
+    .mistake-item:hover {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.05);
+    }
+
+    .mistake-item.mastered {
+      border-color: var(--accent3);
+      background: rgba(16, 185, 129, 0.1);
+    }
+
+    .mistake-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .mistake-subject {
+      background: var(--accent);
+      color: white;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .mistake-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .mistake-question {
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .mistake-answers {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 12px 0;
+    }
+
+    .mistake-wrong-answer,
+    .mistake-correct-answer {
+      padding: 12px;
+      border-radius: var(--radius);
+    }
+
+    .mistake-wrong-answer {
+      background: rgba(244, 63, 94, 0.1);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+    }
+
+    .mistake-correct-answer {
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .mistake-explanation {
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 12px;
+      border-radius: var(--radius);
+      margin-top: 12px;
+      font-style: italic;
+    }
+
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-body {
+      padding: 20px;
+    }
+
+    .modal-footer {
+      padding: 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      border-radius: var(--radius);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      transition: all 0.2s ease-out;
+    }
+
+    .btn-sm:hover {
+      background: rgba(99, 102, 241, 0.1);
+      border-color: var(--accent);
+    }
+
+    .btn-danger {
+      background: rgba(244, 63, 94, 0.1);
+      color: var(--accent2);
+      border-color: rgba(244, 63, 94, 0.3);
+    }
+
+    .btn-danger:hover {
+      background: rgba(244, 63, 94, 0.2);
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius);
+      transition: all 0.2s ease-out;
+    }
+
+    .close-btn:hover {
+      background: rgba(244, 63, 94, 0.1);
+      color: var(--accent2);
+    }
+
+    .form-input,
+    .form-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 0.9rem;
+      transition: all 0.2s ease-out;
+    }
+
+    .form-input:focus,
+    .form-select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+    }
+
+    .form-input::placeholder {
+      color: var(--muted);
+    }
+
+    textarea.form-input {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
     .crosscheck-container {
       background: rgba(30, 41, 59, 0.3);
       border: 1px solid var(--border);
@@ -1948,7 +2201,6 @@
        All classes prefixed with  ce-  to avoid conflicts.
        ═════════════════════════════════════════════════════ */
 
-    #career-section { width:100%; height:100%; display:flex; flex-direction:column; overflow:hidden; }
 
     .ce-content { flex:1; overflow-y:auto; scroll-behavior:smooth; }
     .ce-content::-webkit-scrollbar { width:5px; }
@@ -2142,7 +2394,6 @@
       header,nav,#sidebar,#dict-sidebar,.ce-report-nav,.ce-report-footer,
       .ce-btn,.ce-compat-legend { display:none !important; }
       body { background:#fff !important; color:#111 !important; }
-      #career-section { overflow:visible !important; height:auto !important; }
       .ce-content { overflow:visible !important; }
       .ce-report { padding:0; max-width:100%; }
       .ce-career-card { break-inside:avoid; border:1px solid #ddd !important; background:#fff !important; margin-bottom:16px; box-shadow:none !important; }
@@ -2449,6 +2700,8 @@
     <button class="tab-btn" data-tab="quiz">❓ Quiz</button>
     <button class="tab-btn" data-tab="crosscheck">🧪 Crosscheck</button>
     <button class="tab-btn" data-tab="definitions">📖 Definitions</button>
+    <button class="tab-btn" data-tab="learning-dna">🧬 Learning DNA</button>
+    <button class="tab-btn" data-tab="mistake-vault">🗃️ Mistake Vault</button>
   </nav>
 
   <main>
@@ -2565,6 +2818,7 @@
       </div>
 
     </div>
+
 
       <!-- RIGHT SIDEBAR: DICTIONARY & LIVING NOTEBOOK -->
       <div id="dict-sidebar">
@@ -2732,47 +2986,47 @@
 
   <!-- LEARNING DNA SECTION -->
   <div id="learning-dna-section" class="feature-section" style="display:none;">
-    <div class="section-container" style="max-width: 1000px; margin: 0 auto; width: 100%;">
+    <div class="section-container" style="max-width: 1200px; margin: 0 auto; width: 100%;">
       
       <!-- Dashboard Header -->
-      <div class="feature-header" style="text-align: center; margin-bottom: 18px;">
+      <div class="feature-header" style="text-align: center; margin-bottom: 20px;">
         <div style="display:inline-flex; align-items:center; gap:8px; padding:4px 12px; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:20px; color:#818cf8; font-size:12px; font-weight:600; margin-bottom:8px;">
-          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span> Personal Learning Profile Dashboard
+          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981; animation: pulse 2s infinite;"></span> AI Learning Analytics Dashboard
         </div>
         <h2>🧬 Learning DNA</h2>
-        <p>Your comprehensive personal dashboard tracking performance, accuracy, habits, and progress.</p>
+        <p>Comprehensive AI-powered insights tracking your performance, progress, and learning patterns.</p>
       </div>
 
-      <!-- ZERO-DATA FRIENDLY BANNER (Hidden when user has data) -->
+      <!-- ZERO-DATA BANNER -->
       <div id="dna-welcome-banner" class="dna-card" style="display:none; background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.15)); border: 1px solid rgba(99,102,241,0.3); padding: 16px 20px; text-align: center; margin-bottom: 20px;">
         <div style="font-size: 24px; margin-bottom: 6px;">🌱</div>
-        <div style="font-size: 15px; font-weight: 700; color: var(--text);">Keep studying to unlock your full Learning DNA!</div>
-        <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">As you ask questions, read notes, and complete quizzes, your personalized learning metrics will build automatically right here.</div>
+        <div style="font-size: 15px; font-weight: 700; color: var(--text);">Start your learning journey to unlock your complete Learning DNA!</div>
+        <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">Chat, take quizzes, and study to generate personalized analytics, progress tracking, and AI recommendations.</div>
       </div>
 
-      <!-- ROW 1: 4 CORE KPI CARDS (Strongest, Weakest, Accuracy, Study Time) -->
-      <div class="dna-kpi-grid">
-        <!-- 1. Strongest Subjects -->
+      <!-- ROW 1: CORE METRICS - 6 KPI CARDS -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px;">
+        <!-- Exam Readiness -->
         <div class="dna-card kpi-card">
-          <div class="kpi-icon">🏆</div>
+          <div class="kpi-icon">🎓</div>
           <div class="kpi-info">
-            <div class="kpi-label">Strongest Subjects</div>
-            <div class="kpi-value highlight-green" id="dna-strongest">General</div>
-            <div class="kpi-sub" id="dna-strongest-sub">Top accuracy</div>
+            <div class="kpi-label">Exam Readiness</div>
+            <div class="kpi-value highlight-blue" id="dna-exam-readiness">0%</div>
+            <div class="kpi-sub" id="dna-readiness-level">Getting started</div>
           </div>
         </div>
 
-        <!-- 2. Weakest Subjects -->
+        <!-- Study Streak -->
         <div class="dna-card kpi-card">
-          <div class="kpi-icon">⚠️</div>
+          <div class="kpi-icon">🔥</div>
           <div class="kpi-info">
-            <div class="kpi-label">Weakest Subjects</div>
-            <div class="kpi-value highlight-rose" id="dna-weakest">None yet</div>
-            <div class="kpi-sub" id="dna-weakest-sub">Needs practice</div>
+            <div class="kpi-label">Study Streak</div>
+            <div class="kpi-value highlight-orange" id="dna-study-streak">0</div>
+            <div class="kpi-sub">days in a row</div>
           </div>
         </div>
 
-        <!-- 3. Quiz Accuracy -->
+        <!-- Quiz Accuracy -->
         <div class="dna-card kpi-card">
           <div class="kpi-icon">🎯</div>
           <div class="kpi-info">
@@ -2782,78 +3036,309 @@
           </div>
         </div>
 
-        <!-- 4. Study Time -->
+        <!-- Study Time -->
         <div class="dna-card kpi-card">
           <div class="kpi-icon">⏱️</div>
           <div class="kpi-info">
-            <div class="kpi-label">Study Time</div>
+            <div class="kpi-label">Total Study Time</div>
             <div class="kpi-value" id="dna-study-time">0m</div>
-            <div class="kpi-sub">Total active time</div>
+            <div class="kpi-sub" id="dna-avg-daily">0 min/day avg</div>
+          </div>
+        </div>
+
+        <!-- Learning Pace -->
+        <div class="dna-card kpi-card">
+          <div class="kpi-icon">⚡</div>
+          <div class="kpi-info">
+            <div class="kpi-label">Learning Pace</div>
+            <div class="kpi-value highlight-purple" id="dna-learning-pace">Steady</div>
+            <div class="kpi-sub" id="dna-pace-desc">Consistent progress</div>
+          </div>
+        </div>
+
+        <!-- Topics Mastered -->
+        <div class="dna-card kpi-card">
+          <div class="kpi-icon">✅</div>
+          <div class="kpi-info">
+            <div class="kpi-label">Topics Mastered</div>
+            <div class="kpi-value highlight-green" id="dna-mastered-count">0</div>
+            <div class="kpi-sub">75%+ accuracy</div>
           </div>
         </div>
       </div>
 
-      <!-- ROW 2: BUDDY'S ADVICE CARD (AI Encouragement & Guidance) -->
-      <div class="dna-card" style="margin-top: 16px; background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(49, 46, 129, 0.4)); border-color: rgba(99, 102, 241, 0.3);">
-        <div class="card-header" style="margin-bottom: 8px;">
-          <h3 style="display:flex; align-items:center; gap:8px;">🤖 Buddy's Advice</h3>
-          <span class="card-tag">Personalized Tip</span>
+      <!-- ROW 2: AI INSIGHTS - Buddy Advice & Recommendations -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+        <!-- Buddy's Advice -->
+        <div class="dna-card" style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(49, 46, 129, 0.4)); border-color: rgba(99, 102, 241, 0.3);">
+          <div class="card-header" style="margin-bottom: 8px;">
+            <h3 style="display:flex; align-items:center; gap:8px;">🤖 AI Study Buddy</h3>
+            <span class="card-tag">Personalized</span>
+          </div>
+          <div id="dna-buddy-advice" style="font-size: 14px; color: var(--text); line-height: 1.5; font-weight: 500;">
+            Hi! I'm Max, your AI Study Buddy. Let's start learning together!
+          </div>
         </div>
-        <div id="dna-buddy-advice" style="font-size: 14px; color: var(--text); line-height: 1.5; font-weight: 500;">
-          Hi! I'm Max, your Study Buddy. Keep studying, read notes, and take your first quiz to unlock full Learning DNA insights!
+
+        <!-- AI Recommendations -->
+        <div class="dna-card">
+          <div class="card-header">
+            <h3>💡 Smart Recommendations</h3>
+            <span class="card-tag tag-blue">AI-Powered</span>
+          </div>
+          <div id="dna-recommendations" style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Study more to unlock personalized AI recommendations!</div>
+          </div>
         </div>
       </div>
 
-      <!-- ROW 3: TOPICS MASTERED & TOPICS TO REVISE GRID -->
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
-        <!-- 5. Topics Mastered -->
+      <!-- ROW 3: PERFORMANCE ANALYSIS -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+        <!-- Strongest Areas -->
         <div class="dna-card">
           <div class="card-header">
-            <h3>✅ Topics Mastered</h3>
-            <span class="card-tag" style="background:rgba(16,185,129,0.15); color:#34d399;" id="dna-mastered-count">0 topics</span>
+            <h3>🏆 Strongest Areas</h3>
+            <span class="card-tag" style="background:rgba(16,185,129,0.15); color:#34d399;">Excellence</span>
           </div>
-          <div id="dna-mastered-list" class="dna-list-container" style="display:flex; flex-direction:column; gap:8px; max-height:220px; overflow-y:auto;">
-            <div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Keep studying and scoring 75%+ in quizzes to master your first topic!</div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text);">📚 Subjects:</div>
+            <div id="dna-strongest-subjects" style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="color:var(--muted); font-size:12px; text-align:center; padding:8px;">Take quizzes to discover your strengths!</div>
+            </div>
+            <div style="font-size: 13px; font-weight: 600; margin: 12px 0 8px 0; color: var(--text);">📖 Chapters:</div>
+            <div id="dna-strongest-chapters" style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="color:var(--muted); font-size:12px; text-align:center; padding:8px;">Chat about topics to track chapter engagement!</div>
+            </div>
           </div>
         </div>
 
-        <!-- 6. Topics to Revise -->
+        <!-- Areas for Improvement -->
         <div class="dna-card">
           <div class="card-header">
-            <h3>🔄 Topics to Revise</h3>
+            <h3>🎯 Areas for Improvement</h3>
+            <span class="card-tag tag-rose">Focus Zone</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text);">📚 Subjects:</div>
+            <div id="dna-weakest-subjects" style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="color:var(--muted); font-size:12px; text-align:center; padding:8px;">No weak areas identified yet!</div>
+            </div>
+            <div style="font-size: 13px; font-weight: 600; margin: 12px 0 8px 0; color: var(--text);">📖 Chapters:</div>
+            <div id="dna-weakest-chapters" style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="color:var(--muted); font-size:12px; text-align:center; padding:8px;">Keep learning to identify improvement areas!</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW 4: PROGRESS TRACKING -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+        <!-- Weekly Progress -->
+        <div class="dna-card">
+          <div class="card-header">
+            <h3>📅 Weekly Progress</h3>
+            <span class="card-tag tag-blue">Last 7 Days</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; color: var(--muted);">Study Days</span>
+              <span style="font-weight: 700; color: var(--text);" id="dna-weekly-days">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; color: var(--muted);">Chat Messages</span>
+              <span style="font-weight: 700; color: var(--text);" id="dna-weekly-chats">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; color: var(--muted);">Avg. Accuracy</span>
+              <span style="font-weight: 700; color: var(--text);" id="dna-weekly-accuracy">0%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Monthly Progress -->
+        <div class="dna-card">
+          <div class="card-header">
+            <h3>📊 Monthly Progress</h3>
+            <span class="card-tag tag-purple">Last 30 Days</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; color: var(--muted);">Study Time</span>
+              <span style="font-weight: 700; color: var(--text);" id="dna-monthly-time">0h</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; color: var(--muted);">Total Quizzes</span>
+              <span style="font-weight: 700; color: var(--text);" id="dna-monthly-quizzes">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; color: var(--muted);">Chat Messages</span>
+              <span style="font-weight: 700; color: var(--text);" id="dna-monthly-chats">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Next Study Session -->
+        <div class="dna-card">
+          <div class="card-header">
+            <h3>🎯 Next Session</h3>
+            <span class="card-tag tag-green">Suggested</span>
+          </div>
+          <div id="dna-next-session" style="font-size: 13px; color: var(--text); line-height: 1.4;">
+            Start learning to get personalized study recommendations!
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW 5: DETAILED ANALYTICS -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+        <!-- Topics Mastered -->
+        <div class="dna-card">
+          <div class="card-header">
+            <h3>✅ Mastered Topics</h3>
+            <span class="card-tag" style="background:rgba(16,185,129,0.15); color:#34d399;" id="dna-mastered-detail-count">0 topics</span>
+          </div>
+          <div id="dna-mastered-list" class="dna-list-container" style="display:flex; flex-direction:column; gap:8px; max-height:200px; overflow-y:auto;">
+            <div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Score 75%+ in quizzes to master topics!</div>
+          </div>
+        </div>
+
+        <!-- Topics to Revise -->
+        <div class="dna-card">
+          <div class="card-header">
+            <h3>🔄 Revision Queue</h3>
             <span class="card-tag tag-rose" id="dna-revise-count">0 items</span>
           </div>
-          <div id="dna-revise-list" class="dna-list-container" style="display:flex; flex-direction:column; gap:8px; max-height:220px; overflow-y:auto;">
-            <div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">No revision items flagged yet. Add notes to 'Things to Revise' in Living Notebook or take a quiz!</div>
+          <div id="dna-revise-list" class="dna-list-container" style="display:flex; flex-direction:column; gap:8px; max-height:200px; overflow-y:auto;">
+            <div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Add items to 'Things to Revise' in Living Notebook!</div>
           </div>
         </div>
       </div>
 
-      <!-- ROW 4: RECENT PROGRESS & CHARTS -->
-      <div class="dna-charts-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top:16px; margin-bottom: 40px;">
-        <!-- 7. Recent Progress (Chart 1: Subject Accuracy Breakdown) -->
+      <!-- ROW 6: MISTAKE VAULT ANALYSIS -->
+      <div class="dna-card" style="margin-bottom: 20px;">
+        <div class="card-header">
+          <h3>🧠 Mistake Vault Analysis</h3>
+          <span class="card-tag tag-orange">Learning Insights</span>
+        </div>
+        <div id="dna-mistake-analysis" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+          <div style="color:var(--muted); font-size:12px; text-align:center; padding:20px;">Make mistakes to learn from them! Add items to your Mistake Vault.</div>
+        </div>
+      </div>
+
+      <!-- ROW 7: PERFORMANCE CHARTS -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+        <!-- Quiz Performance History -->
         <div class="dna-card chart-container-card">
           <div class="card-header">
-            <h3>📈 Recent Progress (Accuracy Breakdown)</h3>
-            <span class="card-tag">Quiz Performance</span>
+            <h3>📈 Quiz Performance Trend</h3>
+            <span class="card-tag">Historical Data</span>
           </div>
-          <div style="position:relative; height:220px; width:100%;">
+          <div style="position:relative; height:250px; width:100%;">
+            <canvas id="dnaQuizHistoryChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Subject Accuracy Breakdown -->
+        <div class="dna-card chart-container-card">
+          <div class="card-header">
+            <h3>🎯 Subject Accuracy Breakdown</h3>
+            <span class="card-tag">Current Performance</span>
+          </div>
+          <div style="position:relative; height:250px; width:100%;">
             <canvas id="dnaAccuracyChart"></canvas>
           </div>
         </div>
+      </div>
 
-        <!-- 8. Study Time Distribution (Chart 2: Time Spent) -->
+      <!-- ROW 8: ACTIVITY & TIME ANALYSIS -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 40px;">
+        <!-- Daily Chat Activity -->
+        <div class="dna-card chart-container-card">
+          <div class="card-header">
+            <h3>💬 Daily Chat Activity</h3>
+            <span class="card-tag tag-blue">Engagement Pattern</span>
+          </div>
+          <div style="position:relative; height:250px; width:100%;">
+            <canvas id="dnaChatActivityChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Study Time Distribution -->
         <div class="dna-card chart-container-card">
           <div class="card-header">
             <h3>⏳ Study Time Distribution</h3>
-            <span class="card-tag">Time Analytics</span>
+            <span class="card-tag tag-purple">Time Analytics</span>
           </div>
-          <div style="position:relative; height:220px; width:100%;">
+          <div style="position:relative; height:250px; width:100%;">
             <canvas id="dnaTimeChart"></canvas>
           </div>
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- MISTAKE VAULT SECTION -->
+  <div id="mistake-vault-section" class="feature-section" style="display:none;">
+    <div class="section-container">
+      <div class="feature-header">
+        <h2>🗃️ Mistake Vault</h2>
+        <p>Review and learn from your mistakes to improve performance.</p>
+      </div>
+
+      <!-- Mistake Vault Controls -->
+      <div class="mistake-vault-controls" style="margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+        <select id="mistake-subject-filter" class="form-select" style="min-width: 150px;">
+          <option value="">All Subjects</option>
+        </select>
+        <input type="text" id="mistake-search" placeholder="Search mistakes..." class="form-input" style="flex: 1; min-width: 200px;">
+        <button id="add-mistake-btn" class="btn-primary">Add Mistake</button>
+      </div>
+
+      <!-- Mistake List -->
+      <div id="mistake-list" class="mistake-list">
+        <!-- Mistakes will be loaded here -->
+      </div>
+
+      <!-- Add Mistake Modal -->
+      <div id="add-mistake-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Add New Mistake</h3>
+            <button id="close-mistake-modal" class="close-btn">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label>Subject:</label>
+              <input type="text" id="mistake-modal-subject" class="form-input" value="General">
+            </div>
+            <div class="form-group">
+              <label>Topic:</label>
+              <input type="text" id="mistake-modal-topic" class="form-input" value="General">
+            </div>
+            <div class="form-group">
+              <label>Question:</label>
+              <textarea id="mistake-modal-question" class="form-input" rows="3" placeholder="What was the question?"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Your Wrong Answer:</label>
+              <textarea id="mistake-modal-wrong" class="form-input" rows="2" placeholder="What did you answer incorrectly?"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Correct Answer:</label>
+              <textarea id="mistake-modal-correct" class="form-input" rows="2" placeholder="What is the correct answer?"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Explanation:</label>
+              <textarea id="mistake-modal-explanation" class="form-input" rows="3" placeholder="Why was your answer wrong? How to get it right?"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="save-mistake-btn" class="btn-primary">Save Mistake</button>
+            <button id="cancel-mistake-btn" class="btn-secondary">Cancel</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -4754,8 +5239,7 @@
     const crosscheckSection = document.getElementById("crosscheck-section");
     const definitionsSection = document.getElementById("definitions-section");
     const learningDnaSection = document.getElementById("learning-dna-section");
-    const careerSection = document.getElementById("career-section");
-    const notebookSection = document.getElementById("notebook-section");
+    const mistakeVaultSection = document.getElementById("mistake-vault-section");
     const crosscheckOutputEl = document.getElementById("crosscheck-output");
     const crosscheckQuestionEl = document.getElementById("crosscheck-question-input");
     const crosscheckAnswerEl = document.getElementById("crosscheck-answer-input");
@@ -4774,16 +5258,11 @@
         crosscheckSection.style.display = "none";
         definitionsSection.style.display = "none";
         if (learningDnaSection) learningDnaSection.style.display = "none";
-        careerSection.style.display = "none";
-        if (notebookSection) notebookSection.style.display = "none";
+        if (mistakeVaultSection) mistakeVaultSection.style.display = "none";
 
         // Show the selected section
         const tab = btn.dataset.tab;
         if (tab === "chat") chatArea.style.display = "flex";
-        else if (tab === "notebook") {
-          if (notebookSection) notebookSection.style.display = "flex";
-          if (typeof nbRender === 'function') nbRender();
-        }
         else if (tab === "podcasts") podcastsSection.style.display = "flex";
         else if (tab === "flashcards") flashcardsSection.style.display = "flex";
         else if (tab === "quiz") quizSection.style.display = "flex";
@@ -4797,10 +5276,9 @@
           if (learningDnaSection) learningDnaSection.style.display = "flex";
           if (typeof renderLearningDnaDashboard === 'function') renderLearningDnaDashboard();
         }
-        else if (tab === "career") {
-          careerSection.style.display = "flex";
-          // Trigger Career Explorer render on first load
-          if (typeof ceRenderOnTabSwitch === 'function') ceRenderOnTabSwitch();
+        else if (tab === "mistake-vault") {
+          if (mistakeVaultSection) mistakeVaultSection.style.display = "flex";
+          if (typeof loadMistakeVault === 'function') loadMistakeVault();
         }
       });
     });
@@ -4818,8 +5296,7 @@
         quizSection.style.display = "none";
         crosscheckSection.style.display = "none";
         definitionsSection.style.display = "none";
-        careerSection.style.display = "none";
-        if (notebookSection) notebookSection.style.display = "none";
+        if (mistakeVaultSection) mistakeVaultSection.style.display = "none";
 
         // Show Learning DNA dashboard
         if (learningDnaSection) learningDnaSection.style.display = "flex";
@@ -4972,7 +5449,6 @@
         flashcardsSection.style.display = "none";
         quizSection.style.display = "none";
         crosscheckSection.style.display = "flex";
-        notesSection.style.display = "none";
       }
 
       crosscheckOutputEl.innerHTML = `<div style="display:flex; align-items:center; gap:10px; min-height:120px;"><div class="loading-spinner"></div> Checking your answer...</div>`;
@@ -5009,7 +5485,6 @@
         flashcardsSection.style.display = "none";
         quizSection.style.display = "none";
         crosscheckSection.style.display = "none";
-        notesSection.style.display = "none";
       }
 
       const output = document.getElementById("podcast-output");
@@ -5608,15 +6083,8 @@
 
       if (!currentUser || !currentUser.loggedIn) {
         if (bannerEl) bannerEl.style.display = "block";
-        document.getElementById("dna-study-time").textContent = "0m";
-        document.getElementById("dna-accuracy").textContent = "0%";
-        document.getElementById("dna-quiz-count").textContent = "0 quizzes taken";
-        document.getElementById("dna-strongest").textContent = "Log in required";
-        document.getElementById("dna-weakest").textContent = "Log in required";
-        if (adviceEl) adviceEl.textContent = "Please log in to track your personal Learning DNA profile!";
-        if (masteredListEl) masteredListEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Log in to view your mastered topics.</div>`;
-        if (reviseListEl) reviseListEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Log in to view your topics to revise.</div>`;
-        renderDnaCharts([]);
+        resetDnaDisplayToDefault();
+        renderDnaCharts([], [], [], []);
         return;
       }
 
@@ -5625,56 +6093,166 @@
         if (!res.ok) return;
         const data = await res.json();
 
-        // 1. Study Time Card
-        const mins = data.totalStudyMinutes || 0;
-        const hours = (mins / 60).toFixed(1);
-        document.getElementById("dna-study-time").textContent = mins >= 60 ? `${hours} hrs` : `${mins} mins`;
+        // === CORE METRICS (6 KPI CARDS) ===
         
-        // 2. Quiz Accuracy Card
+        // 1. Exam Readiness
+        const examReadiness = data.examReadiness || 0;
+        document.getElementById("dna-exam-readiness").textContent = `${examReadiness}%`;
+        document.getElementById("dna-readiness-level").textContent = 
+          examReadiness >= 80 ? "Excellent prep" : 
+          examReadiness >= 60 ? "Good progress" : 
+          examReadiness >= 40 ? "Building up" : "Getting started";
+
+        // 2. Study Streak
+        const streak = data.studyStreak || 0;
+        document.getElementById("dna-study-streak").textContent = streak.toString();
+
+        // 3. Quiz Accuracy
         const totalQuizzes = data.totalQuizzes || 0;
         const acc = data.accuracy || 0;
         document.getElementById("dna-accuracy").textContent = `${acc}%`;
         document.getElementById("dna-quiz-count").textContent = `${totalQuizzes} quizzes taken`;
-        
-        // 3. Strongest Subjects Card
-        const strongest = (data.strongestSubjects && data.strongestSubjects.length) ? data.strongestSubjects.join(", ") : "General";
-        document.getElementById("dna-strongest").textContent = strongest;
 
-        // 4. Weakest Subjects Card
-        const weakest = (data.weakestSubjects && data.weakestSubjects.length) ? data.weakestSubjects.join(", ") : "None yet";
-        document.getElementById("dna-weakest").textContent = weakest;
+        // 4. Study Time
+        const mins = data.totalStudyMinutes || 0;
+        const hours = (mins / 60).toFixed(1);
+        const avgDaily = data.averageDailyStudyTime || 0;
+        document.getElementById("dna-study-time").textContent = mins >= 60 ? `${hours}h` : `${mins}m`;
+        document.getElementById("dna-avg-daily").textContent = `${avgDaily} min/day avg`;
 
-        // Zero-data welcome banner visibility
-        if (mins === 0 && totalQuizzes === 0) {
-          if (bannerEl) bannerEl.style.display = "block";
-        } else {
-          if (bannerEl) bannerEl.style.display = "none";
-        }
+        // 5. Learning Pace
+        const pace = data.learningPaceCategory || "Steady";
+        document.getElementById("dna-learning-pace").textContent = pace;
+        document.getElementById("dna-pace-desc").textContent = 
+          pace === "Intensive" ? "High momentum" :
+          pace === "Steady" ? "Consistent progress" :
+          pace === "Moderate" ? "Building rhythm" : "Getting started";
 
-        // 5. Buddy's Advice Card
-        if (adviceEl) {
-          adviceEl.textContent = data.buddyAdvice || "Hi! Keep studying and taking quizzes to unlock tailored advice from your Study Buddy Max.";
-        }
-
-        // 6. Topics Mastered Card
+        // 6. Topics Mastered Count
         const mastered = data.topicsMastered || [];
-        document.getElementById("dna-mastered-count").textContent = `${mastered.length} topics`;
-        if (mastered.length === 0) {
-          masteredListEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Keep studying to unlock your Learning DNA! Score 75%+ on quiz subjects to list them here.</div>`;
+        document.getElementById("dna-mastered-count").textContent = mastered.length.toString();
+
+        // === AI INSIGHTS ===
+
+        // Buddy's Advice
+        if (adviceEl) {
+          adviceEl.textContent = data.buddyAdvice || "Hi! I'm your AI Study Buddy. Let's learn together!";
+        }
+
+        // AI Recommendations
+        const recommendations = data.personalizedRecommendations || [];
+        const recEl = document.getElementById("dna-recommendations");
+        if (recommendations.length === 0) {
+          recEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Study more to unlock personalized AI recommendations!</div>`;
         } else {
-          masteredListEl.innerHTML = mastered.map(m => `
-            <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); border-radius:8px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-weight:700; font-size:13px; color:var(--text);">🌟 ${escapeHtml(m.subject)}</span>
-              <span style="font-size:12px; font-weight:800; color:#34d399;">${m.accuracy}% accuracy</span>
+          recEl.innerHTML = recommendations.map((rec, i) => `
+            <div style="display: flex; align-items: start; gap: 8px; padding: 8px 12px; background: rgba(99,102,241,0.08); border-radius: 8px; border: 1px solid rgba(99,102,241,0.2);">
+              <span style="font-weight: 700; color: #818cf8; min-width: 16px;">${i + 1}.</span>
+              <span style="font-size: 13px; color: var(--text); line-height: 1.3;">${escapeHtml(rec)}</span>
             </div>
           `).join("");
         }
 
-        // 7. Topics to Revise Card
+        // === PERFORMANCE ANALYSIS ===
+
+        // Strongest Areas - Subjects
+        const strongestSubj = data.strongestSubjects || [];
+        const strongSubjEl = document.getElementById("dna-strongest-subjects");
+        if (strongestSubj.length === 0) {
+          strongSubjEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:8px;">Take quizzes to discover your strengths!</div>`;
+        } else {
+          strongSubjEl.innerHTML = strongestSubj.map(s => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(16,185,129,0.1); border-radius: 6px; border: 1px solid rgba(16,185,129,0.2);">
+              <span style="font-weight: 600; color: var(--text); font-size: 13px;">🏆 ${escapeHtml(s.subject)}</span>
+              <span style="font-size: 11px; font-weight: 700; color: #34d399;">${s.accuracy}%</span>
+            </div>
+          `).join("");
+        }
+
+        // Strongest Areas - Chapters
+        const strongestChap = data.strongestChapters || [];
+        const strongChapEl = document.getElementById("dna-strongest-chapters");
+        if (strongestChap.length === 0) {
+          strongChapEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:8px;">Chat about topics to track chapter engagement!</div>`;
+        } else {
+          strongChapEl.innerHTML = strongestChap.map(ch => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(16,185,129,0.1); border-radius: 6px; border: 1px solid rgba(16,185,129,0.2);">
+              <span style="font-weight: 600; color: var(--text); font-size: 13px;">📖 ${escapeHtml(ch.chapter)}</span>
+              <span style="font-size: 11px; font-weight: 700; color: #34d399;">${ch.mentions} mentions</span>
+            </div>
+          `).join("");
+        }
+
+        // Areas for Improvement - Subjects
+        const weakestSubj = data.weakestSubjects || [];
+        const weakSubjEl = document.getElementById("dna-weakest-subjects");
+        if (weakestSubj.length === 0) {
+          weakSubjEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:8px;">No weak areas identified yet!</div>`;
+        } else {
+          weakSubjEl.innerHTML = weakestSubj.map(s => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(244,63,94,0.1); border-radius: 6px; border: 1px solid rgba(244,63,94,0.2);">
+              <span style="font-weight: 600; color: var(--text); font-size: 13px;">⚠️ ${escapeHtml(s.subject)}</span>
+              <span style="font-size: 11px; font-weight: 700; color: #fb7185;">${s.accuracy}%</span>
+            </div>
+          `).join("");
+        }
+
+        // Areas for Improvement - Chapters
+        const weakestChap = data.weakestChapters || [];
+        const weakChapEl = document.getElementById("dna-weakest-chapters");
+        if (weakestChap.length === 0) {
+          weakChapEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:8px;">Keep learning to identify improvement areas!</div>`;
+        } else {
+          weakChapEl.innerHTML = weakestChap.map(ch => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(244,63,94,0.1); border-radius: 6px; border: 1px solid rgba(244,63,94,0.2);">
+              <span style="font-weight: 600; color: var(--text); font-size: 13px;">📖 ${escapeHtml(ch.chapter)}</span>
+              <span style="font-size: 11px; font-weight: 700; color: #fb7185;">${ch.mentions} mentions</span>
+            </div>
+          `).join("");
+        }
+
+        // === PROGRESS TRACKING ===
+
+        // Weekly Progress
+        const weekly = data.weeklyProgress || {};
+        document.getElementById("dna-weekly-days").textContent = weekly.studyDays || 0;
+        document.getElementById("dna-weekly-chats").textContent = weekly.chatMessages || 0;
+        document.getElementById("dna-weekly-accuracy").textContent = `${weekly.avgAccuracy || 0}%`;
+
+        // Monthly Progress
+        const monthly = data.monthlyProgress || {};
+        const monthlyHours = Math.round((monthly.totalStudyTime || 0) / 60 * 10) / 10;
+        document.getElementById("dna-monthly-time").textContent = `${monthlyHours}h`;
+        document.getElementById("dna-monthly-quizzes").textContent = monthly.totalQuizzes || 0;
+        document.getElementById("dna-monthly-chats").textContent = monthly.chatMessages || 0;
+
+        // Next Study Session
+        const nextSession = data.suggestedNextSession || "Start learning to get personalized recommendations!";
+        document.getElementById("dna-next-session").textContent = nextSession;
+
+        // === DETAILED ANALYTICS ===
+
+        // Topics Mastered (detailed view)
+        document.getElementById("dna-mastered-detail-count").textContent = `${mastered.length} topics`;
+        if (mastered.length === 0) {
+          masteredListEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Score 75%+ in quizzes to master topics!</div>`;
+        } else {
+          masteredListEl.innerHTML = mastered.map(m => `
+            <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); border-radius:8px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center;">
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-weight:700; font-size:13px; color:var(--text);">🌟 ${escapeHtml(m.subject)}</span>
+                <span style="font-size:11px; color:var(--muted);">${m.questionsTaken} questions • ${m.studyTime || 0} min study time</span>
+              </div>
+              <span style="font-size:12px; font-weight:800; color:#34d399;">${m.accuracy}%</span>
+            </div>
+          `).join("");
+        }
+
+        // Topics to Revise
         const revise = data.topicsToRevise || [];
         document.getElementById("dna-revise-count").textContent = `${revise.length} items`;
         if (revise.length === 0) {
-          reviseListEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">No revision items flagged yet. Save entries to 'Things to Revise' in Living Notebook or take a quiz!</div>`;
+          reviseListEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Add items to 'Things to Revise' in Living Notebook!</div>`;
         } else {
           reviseListEl.innerHTML = revise.map(r => `
             <div style="background:rgba(244,63,94,0.08); border:1px solid rgba(244,63,94,0.2); border-radius:8px; padding:8px 12px; display:flex; flex-direction:column; gap:4px;">
@@ -5682,47 +6260,162 @@
                 <span style="font-weight:700; font-size:12px; color:#f43f5e;">⚠️ ${escapeHtml(r.subject || "General")}</span>
                 <span style="font-size:10px; padding:2px 6px; background:rgba(244,63,94,0.2); border-radius:10px; color:#fda4af; font-weight:700;">${escapeHtml(r.category || "Revision")}</span>
               </div>
-              <div style="font-size:12px; color:var(--text); line-height:1.3;">${escapeHtml(r.content || "")}</div>
+              <div style="font-size:12px; color:var(--text); line-height:1.3;">${escapeHtml((r.content || "").substring(0, 100))}${r.content && r.content.length > 100 ? '...' : ''}</div>
             </div>
           `).join("");
         }
 
-        // 8. Recent Progress & Charts
-        renderDnaCharts(data.subjectBreakdown || []);
+        // === MISTAKE VAULT ANALYSIS ===
+        const mistakeAnalysis = data.mistakeVaultAnalysis || [];
+        const mistakeEl = document.getElementById("dna-mistake-analysis");
+        if (mistakeAnalysis.length === 0) {
+          mistakeEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:20px;">Make mistakes to learn from them! Add items to your Mistake Vault.</div>`;
+        } else {
+          mistakeEl.innerHTML = mistakeAnalysis.map(m => `
+            <div style="background: rgba(251,146,60,0.1); border: 1px solid rgba(251,146,60,0.3); border-radius: 10px; padding: 12px;">
+              <div style="font-weight: 700; font-size: 14px; color: var(--text); margin-bottom: 6px;">${escapeHtml(m.subject)}</div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 12px; color: var(--muted);">Total Mistakes: <strong>${m.total}</strong></span>
+                <span style="font-size: 12px; color: #34d399;">Mastered: <strong>${m.mastered}</strong></span>
+              </div>
+              <div style="margin-top: 6px; height: 4px; background: rgba(244,63,94,0.2); border-radius: 2px; overflow: hidden;">
+                <div style="height: 100%; background: #34d399; width: ${m.total > 0 ? (m.mastered / m.total * 100) : 0}%; border-radius: 2px;"></div>
+              </div>
+            </div>
+          `).join("");
+        }
+
+        // Zero-data banner visibility
+        if (mins === 0 && totalQuizzes === 0) {
+          if (bannerEl) bannerEl.style.display = "block";
+        } else {
+          if (bannerEl) bannerEl.style.display = "none";
+        }
+
+        // Render all charts
+        renderDnaCharts(
+          data.subjectBreakdown || [], 
+          data.quizPerformanceHistory || [], 
+          data.dailyChatActivity || [],
+          data.subjectBreakdown || []
+        );
+        
       } catch (err) {
         console.error("Failed to load Learning DNA:", err);
       }
     }
 
-    function renderDnaCharts(subjects) {
+    function resetDnaDisplayToDefault() {
+      // Reset all displays to logged-out state
+      document.getElementById("dna-exam-readiness").textContent = "0%";
+      document.getElementById("dna-readiness-level").textContent = "Log in required";
+      document.getElementById("dna-study-streak").textContent = "0";
+      document.getElementById("dna-accuracy").textContent = "0%";
+      document.getElementById("dna-quiz-count").textContent = "Log in required";
+      document.getElementById("dna-study-time").textContent = "0m";
+      document.getElementById("dna-avg-daily").textContent = "Log in required";
+      document.getElementById("dna-learning-pace").textContent = "N/A";
+      document.getElementById("dna-pace-desc").textContent = "Log in required";
+      document.getElementById("dna-mastered-count").textContent = "0";
+      
+      const adviceEl = document.getElementById("dna-buddy-advice");
+      if (adviceEl) adviceEl.textContent = "Please log in to unlock your comprehensive Learning DNA analytics dashboard!";
+      
+      // Reset all container elements
+      const containers = [
+        "dna-recommendations", "dna-strongest-subjects", "dna-strongest-chapters",
+        "dna-weakest-subjects", "dna-weakest-chapters", "dna-mastered-list",
+        "dna-revise-list", "dna-mistake-analysis"
+      ];
+      
+      containers.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Log in to view personalized insights.</div>`;
+      });
+
+      // Reset progress tracking
+      document.getElementById("dna-weekly-days").textContent = "0";
+      document.getElementById("dna-weekly-chats").textContent = "0"; 
+      document.getElementById("dna-weekly-accuracy").textContent = "0%";
+      document.getElementById("dna-monthly-time").textContent = "0h";
+      document.getElementById("dna-monthly-quizzes").textContent = "0";
+      document.getElementById("dna-monthly-chats").textContent = "0";
+      document.getElementById("dna-next-session").textContent = "Log in to get AI study recommendations!";
+      document.getElementById("dna-mastered-detail-count").textContent = "0 topics";
+      document.getElementById("dna-revise-count").textContent = "0 items";
+    }
+
+    function renderDnaCharts(subjects, quizHistory, chatActivity, timeDistribution) {
       if (typeof Chart === 'undefined') return;
 
-      const labels = subjects.length ? subjects.map(s => s.subject) : ["Physics", "Math", "Chemistry", "Biology", "General"];
-      const accuracyData = subjects.length ? subjects.map(s => s.accuracy) : [85, 70, 90, 65, 80];
-      const timeData = subjects.length ? subjects.map(s => s.study_minutes || 5) : [25, 30, 15, 10, 20];
-
-      // Chart 1: Bar chart for Subject Accuracy
-      const ctxAcc = document.getElementById("dnaAccuracyChart");
-      if (ctxAcc) {
-        if (dnaAccuracyChartInstance) dnaAccuracyChartInstance.destroy();
-        dnaAccuracyChartInstance = new Chart(ctxAcc, {
-          type: 'bar',
+      // === CHART 1: Quiz Performance History (Line Chart) ===
+      const ctxQuizHistory = document.getElementById("dnaQuizHistoryChart");
+      if (ctxQuizHistory) {
+        if (window.dnaQuizHistoryChartInstance) window.dnaQuizHistoryChartInstance.destroy();
+        
+        const historyLabels = quizHistory && quizHistory.length ? quizHistory.map(q => q.date?.substring(5) || 'N/A') : ['No data'];
+        const historyAccuracy = quizHistory && quizHistory.length ? quizHistory.map(q => q.accuracy || 0) : [0];
+        
+        window.dnaQuizHistoryChartInstance = new Chart(ctxQuizHistory, {
+          type: 'line',
           data: {
-            labels: labels,
+            labels: historyLabels,
             datasets: [{
-              label: 'Accuracy (%)',
-              data: accuracyData,
-              backgroundColor: 'rgba(99, 102, 241, 0.7)',
+              label: 'Quiz Accuracy (%)',
+              data: historyAccuracy,
               borderColor: '#6366f1',
-              borderWidth: 1.5,
-              borderRadius: 6
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+              borderWidth: 3,
+              fill: true,
+              tension: 0.4,
+              pointBackgroundColor: '#6366f1',
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: 5
             }]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-              y: { beginAtZero: true, max: 100, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+              y: { beginAtZero: true, max: 100, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.08)' } },
+              x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+            },
+            plugins: {
+              legend: { display: false }
+            }
+          }
+        });
+      }
+
+      // === CHART 2: Subject Accuracy Breakdown (Bar Chart) ===
+      const ctxAcc = document.getElementById("dnaAccuracyChart");
+      if (ctxAcc) {
+        if (window.dnaAccuracyChartInstance) window.dnaAccuracyChartInstance.destroy();
+        
+        const labels = subjects && subjects.length ? subjects.map(s => s.subject) : ["No data"];
+        const accuracyData = subjects && subjects.length ? subjects.map(s => s.accuracy) : [0];
+        
+        window.dnaAccuracyChartInstance = new Chart(ctxAcc, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Accuracy (%)',
+              data: accuracyData,
+              backgroundColor: labels.map((_, i) => {
+                const colors = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4'];
+                return colors[i % colors.length];
+              }),
+              borderRadius: 6,
+              borderSkipped: false,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { beginAtZero: true, max: 100, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.08)' } },
               x: { ticks: { color: '#9ca3af' }, grid: { display: false } }
             },
             plugins: {
@@ -5732,28 +6425,82 @@
         });
       }
 
-      // Chart 2: Doughnut chart for Time Distribution
+      // === CHART 3: Daily Chat Activity (Area Chart) ===
+      const ctxChatActivity = document.getElementById("dnaChatActivityChart");
+      if (ctxChatActivity) {
+        if (window.dnaChatActivityChartInstance) window.dnaChatActivityChartInstance.destroy();
+        
+        const chatLabels = chatActivity && chatActivity.length ? chatActivity.map(c => c.date?.substring(5) || 'N/A') : ['No data'];
+        const chatMessages = chatActivity && chatActivity.length ? chatActivity.map(c => c.messages || 0) : [0];
+        
+        window.dnaChatActivityChartInstance = new Chart(ctxChatActivity, {
+          type: 'line',
+          data: {
+            labels: chatLabels,
+            datasets: [{
+              label: 'Messages',
+              data: chatMessages,
+              borderColor: '#60a5fa',
+              backgroundColor: 'rgba(96, 165, 250, 0.15)',
+              borderWidth: 2,
+              fill: true,
+              tension: 0.3,
+              pointBackgroundColor: '#60a5fa',
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { beginAtZero: true, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.08)' } },
+              x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+            },
+            plugins: {
+              legend: { display: false }
+            }
+          }
+        });
+      }
+
+      // === CHART 4: Study Time Distribution (Doughnut Chart) ===
       const ctxTime = document.getElementById("dnaTimeChart");
       if (ctxTime) {
-        if (dnaTimeChartInstance) dnaTimeChartInstance.destroy();
-        dnaTimeChartInstance = new Chart(ctxTime, {
+        if (window.dnaTimeChartInstance) window.dnaTimeChartInstance.destroy();
+        
+        const timeLabels = subjects && subjects.length ? subjects.map(s => s.subject) : ["No data"];
+        const timeValues = subjects && subjects.length ? subjects.map(s => s.study_minutes || 1) : [1];
+        
+        window.dnaTimeChartInstance = new Chart(ctxTime, {
           type: 'doughnut',
           data: {
-            labels: labels,
+            labels: timeLabels,
             datasets: [{
-              data: timeData,
+              data: timeValues,
               backgroundColor: [
-                '#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4'
+                '#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'
               ],
-              borderWidth: 2,
+              borderWidth: 3,
               borderColor: '#1E1F22'
             }]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
+            cutout: '65%',
             plugins: {
-              legend: { position: 'right', labels: { color: '#9ca3af', font: { size: 11 } } }
+              legend: {
+                position: 'bottom',
+                labels: { 
+                  color: '#9ca3af', 
+                  padding: 15, 
+                  font: { size: 10 },
+                  usePointStyle: true,
+                  pointStyle: 'circle'
+                }
+              }
             }
           }
         });
@@ -6198,7 +6945,6 @@
       let ceView   = 'home';
       let ceRendered = false;
 
-      const ceSection = document.getElementById('career-section');
 
       // ── Persist ──
       function ceLoad() {
@@ -6804,8 +7550,8 @@
 
       // ── Expose tab-switch hook ──
       window.ceRenderOnTabSwitch = function() {
-        if (!ceRendered) ceRender();
-        else if (ceView==='home' || ceView==='history') ceRender(); // refresh in case history changed
+        // Career section not implemented - placeholder function
+        return;
       };
 
       // ── Boot ──
@@ -7268,6 +8014,241 @@
       initNotebook();
       if (typeof startDnaHeartbeat === 'function') startDnaHeartbeat();
     }
+
+    // =====================================================================
+    //  MISTAKE VAULT FUNCTIONALITY
+    // =====================================================================
+
+    let allMistakes = [];
+    let currentMistakes = [];
+
+    function loadMistakeVault() {
+      fetchMistakes();
+      loadMistakeSubjects();
+    }
+
+    async function fetchMistakes() {
+      try {
+        const response = await fetch('/api/mistakes');
+        if (response.ok) {
+          const data = await response.json();
+          allMistakes = data.mistakes || [];
+          currentMistakes = [...allMistakes];
+          renderMistakes();
+        } else {
+          console.error('Failed to fetch mistakes');
+        }
+      } catch (error) {
+        console.error('Error fetching mistakes:', error);
+      }
+    }
+
+    async function loadMistakeSubjects() {
+      try {
+        const response = await fetch('/api/mistakes/subjects');
+        if (response.ok) {
+          const data = await response.json();
+          const subjectFilter = document.getElementById('mistake-subject-filter');
+          if (subjectFilter) {
+            subjectFilter.innerHTML = '<option value="">All Subjects</option>';
+            data.subjects.forEach(subject => {
+              const option = document.createElement('option');
+              option.value = subject.subject;
+              option.textContent = `${subject.subject} (${subject.count})`;
+              subjectFilter.appendChild(option);
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading subjects:', error);
+      }
+    }
+
+    function renderMistakes() {
+      const mistakeList = document.getElementById('mistake-list');
+      if (!mistakeList) return;
+
+      if (currentMistakes.length === 0) {
+        mistakeList.innerHTML = `
+          <div style="text-align: center; padding: 40px; color: var(--muted);">
+            <div style="font-size: 48px; margin-bottom: 16px;">🎯</div>
+            <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">No mistakes yet!</div>
+            <div>Start taking quizzes or add mistakes manually to track your learning.</div>
+          </div>
+        `;
+        return;
+      }
+
+      mistakeList.innerHTML = currentMistakes.map(mistake => `
+        <div class="mistake-item ${mistake.mastered ? 'mastered' : ''}" data-id="${mistake.id}">
+          <div class="mistake-header">
+            <div class="mistake-subject">${mistake.subject}</div>
+            <div class="mistake-actions">
+              <button class="btn-sm" onclick="toggleMastered(${mistake.id}, ${!mistake.mastered})" 
+                      style="background: ${mistake.mastered ? 'var(--accent2)' : 'var(--accent3)'};">
+                ${mistake.mastered ? '❌ Unmark' : '✅ Mastered'}
+              </button>
+              <button class="btn-sm btn-danger" onclick="deleteMistake(${mistake.id})">🗑️</button>
+            </div>
+          </div>
+          <div class="mistake-question">Q: ${mistake.question}</div>
+          <div class="mistake-answers">
+            <div class="mistake-wrong-answer">
+              <strong>Your Answer:</strong><br>
+              ${mistake.wrong_answer || 'Not specified'}
+            </div>
+            <div class="mistake-correct-answer">
+              <strong>Correct Answer:</strong><br>
+              ${mistake.correct_answer}
+            </div>
+          </div>
+          <div class="mistake-explanation">
+            <strong>Explanation:</strong> ${mistake.explanation}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function toggleMastered(mistakeId, mastered) {
+      try {
+        const response = await fetch(`/api/mistakes/${mistakeId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mastered })
+        });
+        
+        if (response.ok) {
+          fetchMistakes(); // Reload mistakes
+        }
+      } catch (error) {
+        console.error('Error updating mistake:', error);
+      }
+    }
+
+    async function deleteMistake(mistakeId) {
+      if (!confirm('Are you sure you want to delete this mistake?')) return;
+      
+      try {
+        const response = await fetch(`/api/mistakes/${mistakeId}`, {
+          method: 'DELETE'
+        });
+        
+        if (response.ok) {
+          fetchMistakes(); // Reload mistakes
+        }
+      } catch (error) {
+        console.error('Error deleting mistake:', error);
+      }
+    }
+
+    // Event listeners for Mistake Vault
+    document.addEventListener('DOMContentLoaded', () => {
+      // Add mistake button
+      const addMistakeBtn = document.getElementById('add-mistake-btn');
+      const addMistakeModal = document.getElementById('add-mistake-modal');
+      const closeMistakeModal = document.getElementById('close-mistake-modal');
+      const cancelMistakeBtn = document.getElementById('cancel-mistake-btn');
+      const saveMistakeBtn = document.getElementById('save-mistake-btn');
+
+      if (addMistakeBtn) {
+        addMistakeBtn.addEventListener('click', () => {
+          addMistakeModal.style.display = 'flex';
+        });
+      }
+
+      if (closeMistakeModal) {
+        closeMistakeModal.addEventListener('click', () => {
+          addMistakeModal.style.display = 'none';
+        });
+      }
+
+      if (cancelMistakeBtn) {
+        cancelMistakeBtn.addEventListener('click', () => {
+          addMistakeModal.style.display = 'none';
+        });
+      }
+
+      if (saveMistakeBtn) {
+        saveMistakeBtn.addEventListener('click', async () => {
+          const subject = document.getElementById('mistake-modal-subject').value.trim() || 'General';
+          const topic = document.getElementById('mistake-modal-topic').value.trim() || 'General';
+          const question = document.getElementById('mistake-modal-question').value.trim();
+          const wrong_answer = document.getElementById('mistake-modal-wrong').value.trim();
+          const correct_answer = document.getElementById('mistake-modal-correct').value.trim();
+          const explanation = document.getElementById('mistake-modal-explanation').value.trim();
+
+          if (!question || !correct_answer || !explanation) {
+            alert('Please fill in the question, correct answer, and explanation.');
+            return;
+          }
+
+          try {
+            const response = await fetch('/api/mistakes', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                subject, topic, question, wrong_answer, correct_answer, explanation, source_type: 'manual'
+              })
+            });
+
+            if (response.ok) {
+              addMistakeModal.style.display = 'none';
+              // Clear form
+              document.getElementById('mistake-modal-subject').value = 'General';
+              document.getElementById('mistake-modal-topic').value = 'General';
+              document.getElementById('mistake-modal-question').value = '';
+              document.getElementById('mistake-modal-wrong').value = '';
+              document.getElementById('mistake-modal-correct').value = '';
+              document.getElementById('mistake-modal-explanation').value = '';
+              
+              fetchMistakes(); // Reload mistakes
+            } else {
+              alert('Failed to save mistake. Please try again.');
+            }
+          } catch (error) {
+            console.error('Error saving mistake:', error);
+            alert('Error saving mistake. Please try again.');
+          }
+        });
+      }
+
+      // Search and filter functionality
+      const mistakeSearch = document.getElementById('mistake-search');
+      const subjectFilter = document.getElementById('mistake-subject-filter');
+
+      function filterMistakes() {
+        const searchTerm = mistakeSearch?.value.toLowerCase() || '';
+        const selectedSubject = subjectFilter?.value || '';
+        
+        currentMistakes = allMistakes.filter(mistake => {
+          const matchesSearch = !searchTerm || 
+            mistake.question.toLowerCase().includes(searchTerm) ||
+            mistake.explanation.toLowerCase().includes(searchTerm) ||
+            mistake.topic.toLowerCase().includes(searchTerm);
+          
+          const matchesSubject = !selectedSubject || mistake.subject === selectedSubject;
+          
+          return matchesSearch && matchesSubject;
+        });
+        
+        renderMistakes();
+      }
+
+      if (mistakeSearch) {
+        mistakeSearch.addEventListener('input', filterMistakes);
+      }
+
+      if (subjectFilter) {
+        subjectFilter.addEventListener('change', filterMistakes);
+      }
+
+      // Close modal when clicking outside
+      window.addEventListener('click', (e) => {
+        if (e.target === addMistakeModal) {
+          addMistakeModal.style.display = 'none';
+        }
+      });
+    });
 
     initAll();
 

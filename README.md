@@ -31,6 +31,7 @@
 | 🃏 **Flashcards** | Auto-generates Q&A flashcard pairs from your material |
 | 📝 **Quiz Generator** | Creates 5 multiple-choice questions based on your notes |
 | ✅ **Cross-Check** | Reviews and corrects your answers with explanations |
+| 🚨 **Mistake Vault** | Automatically saves wrong answers from quizzes for review |
 | 🌙 **Dark Mode UI** | Clean, modern dark-themed interface |
 
 ---

@@ -18,3 +18,23 @@ study_buddy/.idea/
 # OS files
 .DS_Store
 Thumbs.db
+
+# SQLite databases
+study_buddy/*.db
+study_buddy/*.db-shm
+study_buddy/*.db-wal
+
+# Debug and test files
+*_TEST_*.md
+*_FIX*.md
+*_RESULTS*.md
+*_VALIDATION*.md
+test-*.html
+validate-*.html
+quick-*.js
+console-*.js
+immediate-*.js
+*.png
+screenshot*.png
+*_screenshot.png
+verification.png
