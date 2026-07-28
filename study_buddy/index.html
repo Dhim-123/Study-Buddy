@@ -6048,7 +6048,8 @@
       }
 
       const output = document.getElementById("podcast-output");
-      output.innerHTML = `<div style="display:flex; align-items:center; gap:10px; min-height:120px;"><div class="loading-spinner"></div> Generating expressive studio podcast…</div>`;
+      const t0 = performance.now();
+      output.innerHTML = `<div style="display:flex; align-items:center; gap:10px; min-height:120px;"><div class="loading-spinner"></div> Writing short script…</div>`;
 
       try {
         let messagesToSend = [];
@@ -6074,6 +6075,7 @@
         });
 
         const data = await res.json();
+        const elapsedSec = ((performance.now() - t0) / 1000).toFixed(1);
 
         if (!res.ok) {
           output.innerHTML = `<div style="color: var(--accent2);">❌ Error: ${data?.error || "Failed to generate podcast"}</div>`;
@@ -6090,6 +6092,8 @@
 
         const statusEl = document.createElement("div");
         statusEl.style.cssText = "margin-bottom:10px; font-weight:700;";
+        statusEl.textContent = `Ready in ${elapsedSec}s`;
+        statusEl.style.color = "var(--accent3)";
         output.appendChild(statusEl);
 
         const scriptEl = document.createElement("div");
@@ -6105,7 +6109,7 @@
         scriptEl.appendChild(scriptBody);
         output.appendChild(scriptEl);
 
-        // Studio-quality server TTS only (Orpheus / edge-tts). Never use flat browser speechSynthesis.
+        // Studio-quality server TTS only (edge-tts). Never use flat browser speechSynthesis.
         if (data.audio_base64 && data.audio_mime) {
           const src = `data:${data.audio_mime};base64,${data.audio_base64}`;
           const engine = data.tts_engine || "expressive-tts";
@@ -6120,7 +6124,7 @@
 
           const meta = document.createElement("div");
           meta.style.cssText = "margin-bottom:10px; color:var(--muted); font-size:0.82rem;";
-          meta.textContent = `Engine: ${engine} · Two expressive hosts · ${data.tts_turns || "?"} turns`;
+          meta.textContent = `Engine: ${engine} · Two expressive hosts · ${data.tts_turns || "?"} turns · ${elapsedSec}s`;
           playerWrap.appendChild(meta);
 
           const audio = document.createElement("audio");
@@ -6130,7 +6134,7 @@
           audio.src = src;
 
           audio.onloadeddata = () => {
-            statusEl.textContent = "Ready — press play for the studio podcast.";
+            statusEl.textContent = `Ready in ${elapsedSec}s — press play for the studio podcast.`;
             statusEl.style.color = "var(--accent3)";
           };
           audio.onplay = () => {
@@ -6152,14 +6156,14 @@
           const playPromise = audio.play();
           if (playPromise && typeof playPromise.catch === "function") {
             playPromise.catch(() => {
-              statusEl.textContent = "Audio ready — press play (browser blocked autoplay).";
+              statusEl.textContent = `Ready in ${elapsedSec}s — press play (browser blocked autoplay).`;
               statusEl.style.color = "var(--muted)";
             });
           }
         } else {
           statusEl.textContent = data.tts_error
-            ? `Transcript ready. Audio synthesis failed: ${data.tts_error}`
-            : "Transcript ready. Audio was not returned by the server.";
+            ? `Transcript ready in ${elapsedSec}s. Audio synthesis failed: ${data.tts_error}`
+            : `Transcript ready in ${elapsedSec}s. Audio was not returned by the server.`;
           statusEl.style.color = "var(--accent2)";
         }
       } catch (err) {
@@ -6345,7 +6349,7 @@
       const customTopic = rawInput.trim();
 
       const output = document.getElementById("podcast-output");
-      output.innerHTML = `<div class="loading-spinner"></div> Generating podcast audio...`;
+      output.innerHTML = `<div class="loading-spinner"></div> Writing short script…`;
 
       try {
         await generatePodcast(customTopic, false);

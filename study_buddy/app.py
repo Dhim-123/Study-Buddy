@@ -457,7 +457,7 @@ def _tts_edge_utterance(spoken: str, voice: str, rate: str, pitch: str) -> bytes
         if loop.is_running():
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                return pool.submit(lambda: asyncio.run(_gen())).result(timeout=120)
+                return pool.submit(lambda: asyncio.run(_gen())).result(timeout=45)
         return loop.run_until_complete(_gen())
     except RuntimeError:
         return asyncio.run(_gen())
@@ -465,95 +465,63 @@ def _tts_edge_utterance(spoken: str, voice: str, rate: str, pitch: str) -> bytes
 
 def _tts_edge_line(text: str, voice: str, speaker: str, tag: str) -> bytes:
     """
-    Edge neural TTS with personality + emotion.
-    Tags never spoken — they only change rate/pitch and chunk pacing.
+    Edge neural TTS — one utterance per turn (fast path).
+    Tags never spoken — they only change rate/pitch.
     """
     spoken = _clean_spoken_text(text)
-    chunks = _emphasis_chunks(spoken, speaker, tag)
-    audio_parts = []
-    for part, rate, pitch in chunks:
-        audio_parts.append(_tts_edge_utterance(part, voice, rate, pitch))
-        # Micro-pause between clauses inside one turn
-        audio_parts.append(_MP3_PAUSE_FRAME * 3)
-    return b"".join(audio_parts)
+    prosody = _resolve_prosody(speaker, tag)
+    return _tts_edge_utterance(
+        spoken, voice, prosody["edge_rate"], prosody["edge_pitch"]
+    )
 
 
 def synthesize_podcast_audio(script: str) -> dict:
     """
-    Build a two-host podcast using the best available expressive TTS.
+    Fast two-host podcast TTS via parallel edge-tts (skips slow Orpheus/PlayAI cascade).
 
     Returns dict: { audio_base64, audio_mime, engine, turns }
     """
     import base64
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     turns = _parse_podcast_turns(script)
     if not turns:
         raise ValueError("Could not parse Host A / Host B turns from podcast script.")
 
-    wav_parts = []
-    engine_used = None
-    client = None
-    tts_mode = "orpheus"
+    # Cap turns for latency budget (script should already be short)
+    turns = turns[:8]
 
-    try:
-        client = get_groq_client()
-    except Exception:
-        tts_mode = "edge"
-
-    for i, (speaker, line) in enumerate(turns):
+    def _synth_one(index_speaker_line):
+        i, speaker, line = index_speaker_line
         tag = _infer_vocal_tag(line, speaker)
-        prosody = _resolve_prosody(speaker, tag)
-        orpheus_line = _prepare_orpheus_line(line, tag)
-        playai_line = _clean_spoken_text(line)
-
-        voice_o = HOST_A_ORPHEUS if speaker == "A" else HOST_B_ORPHEUS
-        voice_p = HOST_A_PLAYAI if speaker == "A" else HOST_B_PLAYAI
         voice_e = HOST_A_EDGE if speaker == "A" else HOST_B_EDGE
+        audio = _tts_edge_line(line, voice_e, speaker, tag)
+        pause_ms = _resolve_prosody(speaker, tag)["pause_ms"]
+        # Keep pauses short for snappy playback + smaller payload
+        pause_ms = min(pause_ms, 220)
+        return i, audio, pause_ms
 
-        audio = None
+    jobs = [(i, speaker, line) for i, (speaker, line) in enumerate(turns)]
+    results = {}
+    workers = min(6, max(1, len(jobs)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(_synth_one, job) for job in jobs]
+        for fut in as_completed(futures):
+            i, audio, pause_ms = fut.result(timeout=60)
+            results[i] = (audio, pause_ms)
 
-        if tts_mode == "orpheus" and client is not None:
-            try:
-                audio = _tts_orpheus_line(
-                    client, orpheus_line, voice_o, speed=prosody["speed"]
-                )
-                engine_used = "groq-orpheus"
-            except Exception as e:
-                print(f"[TTS] Orpheus unavailable ({e}); switching to PlayAI")
-                tts_mode = "playai"
-
-        if audio is None and tts_mode == "playai" and client is not None:
-            try:
-                audio = _tts_playai_line(
-                    client, playai_line, voice_p, speed=prosody["speed"]
-                )
-                engine_used = "groq-playai"
-            except Exception as e:
-                print(f"[TTS] PlayAI unavailable ({e}); switching to edge-tts")
-                tts_mode = "edge"
-
-        if audio is None:
-            try:
-                audio = _tts_edge_line(line, voice_e, speaker, tag)
-                engine_used = engine_used or "edge-tts"
-                tts_mode = "edge"
-            except Exception as e:
-                print(f"[TTS] edge-tts failed on turn {i}: {e}")
-                raise
-
+    wav_parts = []
+    for i in range(len(turns)):
+        audio, pause_ms = results[i]
         wav_parts.append(audio)
-
-        # Natural pause between hosts (longer after calm explainer)
         if i < len(turns) - 1:
-            pause_ms = prosody["pause_ms"]
             if audio.startswith(b"RIFF"):
                 try:
                     wav_parts.append(_wav_silence_like(audio, pause_ms))
                 except Exception:
                     pass
             else:
-                # MP3: approximate pause (~pause_ms) with repeated frames
-                frame_count = max(4, pause_ms // 40)
+                frame_count = max(3, pause_ms // 50)
                 wav_parts.append(_MP3_PAUSE_FRAME * frame_count)
 
     if wav_parts and not wav_parts[0].startswith(b"RIFF"):
@@ -562,7 +530,7 @@ def synthesize_podcast_audio(script: str) -> dict:
         return {
             "audio_base64": b64,
             "audio_mime": "audio/mpeg",
-            "engine": engine_used or "edge-tts",
+            "engine": "edge-tts",
             "turns": len(turns),
         }
 
@@ -572,7 +540,7 @@ def synthesize_podcast_audio(script: str) -> dict:
     return {
         "audio_base64": b64,
         "audio_mime": "audio/wav",
-        "engine": engine_used or "unknown",
+        "engine": "edge-tts",
         "turns": len(turns),
     }
 
@@ -1264,24 +1232,20 @@ def chat():
     elif endpoint == "podcast":
         system_prompt = (
             f"{system_prompt}\n\n"
-            "You are a world-class podcast scriptwriter for a lively educational show with TWO human hosts.\n"
-            "Host A = energetic lead teacher. Host B = curious co-host who reacts, jokes, and asks follow-ups.\n\n"
-            "Write a NATURAL studio conversation (NOT a lecture). Make it feel like a real Spotify education podcast.\n\n"
-            "FORMAT (strict):\n"
-            "Host A: [optional vocal tag] spoken line\n"
-            "Host B: [optional vocal tag] spoken line\n"
-            "Alternate frequently. Keep each spoken line under 2 sentences.\n\n"
-            "VOCAL TAGS (put at the START of the spoken text, inside square brackets — these drive expressive TTS):\n"
-            "Use one of: [cheerful] [excited] [curious] [surprised] [thoughtful] [encouraging] "
-            "[sympathetic] [confident] [dramatic] [whisper] [laugh] [gasp]\n"
-            "Vary tags every line. Never use the same tag for more than two consecutive lines.\n\n"
-            "PERFORMANCE RULES:\n"
-            "- Sound excited about cool facts; sympathetic when explaining hard ideas.\n"
-            "- Include natural reactions: 'Wait—really?', 'Ha!', 'Oh wow.', 'Hmm… okay.', 'That's wild!'\n"
-            "- Use short beats like 'Yeah.' / 'Right.' between explanations.\n"
-            "- Emphasize key terms by surrounding them with brief excitement or surprise.\n"
-            "- No markdown, no bullets, no code, no # or @, no stage directions outside the [tags].\n"
-            "- English only. Aim for roughly 12–20 dialogue turns (about 3–5 minutes spoken).\n"
+            "You write FAST short educational podcasts with TWO hosts.\n"
+            "Host A = energetic lead. Host B = curious co-host.\n\n"
+            "FORMAT (strict — every line MUST start with Host A: or Host B:):\n"
+            "Host A: [tag] spoken line\n"
+            "Host B: [tag] spoken line\n\n"
+            "LENGTH (critical for speed):\n"
+            "- Exactly 6 to 8 dialogue turns total (count Host A + Host B lines).\n"
+            "- At most 150 words in the entire script.\n"
+            "- Each line: one short sentence (max ~20 words).\n"
+            "- Spoken length should be about 60–90 seconds when read aloud.\n\n"
+            "VOCAL TAGS (at start of spoken text):\n"
+            "Use one of: [cheerful] [excited] [curious] [surprised] [thoughtful] "
+            "[encouraging] [sympathetic] [confident] [laugh]\n"
+            "Vary tags. English only. No markdown, bullets, or stage directions outside [tags].\n"
             "Return ONLY the Host A / Host B script."
         )
     elif endpoint == "flashcards":
@@ -1340,7 +1304,13 @@ def chat():
     # --- Talk to Groq AI ---
     try:
         client = get_groq_client()
-        target_model = resolve_groq_model(model_name)
+        # Podcast: force fast small model + tight token budget for ≤10s generation
+        if endpoint == "podcast":
+            target_model = "llama-3.1-8b-instant"
+            completion_kwargs = {"max_tokens": 450}
+        else:
+            target_model = resolve_groq_model(model_name)
+            completion_kwargs = {}
 
         groq_messages = []
         if system_prompt:
@@ -1356,6 +1326,7 @@ def chat():
         response = client.chat.completions.create(
             model=target_model,
             messages=groq_messages,
+            **completion_kwargs,
         )
         reply = response.choices[0].message.content
         last_message = messages[-1]["content"] if messages else ""
