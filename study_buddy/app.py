@@ -77,6 +77,506 @@ DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
 def resolve_groq_model(model_name: str) -> str:
     return model_name if model_name else DEFAULT_GROQ_MODEL
 
+
+# =====================================================================
+#  EXPRESSIVE PODCAST TTS  (Orpheus via Groq → PlayAI → edge-tts)
+#  Goal: two distinct human hosts, not flat AI narration.
+# =====================================================================
+
+ORPHEUS_MODEL = "canopylabs/orpheus-v1-english"
+PLAYAI_MODEL = "playai-tts"
+
+# Host A = energetic / enthusiastic lead
+# Host B = calm / thoughtful explainer
+HOST_A_ORPHEUS = "austin"
+HOST_B_ORPHEUS = "hannah"
+HOST_A_PLAYAI = "Fritz-PlayAI"
+HOST_B_PLAYAI = "Arista-PlayAI"
+# Edge conversation voices (avoid News/Authority — those sound robotic)
+HOST_A_EDGE = "en-US-BrianNeural"   # Approachable, Casual → energetic host
+HOST_B_EDGE = "en-US-JennyNeural"   # Friendly, Considerate, Comfort → calm explainer
+
+# Per-host baseline prosody (personality, before emotion overlays)
+_HOST_PROSODY = {
+    "A": {  # energetic / enthusiastic
+        "orpheus_speed": 1.06,
+        "edge_rate": "+10%",
+        "edge_pitch": "+5Hz",
+        "default_tag": "enthusiastic",
+        "pause_ms": 220,
+    },
+    "B": {  # calm / thoughtful / explanatory
+        "orpheus_speed": 0.94,
+        "edge_rate": "-8%",
+        "edge_pitch": "-2Hz",
+        "default_tag": "thoughtful",
+        "pause_ms": 380,
+    },
+}
+
+_VOCAL_TAGS = {
+    "cheerful", "excited", "curious", "surprised", "thoughtful",
+    "encouraging", "sympathetic", "confident", "dramatic", "whisper",
+    "laugh", "gasp", "serious", "calm", "enthusiastic", "gentle",
+}
+
+_TAG_ALIASES = {
+    "laughter": "laugh",
+    "chuckle": "laugh",
+    "ha": "laugh",
+    "wow": "surprised",
+    "sad": "sympathetic",
+    "happy": "cheerful",
+}
+
+# Emotion → prosody overlays (applied ON TOP of host personality)
+_EMOTION_PROSODY = {
+    "excited":      {"orpheus_delta": 0.10, "edge_rate": "+18%", "edge_pitch": "+8Hz", "pause_ms": 160},
+    "enthusiastic": {"orpheus_delta": 0.08, "edge_rate": "+15%", "edge_pitch": "+7Hz", "pause_ms": 180},
+    "cheerful":     {"orpheus_delta": 0.04, "edge_rate": "+10%", "edge_pitch": "+5Hz", "pause_ms": 220},
+    "curious":      {"orpheus_delta": 0.05, "edge_rate": "+8%",  "edge_pitch": "+4Hz", "pause_ms": 260},
+    "surprised":    {"orpheus_delta": 0.07, "edge_rate": "+12%", "edge_pitch": "+9Hz", "pause_ms": 200},
+    "laugh":        {"orpheus_delta": 0.06, "edge_rate": "+14%", "edge_pitch": "+10Hz", "pause_ms": 180},
+    "gasp":         {"orpheus_delta": 0.05, "edge_rate": "+10%", "edge_pitch": "+8Hz", "pause_ms": 240},
+    "thoughtful":   {"orpheus_delta": -0.08, "edge_rate": "-12%", "edge_pitch": "-3Hz", "pause_ms": 420},
+    "sympathetic":  {"orpheus_delta": -0.06, "edge_rate": "-10%", "edge_pitch": "-2Hz", "pause_ms": 400},
+    "calm":         {"orpheus_delta": -0.07, "edge_rate": "-10%", "edge_pitch": "-3Hz", "pause_ms": 400},
+    "whisper":      {"orpheus_delta": -0.12, "edge_rate": "-15%", "edge_pitch": "-4Hz", "pause_ms": 450},
+    "encouraging":  {"orpheus_delta": 0.02, "edge_rate": "+4%",  "edge_pitch": "+3Hz", "pause_ms": 280},
+    "confident":    {"orpheus_delta": 0.00, "edge_rate": "+2%",  "edge_pitch": "+1Hz", "pause_ms": 300},
+    "dramatic":     {"orpheus_delta": -0.04, "edge_rate": "-6%",  "edge_pitch": "+2Hz", "pause_ms": 360},
+    "serious":      {"orpheus_delta": -0.05, "edge_rate": "-8%",  "edge_pitch": "-2Hz", "pause_ms": 380},
+    "gentle":       {"orpheus_delta": -0.06, "edge_rate": "-10%", "edge_pitch": "-1Hz", "pause_ms": 400},
+}
+
+
+def _parse_podcast_turns(script: str):
+    """Split 'Host A:' / 'Host B:' script into ordered speaker turns."""
+    turns = []
+    current = None
+    buf = []
+    for raw in (script or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        m = re.match(r"^(Host\s*[AB]|A|B)\s*[:\-—]\s*(.*)$", line, re.IGNORECASE)
+        if m:
+            if current and buf:
+                turns.append((current, " ".join(buf).strip()))
+            speaker = m.group(1).upper().replace(" ", "")
+            if speaker in ("A", "HOSTA"):
+                current = "A"
+            else:
+                current = "B"
+            rest = (m.group(2) or "").strip()
+            buf = [rest] if rest else []
+        elif current:
+            buf.append(line)
+    if current and buf:
+        turns.append((current, " ".join(buf).strip()))
+    if not turns and script and script.strip():
+        turns = [("A", script.strip())]
+    return [(s, t) for s, t in turns if t]
+
+
+def _extract_tag(text: str):
+    """Return (tag, text_without_leading_tag)."""
+    m = re.match(r"^\[([a-zA-Z]+)\]\s*", (text or "").strip())
+    if not m:
+        return None, (text or "").strip()
+    tag = _TAG_ALIASES.get(m.group(1).lower(), m.group(1).lower())
+    rest = (text or "").strip()[m.end():].strip()
+    if tag not in _VOCAL_TAGS:
+        return None, (text or "").strip()
+    return tag, rest
+
+
+def _infer_vocal_tag(text: str, speaker: str = "A") -> str:
+    """Pick emotion from line content, falling back to host personality default."""
+    tag, _ = _extract_tag(text)
+    if tag:
+        return tag
+    low = text.lower()
+    if any(w in low for w in ("ha!", "haha", "lol", "laugh", "hilarious", "heh")):
+        return "laugh"
+    if "?" in text and any(w in low for w in ("wait", "really", "how", "why", "what", "which")):
+        return "curious"
+    if any(w in low for w in ("wow", "whoa", "no way", "incredible", "amazing", "wild", "whoah")):
+        return "surprised"
+    if any(w in low for w in ("don't worry", "it's okay", "tough", "hard part", "confusing", "tricky")):
+        return "sympathetic"
+    if any(w in low for w in ("so cool", "love this", "let's go", "awesome", "let's dive")):
+        return "excited"
+    if any(w in low for w in ("basically", "in other words", "think of", "imagine", "the idea is", "here's why")):
+        return "thoughtful"
+    if text.strip().endswith("!"):
+        return "enthusiastic" if speaker == "A" else "encouraging"
+    return _HOST_PROSODY.get(speaker, _HOST_PROSODY["A"])["default_tag"]
+
+
+def _clean_spoken_text(text: str) -> str:
+    """
+    Strip ALL stage/emotion tags so they never get read aloud.
+    Convert laugh markers into natural spoken laughs.
+    Soften robotic punctuation for neural TTS.
+    """
+    cleaned = text or ""
+    # Remove every [tag] occurrence (leading or mid-line)
+    cleaned = re.sub(r"\[([a-zA-Z]+)\]\s*", "", cleaned)
+    # Written laugh → natural spoken laugh (heard as emotion, not "bracket laugh")
+    cleaned = re.sub(r"\b(ha\s*){2,}\b", "ha ha! ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(haha+|hahaha)\b", "ha ha!", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\blol\b", "ha!", cleaned, flags=re.IGNORECASE)
+    # Strip leftover stage directions in parentheses like (laughs)
+    cleaned = re.sub(r"\((?:laughs?|chuckles?|sighs?|gasps?|pauses?)\)", "", cleaned, flags=re.IGNORECASE)
+    # Prefer commas/ellipses for breath (helps Edge neural pacing)
+    cleaned = cleaned.replace("—", ", ").replace("–", ", ")
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" ,;")
+    if not cleaned:
+        cleaned = "Yeah."
+    # Ensure sentence ends with punctuation so TTS doesn't trail flat
+    if cleaned[-1] not in ".!?":
+        cleaned += "."
+    return cleaned
+
+
+def _prepare_orpheus_line(text: str, tag: str) -> str:
+    """Orpheus: emotion as vocal-direction tag (drives speech), clean words after."""
+    spoken = _clean_spoken_text(text)
+    if tag == "gasp":
+        tag = "surprised"
+    # Orpheus consumes [tag] as prosody control — it is NOT spoken
+    return f"[{tag}] {spoken}"
+
+
+def _resolve_prosody(speaker: str, tag: str):
+    """Combine host personality + emotion into final rate/pitch/speed/pause."""
+    base = _HOST_PROSODY.get(speaker, _HOST_PROSODY["A"])
+    emo = _EMOTION_PROSODY.get(tag, {})
+    speed = max(0.80, min(1.20, base["orpheus_speed"] + emo.get("orpheus_delta", 0.0)))
+    # Emotion rate/pitch override when present; else host baseline
+    edge_rate = emo.get("edge_rate", base["edge_rate"])
+    edge_pitch = emo.get("edge_pitch", base["edge_pitch"])
+    # Host B explanations stay slower even when cheerful
+    if speaker == "B" and tag in ("cheerful", "encouraging", "confident"):
+        edge_rate = "-4%"
+        edge_pitch = "+0Hz"
+        speed = min(speed, 0.98)
+    # Host A stays brighter even when thoughtful
+    if speaker == "A" and tag in ("thoughtful", "calm", "serious"):
+        edge_rate = "-2%"
+        edge_pitch = "+2Hz"
+        speed = max(speed, 0.96)
+    pause_ms = emo.get("pause_ms", base["pause_ms"])
+    return {
+        "speed": speed,
+        "edge_rate": edge_rate,
+        "edge_pitch": edge_pitch,
+        "pause_ms": pause_ms,
+    }
+
+
+def _emphasis_chunks(spoken: str, speaker: str, tag: str):
+    """
+    Split a line so important terms get slower delivery and surrounding
+    clauses keep the host's emotional pace. Returns list of (text, rate, pitch).
+    """
+    prosody = _resolve_prosody(speaker, tag)
+    # Split on clause boundaries for natural micro-pauses via separate utterances
+    parts = re.split(r"(?<=[,;:])\s+|(?<=\.\.\.)\s+", spoken)
+    parts = [p.strip() for p in parts if p and p.strip()]
+    if len(parts) <= 1:
+        return [(spoken, prosody["edge_rate"], prosody["edge_pitch"])]
+
+    chunks = []
+    for i, part in enumerate(parts):
+        rate = prosody["edge_rate"]
+        pitch = prosody["edge_pitch"]
+        # Slow down definitional / explanatory clauses (Host B or thoughtful)
+        if speaker == "B" or tag in ("thoughtful", "sympathetic", "calm"):
+            # Slightly slower on longer explanatory clauses
+            if len(part) > 60:
+                rate = "-14%" if speaker == "B" else "-8%"
+        # Speed up short reactions
+        if len(part) < 28 and tag in ("excited", "surprised", "laugh", "enthusiastic", "curious"):
+            rate = "+16%" if speaker == "A" else "+6%"
+            pitch = "+8Hz" if speaker == "A" else "+3Hz"
+        # Emphasize ALL-CAPS or quoted key terms by slowing that clause
+        if re.search(r"\b[A-Z]{2,}\b|\"[^\"]+\"|'[^']+'", part):
+            if rate.startswith("+"):
+                rate = "+2%"
+            elif rate.startswith("-"):
+                # push a bit slower
+                try:
+                    n = int(rate.strip("%+-") or "0")
+                    rate = f"-{min(20, n + 4)}%"
+                except ValueError:
+                    rate = "-12%"
+            else:
+                rate = "-10%"
+        chunks.append((part, rate, pitch))
+    return chunks
+
+
+def _wav_silence_like(reference_wav: bytes, duration_ms=300) -> bytes:
+    """Generate silence matching the format of a reference WAV clip."""
+    import io
+    import wave
+    with wave.open(io.BytesIO(reference_wav), "rb") as ref:
+        channels = ref.getnchannels()
+        sampwidth = ref.getsampwidth()
+        sample_rate = ref.getframerate()
+    nframes = int(sample_rate * (duration_ms / 1000.0))
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(channels)
+        w.setsampwidth(sampwidth)
+        w.setframerate(sample_rate)
+        w.writeframes(b"\x00" * nframes * channels * sampwidth)
+    return buf.getvalue()
+
+
+def _concat_wavs(chunks: list) -> bytes:
+    """Concatenate WAV byte blobs that share the same format."""
+    import io
+    import wave
+    if not chunks:
+        return b""
+    if len(chunks) == 1:
+        return chunks[0]
+    params = None
+    frames = []
+    for data in chunks:
+        with wave.open(io.BytesIO(data), "rb") as w:
+            p = w.getparams()
+            if params is None:
+                params = p
+            frames.append(w.readframes(w.getnframes()))
+    out = io.BytesIO()
+    with wave.open(out, "wb") as w:
+        w.setparams(params)
+        for f in frames:
+            w.writeframes(f)
+    return out.getvalue()
+
+
+# Tiny valid silent-ish MP3 frame padding for gaps between Edge (MP3) turns
+_MP3_PAUSE_FRAME = (
+    b"\xff\xfb\x90\x00" + b"\x00" * 100
+)
+
+
+def _tts_orpheus_line(client, text: str, voice: str, speed: float = 1.0) -> bytes:
+    """Synthesize one line with Groq Orpheus (expressive neural TTS)."""
+    kwargs = {
+        "model": ORPHEUS_MODEL,
+        "voice": voice,
+        "input": text,
+        "response_format": "wav",
+    }
+    try:
+        response = client.audio.speech.create(**kwargs, speed=speed)
+    except TypeError:
+        response = client.audio.speech.create(**kwargs)
+    except Exception:
+        response = client.audio.speech.create(**kwargs)
+
+    if hasattr(response, "read"):
+        data = response.read()
+        return data if isinstance(data, (bytes, bytearray)) else bytes(data)
+    if hasattr(response, "content"):
+        data = response.content
+        return data if isinstance(data, (bytes, bytearray)) else bytes(data)
+    if hasattr(response, "write_to_file"):
+        import tempfile
+        path = os.path.join(tempfile.gettempdir(), f"sb_tts_{os.getpid()}.wav")
+        response.write_to_file(path)
+        with open(path, "rb") as f:
+            data = f.read()
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        return data
+    return bytes(response)
+
+
+def _tts_playai_line(client, text: str, voice: str, speed: float = 1.0) -> bytes:
+    """Groq PlayAI TTS — tags stripped; emotion carried by speed only."""
+    spoken = _clean_spoken_text(text)
+    kwargs = {
+        "model": PLAYAI_MODEL,
+        "voice": voice,
+        "input": spoken,
+        "response_format": "wav",
+    }
+    try:
+        response = client.audio.speech.create(**kwargs, speed=speed)
+    except TypeError:
+        response = client.audio.speech.create(**kwargs)
+    except Exception:
+        response = client.audio.speech.create(**kwargs)
+
+    if hasattr(response, "read"):
+        data = response.read()
+        return data if isinstance(data, (bytes, bytearray)) else bytes(data)
+    if hasattr(response, "content"):
+        data = response.content
+        return data if isinstance(data, (bytes, bytearray)) else bytes(data)
+    if hasattr(response, "write_to_file"):
+        import tempfile
+        path = os.path.join(tempfile.gettempdir(), f"sb_tts_{os.getpid()}.wav")
+        response.write_to_file(path)
+        with open(path, "rb") as f:
+            data = f.read()
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        return data
+    return bytes(response)
+
+
+def _tts_edge_utterance(spoken: str, voice: str, rate: str, pitch: str) -> bytes:
+    """Single Edge neural utterance with tuned rate/pitch."""
+    import asyncio
+    import edge_tts
+
+    spoken = (spoken or "").strip() or "Yeah."
+
+    async def _gen():
+        communicate = edge_tts.Communicate(spoken, voice=voice, rate=rate, pitch=pitch)
+        chunks = []
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                chunks.append(chunk["data"])
+        return b"".join(chunks)
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(lambda: asyncio.run(_gen())).result(timeout=120)
+        return loop.run_until_complete(_gen())
+    except RuntimeError:
+        return asyncio.run(_gen())
+
+
+def _tts_edge_line(text: str, voice: str, speaker: str, tag: str) -> bytes:
+    """
+    Edge neural TTS with personality + emotion.
+    Tags never spoken — they only change rate/pitch and chunk pacing.
+    """
+    spoken = _clean_spoken_text(text)
+    chunks = _emphasis_chunks(spoken, speaker, tag)
+    audio_parts = []
+    for part, rate, pitch in chunks:
+        audio_parts.append(_tts_edge_utterance(part, voice, rate, pitch))
+        # Micro-pause between clauses inside one turn
+        audio_parts.append(_MP3_PAUSE_FRAME * 3)
+    return b"".join(audio_parts)
+
+
+def synthesize_podcast_audio(script: str) -> dict:
+    """
+    Build a two-host podcast using the best available expressive TTS.
+
+    Returns dict: { audio_base64, audio_mime, engine, turns }
+    """
+    import base64
+
+    turns = _parse_podcast_turns(script)
+    if not turns:
+        raise ValueError("Could not parse Host A / Host B turns from podcast script.")
+
+    wav_parts = []
+    engine_used = None
+    client = None
+    tts_mode = "orpheus"
+
+    try:
+        client = get_groq_client()
+    except Exception:
+        tts_mode = "edge"
+
+    for i, (speaker, line) in enumerate(turns):
+        tag = _infer_vocal_tag(line, speaker)
+        prosody = _resolve_prosody(speaker, tag)
+        orpheus_line = _prepare_orpheus_line(line, tag)
+        playai_line = _clean_spoken_text(line)
+
+        voice_o = HOST_A_ORPHEUS if speaker == "A" else HOST_B_ORPHEUS
+        voice_p = HOST_A_PLAYAI if speaker == "A" else HOST_B_PLAYAI
+        voice_e = HOST_A_EDGE if speaker == "A" else HOST_B_EDGE
+
+        audio = None
+
+        if tts_mode == "orpheus" and client is not None:
+            try:
+                audio = _tts_orpheus_line(
+                    client, orpheus_line, voice_o, speed=prosody["speed"]
+                )
+                engine_used = "groq-orpheus"
+            except Exception as e:
+                print(f"[TTS] Orpheus unavailable ({e}); switching to PlayAI")
+                tts_mode = "playai"
+
+        if audio is None and tts_mode == "playai" and client is not None:
+            try:
+                audio = _tts_playai_line(
+                    client, playai_line, voice_p, speed=prosody["speed"]
+                )
+                engine_used = "groq-playai"
+            except Exception as e:
+                print(f"[TTS] PlayAI unavailable ({e}); switching to edge-tts")
+                tts_mode = "edge"
+
+        if audio is None:
+            try:
+                audio = _tts_edge_line(line, voice_e, speaker, tag)
+                engine_used = engine_used or "edge-tts"
+                tts_mode = "edge"
+            except Exception as e:
+                print(f"[TTS] edge-tts failed on turn {i}: {e}")
+                raise
+
+        wav_parts.append(audio)
+
+        # Natural pause between hosts (longer after calm explainer)
+        if i < len(turns) - 1:
+            pause_ms = prosody["pause_ms"]
+            if audio.startswith(b"RIFF"):
+                try:
+                    wav_parts.append(_wav_silence_like(audio, pause_ms))
+                except Exception:
+                    pass
+            else:
+                # MP3: approximate pause (~pause_ms) with repeated frames
+                frame_count = max(4, pause_ms // 40)
+                wav_parts.append(_MP3_PAUSE_FRAME * frame_count)
+
+    if wav_parts and not wav_parts[0].startswith(b"RIFF"):
+        combined = b"".join(p for p in wav_parts if p)
+        b64 = base64.b64encode(combined).decode("ascii")
+        return {
+            "audio_base64": b64,
+            "audio_mime": "audio/mpeg",
+            "engine": engine_used or "edge-tts",
+            "turns": len(turns),
+        }
+
+    riff_parts = [p for p in wav_parts if p.startswith(b"RIFF")]
+    combined = _concat_wavs(riff_parts)
+    b64 = base64.b64encode(combined).decode("ascii")
+    return {
+        "audio_base64": b64,
+        "audio_mime": "audio/wav",
+        "engine": engine_used or "unknown",
+        "turns": len(turns),
+    }
+
+
 SYSTEM_PROMPT = os.getenv(
     "STUDY_BUDDY_SYSTEM_PROMPT",
     "You are a helpful, friendly study buddy for students. "
@@ -764,15 +1264,25 @@ def chat():
     elif endpoint == "podcast":
         system_prompt = (
             f"{system_prompt}\n\n"
-            "You are a scriptwriter for an engaging, educational podcast featuring two hosts: Host A and Host B. "
-            "Based on the provided context, generate a natural, engaging, and human-like conversational podcast script. "
-            "The podcast should feature a dynamic back-and-forth between the two hosts. "
-            "Host A can lead the discussion while Host B asks insightful questions and provides reactions. "
-            "If there is a lot of content, make the podcast long and detailed (spanning 5-10 minutes of spoken audio). "
-            "Produce ONLY the spoken text (plain, TTS-ready) with a natural, conversational tone. "
-            "Do not use symbols like # or @; avoid code blocks, headers, or markup. "
-            "Format the script simply as 'Host A: [text]' and 'Host B: [text]' on separate lines. "
-            "Return only the script suitable for text-to-speech in English."
+            "You are a world-class podcast scriptwriter for a lively educational show with TWO human hosts.\n"
+            "Host A = energetic lead teacher. Host B = curious co-host who reacts, jokes, and asks follow-ups.\n\n"
+            "Write a NATURAL studio conversation (NOT a lecture). Make it feel like a real Spotify education podcast.\n\n"
+            "FORMAT (strict):\n"
+            "Host A: [optional vocal tag] spoken line\n"
+            "Host B: [optional vocal tag] spoken line\n"
+            "Alternate frequently. Keep each spoken line under 2 sentences.\n\n"
+            "VOCAL TAGS (put at the START of the spoken text, inside square brackets — these drive expressive TTS):\n"
+            "Use one of: [cheerful] [excited] [curious] [surprised] [thoughtful] [encouraging] "
+            "[sympathetic] [confident] [dramatic] [whisper] [laugh] [gasp]\n"
+            "Vary tags every line. Never use the same tag for more than two consecutive lines.\n\n"
+            "PERFORMANCE RULES:\n"
+            "- Sound excited about cool facts; sympathetic when explaining hard ideas.\n"
+            "- Include natural reactions: 'Wait—really?', 'Ha!', 'Oh wow.', 'Hmm… okay.', 'That's wild!'\n"
+            "- Use short beats like 'Yeah.' / 'Right.' between explanations.\n"
+            "- Emphasize key terms by surrounding them with brief excitement or surprise.\n"
+            "- No markdown, no bullets, no code, no # or @, no stage directions outside the [tags].\n"
+            "- English only. Aim for roughly 12–20 dialogue turns (about 3–5 minutes spoken).\n"
+            "Return ONLY the Host A / Host B script."
         )
     elif endpoint == "flashcards":
         system_prompt = (
@@ -902,6 +1412,29 @@ def chat():
                             "UPDATE conversations SET updated_at=datetime('now') WHERE id=?",
                             (conv_id,)
                         )
+
+        # Expressive multi-host TTS for podcast endpoint
+        if endpoint == "podcast":
+            try:
+                audio_payload = synthesize_podcast_audio(reply)
+                return jsonify({
+                    "reply": reply,
+                    "conversation_id": conv_id,
+                    "audio_base64": audio_payload["audio_base64"],
+                    "audio_mime": audio_payload["audio_mime"],
+                    "tts_engine": audio_payload["engine"],
+                    "tts_turns": audio_payload["turns"],
+                })
+            except Exception as tts_err:
+                print(f"[ERROR] Podcast TTS: {tts_err}")
+                # Still return the script so the UI can show it
+                return jsonify({
+                    "reply": reply,
+                    "conversation_id": conv_id,
+                    "audio_base64": None,
+                    "audio_mime": None,
+                    "tts_error": str(tts_err),
+                })
 
         return jsonify({"reply": reply, "conversation_id": conv_id})
 

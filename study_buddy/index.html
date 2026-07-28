@@ -6048,76 +6048,9 @@
       }
 
       const output = document.getElementById("podcast-output");
-      output.innerHTML = `<div style="display:flex; align-items:center; gap:10px; min-height:120px;"><div class="loading-spinner"></div> Generating podcast audio...</div>`;
-
-      function sanitizeForSpeech(s) {
-        if (!s) return "";
-        let t = s;
-        // Preserve common programming names
-        t = t.replace(/C\+\+/g, 'C plus plus');
-        t = t.replace(/C#/g, 'C sharp');
-        // Remove URLs and emails
-        t = t.replace(/https?:\/\/\S+/gi, '');
-        t = t.replace(/\S+@\S+/g, '');
-        // Remove hash and at symbols before words (#tag -> tag, @user -> user)
-        t = t.replace(/#([A-Za-z0-9_\-]+)/g, '$1');
-        t = t.replace(/@([A-Za-z0-9_\-]+)/g, '$1');
-        // Convert percentages and dollar amounts to spoken form
-        t = t.replace(/(\d+)\%/g, '$1 percent');
-        t = t.replace(/\$([0-9.,]+)/g, '$1 dollars');
-        // Remove stray symbols except common punctuation
-          t = t.replace(/[^\w\s\.,\?\!\:\;\'\"\-\(\)\/\%\$]/g, '');
-        // Collapse whitespace
-        t = t.replace(/\s+/g, ' ').trim();
-        return t;
-      }
-
-      function pickNaturalEnglishVoice() {
-        const voices = speechSynthesis.getVoices();
-        if (!voices || !voices.length) return null;
-        const enVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith("en"));
-        const pool = enVoices.length ? enVoices : voices;
-        // Prefer LOCAL voices only — remote Google voices encode text into a
-        // TTS URL and throw NetworkError ("string does not match the expected
-        // pattern") on long podcast transcripts.
-        const local = pool.filter(v => v.localService);
-        const preferNames = [/microsoft/i, /samantha/i, /zira/i, /david/i, /alex/i, /neural/i];
-        const search = local.length ? local : pool;
-        for (const re of preferNames) {
-          const v = search.find(v => re.test(v.name));
-          if (v) return v;
-        }
-        return search[0] || null;
-      }
-
-      // Chunk long transcripts so SpeechSynthesis never builds an invalid TTS URL
-      function chunkForSpeech(text, maxLen = 180) {
-        const parts = [];
-        const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
-        let buf = "";
-        for (const s of sentences) {
-          const piece = s.trim();
-          if (!piece) continue;
-          if ((buf + " " + piece).trim().length <= maxLen) {
-            buf = (buf + " " + piece).trim();
-          } else {
-            if (buf) parts.push(buf);
-            if (piece.length <= maxLen) {
-              buf = piece;
-            } else {
-              for (let i = 0; i < piece.length; i += maxLen) {
-                parts.push(piece.slice(i, i + maxLen));
-              }
-              buf = "";
-            }
-          }
-        }
-        if (buf) parts.push(buf);
-        return parts.length ? parts : [text];
-      }
+      output.innerHTML = `<div style="display:flex; align-items:center; gap:10px; min-height:120px;"><div class="loading-spinner"></div> Generating expressive studio podcast…</div>`;
 
       try {
-
         let messagesToSend = [];
         if (customTopic) {
           messagesToSend = [{ role: "user", content: `Please create a podcast about: ${customTopic}` }];
@@ -6129,8 +6062,6 @@
           messagesToSend = [...history];
           messagesToSend.push({ role: "user", content: "Generate a podcast based on our entire conversation above." });
         }
-
-
 
         const res = await fetch("/api/podcast", {
           method: "POST",
@@ -6150,118 +6081,86 @@
         }
 
         const rawText = data.reply || "";
-        const speakText = sanitizeForSpeech(rawText);
-
-        if (!speakText) {
+        if (!rawText.trim()) {
           output.innerHTML = `<div style="color: var(--accent2);">❌ Empty podcast transcript returned.</div>`;
           return;
         }
 
-        if (!window.speechSynthesis) {
-          output.innerHTML = `<div style="color:var(--accent2);">Audio not supported in this browser.</div>
-            <div class="podcast-script" style="margin-top:12px; background: rgba(17, 24, 39, 0.6); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px;">
-              <h3 style="margin:0 0 12px 0; color:var(--text);">🎙️ Podcast Script</h3>
-              <div style="line-height:1.6; color:var(--muted); white-space:pre-wrap;">${escapeHtml(rawText)}</div>
-            </div>`;
-          return;
-        }
-
-        // Show transcript first — never claim audio is playing until speech starts
         output.innerHTML = "";
+
         const statusEl = document.createElement("div");
-        statusEl.style.cssText = "margin-bottom:10px; color:var(--muted);";
-        statusEl.textContent = "Preparing audio…";
+        statusEl.style.cssText = "margin-bottom:10px; font-weight:700;";
         output.appendChild(statusEl);
 
         const scriptEl = document.createElement("div");
         scriptEl.className = "podcast-script";
-        scriptEl.style.cssText = "background: rgba(17, 24, 39, 0.6); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 12px;";
-        scriptEl.innerHTML = `<h3 style="margin:0 0 12px 0; color:var(--text);">🎙️ Podcast Script</h3>`;
+        scriptEl.style.cssText = "background: rgba(17, 24, 39, 0.6); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 14px;";
+        const scriptTitle = document.createElement("h3");
+        scriptTitle.style.cssText = "margin:0 0 12px 0; color:var(--text);";
+        scriptTitle.textContent = "🎙️ Podcast Script";
+        scriptEl.appendChild(scriptTitle);
         const scriptBody = document.createElement("div");
         scriptBody.style.cssText = "line-height:1.6; color:var(--muted); white-space:pre-wrap;";
         scriptBody.textContent = rawText;
         scriptEl.appendChild(scriptBody);
         output.appendChild(scriptEl);
 
-        speechSynthesis.cancel();
-        const controls = document.createElement("div");
-        controls.style.marginTop = "8px";
+        // Studio-quality server TTS only (Orpheus / edge-tts). Never use flat browser speechSynthesis.
+        if (data.audio_base64 && data.audio_mime) {
+          const src = `data:${data.audio_mime};base64,${data.audio_base64}`;
+          const engine = data.tts_engine || "expressive-tts";
 
-        const pauseBtn = document.createElement("button");
-        pauseBtn.className = "step-btn secondary";
-        pauseBtn.textContent = "Pause";
-        pauseBtn.onclick = () => speechSynthesis.pause();
+          const playerWrap = document.createElement("div");
+          playerWrap.style.cssText = "background: rgba(30,41,59,0.55); border:1px solid var(--border); border-radius: var(--radius-lg); padding:16px;";
 
-        const resumeBtn = document.createElement("button");
-        resumeBtn.className = "step-btn secondary";
-        resumeBtn.textContent = "Resume";
-        resumeBtn.onclick = () => speechSynthesis.resume();
+          const label = document.createElement("div");
+          label.style.cssText = "margin-bottom:10px; color:var(--text); font-weight:800;";
+          label.textContent = "🎧 Studio Podcast Audio";
+          playerWrap.appendChild(label);
 
-        const stopBtn = document.createElement("button");
-        stopBtn.className = "step-btn secondary";
-        stopBtn.textContent = "Stop";
-        stopBtn.onclick = () => {
-          speechSynthesis.cancel();
-          statusEl.textContent = "Stopped.";
-          statusEl.style.color = "var(--muted)";
-        };
+          const meta = document.createElement("div");
+          meta.style.cssText = "margin-bottom:10px; color:var(--muted); font-size:0.82rem;";
+          meta.textContent = `Engine: ${engine} · Two expressive hosts · ${data.tts_turns || "?"} turns`;
+          playerWrap.appendChild(meta);
 
-        controls.appendChild(pauseBtn);
-        controls.appendChild(resumeBtn);
-        controls.appendChild(stopBtn);
-        output.appendChild(controls);
+          const audio = document.createElement("audio");
+          audio.controls = true;
+          audio.preload = "auto";
+          audio.style.width = "100%";
+          audio.src = src;
 
-        const chunks = chunkForSpeech(speakText);
+          audio.onloadeddata = () => {
+            statusEl.textContent = "Ready — press play for the studio podcast.";
+            statusEl.style.color = "var(--accent3)";
+          };
+          audio.onplay = () => {
+            statusEl.textContent = "Playing expressive podcast audio…";
+            statusEl.style.color = "var(--accent3)";
+          };
+          audio.onended = () => {
+            statusEl.textContent = "Finished.";
+            statusEl.style.color = "var(--muted)";
+          };
+          audio.onerror = () => {
+            statusEl.textContent = "Audio failed to load. Transcript is shown above.";
+            statusEl.style.color = "var(--accent2)";
+          };
 
-        const speakNow = () => {
-          const voice = pickNaturalEnglishVoice();
-          let idx = 0;
+          playerWrap.appendChild(audio);
+          output.appendChild(playerWrap);
 
-          const speakNext = () => {
-            if (idx >= chunks.length) {
-              statusEl.textContent = "Finished.";
+          const playPromise = audio.play();
+          if (playPromise && typeof playPromise.catch === "function") {
+            playPromise.catch(() => {
+              statusEl.textContent = "Audio ready — press play (browser blocked autoplay).";
               statusEl.style.color = "var(--muted)";
-              return;
-            }
-            const utter = new SpeechSynthesisUtterance(chunks[idx]);
-            // Match voice language when available — mismatched lang + remote
-            // Google voices is a common trigger for the pattern NetworkError.
-            if (voice) {
-              utter.voice = voice;
-              utter.lang = voice.lang || "en-US";
-            } else {
-              utter.lang = "en-US";
-            }
-            utter.rate = 1;
-            utter.pitch = 1;
-
-            utter.onstart = () => {
-              statusEl.textContent = `Playing audio (${idx + 1}/${chunks.length})…`;
-              statusEl.style.color = "var(--accent3)";
-            };
-            utter.onerror = (ev) => {
-              const code = ev.error || "unknown";
-              statusEl.textContent = `Audio error: ${code}. Transcript is shown above.`;
-              statusEl.style.color = "var(--accent2)";
-            };
-            utter.onend = () => {
-              idx += 1;
-              speakNext();
-            };
-            speechSynthesis.speak(utter);
-          };
-
-          speakNext();
-        };
-
-        const voices = speechSynthesis.getVoices();
-        if (!voices || voices.length === 0) {
-          speechSynthesis.onvoiceschanged = () => {
-            speechSynthesis.onvoiceschanged = null;
-            speakNow();
-          };
+            });
+          }
         } else {
-          speakNow();
+          statusEl.textContent = data.tts_error
+            ? `Transcript ready. Audio synthesis failed: ${data.tts_error}`
+            : "Transcript ready. Audio was not returned by the server.";
+          statusEl.style.color = "var(--accent2)";
         }
       } catch (err) {
         output.innerHTML = `<div style="color: var(--accent2);">❌ Network error: ${err.message}</div>`;

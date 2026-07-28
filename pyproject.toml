@@ -8,6 +8,7 @@ dependencies = [
   "flask-cors",
   "python-dotenv",
   "groq",
+  "edge-tts",
 ]
 
 [tool.vercel]
