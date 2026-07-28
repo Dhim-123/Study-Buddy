@@ -710,7 +710,34 @@ def chat():
     Handle chat, podcast generation, flashcard generation, quiz generation, crosscheck generation, and definitions extraction.
     For /api/chat: also persists messages to SQLite (auto-creates conversation on first message).
     """
+    # Backend instrumentation
+    import json
+    try:
+        with open("debug-0d0d85.log", "a") as f:
+            f.write(json.dumps({
+                "sessionId": "0d0d85",
+                "location": "app.py:708",
+                "message": "STEP 4: Flask endpoint reached",
+                "data": {"step": 4, "path": request.path, "method": request.method, "status": "SUCCESS"},
+                "timestamp": int(__import__("time").time() * 1000),
+                "hypothesisId": "C"
+            }) + "\n")
+    except: pass
+
     data = request.get_json(force=True)
+
+    # Log request data received
+    try:
+        with open("debug-0d0d85.log", "a") as f:
+            f.write(json.dumps({
+                "sessionId": "0d0d85",
+                "location": "app.py:715",
+                "message": "STEP 5: Request data parsed",
+                "data": {"step": 5, "hasData": bool(data), "messagesCount": len(data.get("messages", [])), "model": data.get("model"), "status": "SUCCESS"},
+                "timestamp": int(__import__("time").time() * 1000),
+                "hypothesisId": "C"
+            }) + "\n")
+    except: pass
 
     endpoint   = request.path.split("/")[-1]
     messages   = data.get("messages", [])
@@ -727,6 +754,8 @@ def chat():
         and isinstance(msg.get("content"), str)
         and msg["content"].strip()
     ]
+
+# Feature routing is now handled in frontend JavaScript
 
     # Endpoint-specific system prompt enhancement
     if endpoint == "chat":
@@ -815,6 +844,19 @@ def chat():
 
     # --- Talk to Groq AI ---
     try:
+        # Log LLM request start
+        try:
+            with open("debug-0d0d85.log", "a") as f:
+                f.write(json.dumps({
+                    "sessionId": "0d0d85",
+                    "location": "app.py:835",
+                    "message": "STEP 6: Starting LLM API call",
+                    "data": {"step": 6, "endpoint": endpoint, "model": model_name, "messagesCount": len(messages), "status": "STARTING"},
+                    "timestamp": int(__import__("time").time() * 1000),
+                    "hypothesisId": "D"
+                }) + "\n")
+        except: pass
+
         client = get_groq_client()
         target_model = resolve_groq_model(model_name)
 
@@ -829,11 +871,37 @@ def chat():
                 "content": msg["content"]
             })
 
+        # Log before API call
+        try:
+            with open("debug-0d0d85.log", "a") as f:
+                f.write(json.dumps({
+                    "sessionId": "0d0d85",
+                    "location": "app.py:847",
+                    "message": "STEP 6: Calling Groq API",
+                    "data": {"step": 6, "model": target_model, "groqMessagesCount": len(groq_messages), "status": "CALLING"},
+                    "timestamp": int(__import__("time").time() * 1000),
+                    "hypothesisId": "D"
+                }) + "\n")
+        except: pass
+
         response = client.chat.completions.create(
             model=target_model,
             messages=groq_messages,
         )
         reply = response.choices[0].message.content
+
+        # Log LLM success
+        try:
+            with open("debug-0d0d85.log", "a") as f:
+                f.write(json.dumps({
+                    "sessionId": "0d0d85",
+                    "location": "app.py:851",
+                    "message": "STEP 7: LLM response received",
+                    "data": {"step": 7, "replyLength": len(reply) if reply else 0, "replyPreview": reply[:200] if reply else "", "status": "SUCCESS"},
+                    "timestamp": int(__import__("time").time() * 1000),
+                    "hypothesisId": "D"
+                }) + "\n")
+        except: pass
         last_message = messages[-1]["content"] if messages else ""
 
         # --- Persist to DB (only for /api/chat when user is logged in) ---
@@ -889,12 +957,42 @@ def chat():
                             (conv_id,)
                         )
 
+        # Log successful return
+        try:
+            with open("debug-0d0d85.log", "a") as f:
+                f.write(json.dumps({
+                    "sessionId": "0d0d85",
+                    "location": "app.py:974",
+                    "message": "STEP 8: Returning successful response",
+                    "data": {"step": 8, "hasReply": bool(reply), "replyLength": len(reply) if reply else 0, "conversationId": conv_id, "status": "SUCCESS"},
+                    "timestamp": int(__import__("time").time() * 1000),
+                    "hypothesisId": "C"
+                }) + "\n")
+        except: pass
+
         return jsonify({"reply": reply, "conversation_id": conv_id})
 
     except Exception as e:
         error_msg = str(e)
         print(f"[ERROR] Groq API: {error_msg}")
+
+        # Log error response
+        try:
+            with open("debug-0d0d85.log", "a") as f:
+                f.write(json.dumps({
+                    "sessionId": "0d0d85",
+                    "location": "app.py:979",
+                    "message": "STEP 8: Returning error response",
+                    "data": {"step": 8, "error": error_msg, "status": "FAILURE"},
+                    "timestamp": int(__import__("time").time() * 1000),
+                    "hypothesisId": "D"
+                }) + "\n")
+        except: pass
+
         return jsonify({"error": error_msg}), 500
+
+
+# Feature routing is now handled in frontend JavaScript
 
 
 # ── Living Notebook Routes ───────────────────────────────────────────
@@ -1041,7 +1139,7 @@ def delete_notebook_entry(entry_id):
 
 @app.route("/api/notebook/ai_extract", methods=["POST"])
 def notebook_ai_extract():
-    """Extract key points, formulas, definitions, and mistakes from text or chat history and save to notebook."""
+    """Extract important points and merge with existing notes for each subject/topic."""
     import json as _json
     import re as _re
 
@@ -1054,29 +1152,30 @@ def notebook_ai_extract():
         return jsonify({"error": "No content provided to extract notes from."}), 400
 
     system_prompt = (
-        "You are an AI study assistant. Read the provided text or study notes carefully and extract important study information. "
-        "Categorize each extracted note into ONE of six categories: 'Key Points', 'Formulas', 'Definitions', 'Mistakes I Made', 'Things to Revise', or 'My Own Notes'. "
-        "Assign a suitable subject (e.g. Physics, Mathematics, Chemistry, Biology, History, English, General) for each note. "
-        "Keep each note content clear, concise, and educational. "
-        "Return ONLY a valid JSON object with the key 'items', where 'items' is an array of objects. "
-        "Each object must have 'subject', 'category', and 'content' fields. No markdown fences or extra text."
+        "You are an ICSE Class 9-10 study assistant. Extract concise, exam-oriented bullet points from the provided text. "
+        "Focus on creating clear, memorable points suitable for 14-15 year old students. "
+        "Format each point as a single bullet point starting with '•'. "
+        "Keep points factual, specific, and directly useful for exams. "
+        "Organize under clear topic headings when useful. "
+        "Return ONLY a JSON object with 'subject' and 'points' fields. "
+        "The 'points' field should be an array of bullet point strings."
     )
 
-    user_prompt = f"""Extract all key study notes from the following text:
+    user_prompt = f"""Extract important points from this ICSE Class 9-10 study content:
 
 --- CONTENT START ---
 {text_to_extract}
 --- CONTENT END ---
 
-If default subject '{default_subject}' is appropriate, use it unless the content clearly specifies another subject (e.g., Physics, Math, Chemistry, Biology).
+Subject: {default_subject}
+
 Return ONLY JSON format:
 {{
-  "items": [
-    {{
-      "subject": "Physics",
-      "category": "Formulas",
-      "content": "F = m * a (Force = mass * acceleration)"
-    }}
+  "subject": "Biology",
+  "points": [
+    "• Photosynthesis occurs in chloroplasts",
+    "• Chlorophyll absorbs sunlight for energy conversion",
+    "• Produces glucose and oxygen as end products"
   ]
 }}
 """
@@ -1100,40 +1199,96 @@ Return ONLY JSON format:
             reply_text = _re.sub(r"```\s*$", "", reply_text).strip()
 
         parsed = _json.loads(reply_text)
-        items = parsed.get("items", [])
+        subject = parsed.get("subject", default_subject).strip()[:50]
+        new_points = parsed.get("points", [])
 
-        valid_items = []
+        if not new_points:
+            return jsonify({"error": "No important points could be extracted from the text."}), 400
+
         uid = current_user_id()
+        if not uid:
+            return jsonify({"error": "Please log in to save notes."}), 401
 
         with get_db() as conn:
-            for item in items:
-                subj = (item.get("subject") or default_subject or "General").strip()[:50]
-                cat = (item.get("category") or "Key Points").strip()
-                cnt = (item.get("content") or "").strip()
+            # Check if "Important Points" entry already exists for this subject
+            existing = conn.execute("""
+                SELECT id, content FROM living_notebook 
+                WHERE user_id = ? AND subject = ? AND category = 'Key Points'
+                ORDER BY created_at DESC LIMIT 1
+            """, (uid, subject)).fetchone()
 
-                if cat not in VALID_NOTEBOOK_CATEGORIES:
-                    cat = "Key Points"
+            # Prepare the points content
+            if existing:
+                # Parse existing points
+                existing_content = existing["content"] or ""
+                existing_points = []
+                
+                # Extract existing bullet points
+                for line in existing_content.split('\n'):
+                    line = line.strip()
+                    if line.startswith('•') or line.startswith('-'):
+                        # Normalize to bullet format
+                        clean_point = line[1:].strip()
+                        if clean_point:
+                            existing_points.append(f"• {clean_point}")
 
-                if cnt:
-                    inserted_id = None
-                    if uid:
-                        cur = conn.execute("""
-                            INSERT INTO living_notebook (user_id, subject, category, content)
-                            VALUES (?, ?, ?, ?)
-                        """, (uid, subj, cat, cnt))
-                        inserted_id = cur.lastrowid
+                # Merge new points, avoiding duplicates
+                all_points = existing_points[:]
+                for new_point in new_points:
+                    new_point = new_point.strip()
+                    if not new_point.startswith('•'):
+                        new_point = f"• {new_point}"
+                    
+                    # Check for duplicates (case-insensitive, ignore minor differences)
+                    clean_new = new_point[1:].strip().lower()
+                    is_duplicate = False
+                    for existing_point in all_points:
+                        clean_existing = existing_point[1:].strip().lower()
+                        # Consider duplicate if 80% similar or contains same key terms
+                        if (clean_new in clean_existing or clean_existing in clean_new or 
+                            len(set(clean_new.split()) & set(clean_existing.split())) >= 3):
+                            is_duplicate = True
+                            break
+                    
+                    if not is_duplicate:
+                        all_points.append(new_point)
 
-                    valid_items.append({
-                        "id": inserted_id,
-                        "subject": subj,
-                        "category": cat,
-                        "content": cnt
-                    })
+                # Update existing entry with merged points
+                merged_content = '\n'.join(all_points)
+                conn.execute("""
+                    UPDATE living_notebook 
+                    SET content = ?, updated_at = datetime('now')
+                    WHERE id = ?
+                """, (merged_content, existing["id"]))
+                
+                entry_id = existing["id"]
+                action = "merged"
 
-        return jsonify({"extracted": valid_items})
+            else:
+                # Create new "Important Points" entry
+                points_content = '\n'.join(new_points)
+                cur = conn.execute("""
+                    INSERT INTO living_notebook (user_id, subject, category, content)
+                    VALUES (?, ?, 'Key Points', ?)
+                """, (uid, subject, points_content))
+                
+                entry_id = cur.lastrowid
+                action = "created"
+
+            # Get the final entry to return
+            final_entry = conn.execute("""
+                SELECT * FROM living_notebook WHERE id = ?
+            """, (entry_id,)).fetchone()
+
+        return jsonify({
+            "action": action,
+            "entry": dict(final_entry) if final_entry else None,
+            "new_points_added": len([p for p in new_points if p.strip()]),
+            "subject": subject
+        })
 
     except Exception as e:
-        print(f"[ERROR] AI Extract: {e}")
+        print(f"[ERROR] AI Extract Important Points: {e}")
         return jsonify({"error": str(e)}), 500
 
 

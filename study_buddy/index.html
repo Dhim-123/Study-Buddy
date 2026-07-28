@@ -465,6 +465,20 @@
       transition: opacity 150ms ease;
     }
 
+    /* Fix: Allow notebook cards to expand naturally without internal scrolling */
+    #nb-section-container {
+      overflow: visible;
+    }
+    
+    #nb-section-content {
+      overflow: visible;
+    }
+
+    /* Remove scrollbar from right sidebar to allow notebook cards to expand naturally */
+    #dict-sidebar .sidebar-content {
+      overflow: visible !important;
+    }
+
     #right-sidebar-handle {
       left: -24px;
       border-radius: 14px 0 0 14px;
@@ -2415,7 +2429,6 @@
       height: 100%;
       display: flex;
       flex-direction: column;
-      overflow-y: auto;
     }
 
     .nb-subject-bar {
@@ -2478,10 +2491,15 @@
     }
 
     .nb-grid-container {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      display: flex;
+      flex-wrap: wrap;
       gap: 22px;
       margin-bottom: 30px;
+    }
+    
+    .nb-grid-container > * {
+      flex: 1 1 340px;
+      min-width: 340px;
     }
 
     .nb-category-card {
@@ -2530,7 +2548,6 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
-      min-height: 120px;
     }
 
     .nb-empty-state {
@@ -4484,6 +4501,271 @@
 
 
     // =====================================================================
+    //  FEATURE INTENT DETECTION AND ROUTING
+    // =====================================================================
+
+    function detectFeatureIntent(message) {
+      const msg = message.toLowerCase().trim();
+      
+      // Living Notebook keywords
+      const notebookKeywords = [
+        "add this to my notebook", "save this note", "store this", 
+        "put this in my living notebook", "make a note on", "add to notebook",
+        "save to notebook", "note this down", "store this information",
+        "add this to notebook", "save this"
+      ];
+      
+      // Flashcards keywords
+      const flashcardKeywords = [
+        "make flashcards", "generate flashcards", "create flashcards",
+        "flashcards on", "flashcards about", "flashcards for"
+      ];
+      
+      // Quiz keywords  
+      const quizKeywords = [
+        "make a quiz", "create a test", "quiz me", "generate a quiz",
+        "create a quiz", "quiz on", "test me on", "make quiz"
+      ];
+      
+      // Podcast keywords
+      const podcastKeywords = [
+        "generate a podcast", "make a podcast", "turn this into a podcast",
+        "create a podcast", "podcast on", "podcast about"
+      ];
+      
+      // Definitions keywords
+      const definitionKeywords = [
+        "define these", "make definitions", "explain these terms",
+        "define", "definitions for", "what do these mean"
+      ];
+      
+      // Check for Living Notebook
+      for (const keyword of notebookKeywords) {
+        if (msg.includes(keyword)) {
+          return {
+            feature: "living_notebook",
+            topic: "LAST_AI_RESPONSE"  // Special marker for last AI response
+          };
+        }
+      }
+      
+      // Check for other features with topic extraction
+      let detectedFeature = null;
+      
+      // Flashcards
+      for (const keyword of flashcardKeywords) {
+        if (msg.includes(keyword)) {
+          detectedFeature = "flashcards";
+          break;
+        }
+      }
+      
+      // Quiz
+      if (!detectedFeature) {
+        for (const keyword of quizKeywords) {
+          if (msg.includes(keyword)) {
+            detectedFeature = "quiz";
+            break;
+          }
+        }
+      }
+      
+      // Podcast
+      if (!detectedFeature) {
+        for (const keyword of podcastKeywords) {
+          if (msg.includes(keyword)) {
+            detectedFeature = "podcast";
+            break;
+          }
+        }
+      }
+      
+      // Definitions
+      if (!detectedFeature) {
+        for (const keyword of definitionKeywords) {
+          if (msg.includes(keyword)) {
+            detectedFeature = "definitions";
+            break;
+          }
+        }
+      }
+      
+      if (detectedFeature) {
+        // Extract topic using simpler patterns
+        let topic = "ENTIRE_CONVERSATION";  // Default fallback
+        
+        // Look for "on X", "about X", "for X" patterns
+        const topicPatterns = [
+          /(?:on|about|for)\s+(.+?)(?:\.|$)/i,
+          /(?:flashcards?|quiz|podcast|definitions?)\s+(.+?)(?:\.|$)/i
+        ];
+        
+        for (const pattern of topicPatterns) {
+          const match = message.match(pattern);
+          if (match && match[1] && !match[1].match(/^(on|about|for)$/i)) {
+            topic = match[1].trim();
+            break;
+          }
+        }
+        
+        return {
+          feature: detectedFeature,
+          topic: topic
+        };
+      }
+      
+      // No feature detected
+      return {
+        feature: null,
+        topic: null
+      };
+    }
+
+    function executeFeatureIntent(intent) {
+      if (!currentUser?.loggedIn) {
+        alert("Please log in to use features.");
+        return;
+      }
+
+      const { feature, topic } = intent;
+      
+      switch (feature) {
+        case "living_notebook":
+          executeLivingNotebook(topic);
+          break;
+          
+        case "flashcards":
+          executeFlashcards(topic);
+          break;
+          
+        case "quiz":
+          executeQuiz(topic);
+          break;
+          
+        case "podcast":
+          executePodcast(topic);
+          break;
+          
+        case "definitions":
+          executeDefinitions(topic);
+          break;
+      }
+    }
+
+    function executeLivingNotebook(topic) {
+      // Get the last AI response from history
+      let contentToSave = "";
+      
+      for (let i = history.length - 1; i >= 0; i--) {
+        if (history[i].role === "assistant" || history[i].role === "ai") {
+          contentToSave = history[i].content;
+          break;
+        }
+      }
+      
+      if (!contentToSave) {
+        alert("No AI response found to save to notebook.");
+        return;
+      }
+      
+      // Directly save to notebook via API
+      saveLivingNotebookEntry("General", "Key Points", contentToSave);
+    }
+
+    function executeFlashcards(topic) {
+      // Switch to flashcards tab
+      showSection('flashcards');
+      
+      // Fill the topic input and generate
+      const flashcardInput = document.getElementById('flashcard-input');
+      if (flashcardInput) {
+        flashcardInput.value = topic === "ENTIRE_CONVERSATION" ? "" : topic;
+      }
+      
+      // Trigger generation
+      setTimeout(() => {
+        const generateBtn = document.getElementById('generate-flashcard-btn');
+        if (generateBtn) generateBtn.click();
+      }, 100);
+    }
+
+    function executeQuiz(topic) {
+      // Switch to quiz tab  
+      showSection('quiz');
+      
+      // Fill the topic input and generate
+      const quizInput = document.getElementById('quiz-input');
+      if (quizInput) {
+        quizInput.value = topic === "ENTIRE_CONVERSATION" ? "" : topic;
+      }
+      
+      // Trigger generation
+      setTimeout(() => {
+        const generateBtn = document.getElementById('generate-quiz-btn');
+        if (generateBtn) generateBtn.click();
+      }, 100);
+    }
+
+    function executePodcast(topic) {
+      // Switch to podcast tab
+      showSection('podcasts');
+      
+      // Fill the topic input and generate
+      const podcastInput = document.getElementById('podcast-input');
+      if (podcastInput) {
+        podcastInput.value = topic === "ENTIRE_CONVERSATION" ? "" : topic;
+      }
+      
+      // Trigger generation
+      setTimeout(() => {
+        const generateBtn = document.getElementById('generate-podcast-btn');
+        if (generateBtn) generateBtn.click();
+      }, 100);
+    }
+
+    function executeDefinitions(topic) {
+      // Switch to definitions tab
+      showSection('definitions');
+      
+      // Definitions doesn't have an input field, just generate
+      setTimeout(() => {
+        const generateBtn = document.getElementById('generate-definitions-btn');
+        if (generateBtn) generateBtn.click();
+      }, 100);
+    }
+
+    async function saveLivingNotebookEntry(subject, category, content) {
+      try {
+        const response = await fetch("/api/notebook/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subject: subject,
+            category: category,
+            content: content
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          // Show success message in chat
+          appendBubble("ai", `✅ **Saved to Living Notebook**\n\n**Subject:** ${subject}\n**Category:** ${category}\n\n${content}`);
+          
+          // Refresh notebook in sidebar
+          if (typeof nbLoadEntries === 'function') {
+            try { nbLoadEntries(); } catch(e) { console.log("Notebook refresh error:", e); }
+          }
+        } else {
+          appendBubble("ai", `❌ **Error saving to notebook:** ${data.error || 'Unknown error'}`);
+        }
+      } catch (error) {
+        console.error("Error saving to notebook:", error);
+        appendBubble("ai", `❌ **Network error:** Could not save to notebook.`);
+      }
+    }
+
+    // =====================================================================
     //  TRIGGER SEND — Validates input and calls sendMessage
     // =====================================================================
 
@@ -4495,6 +4777,20 @@
       // ^ If the input is empty OR we're already waiting for a reply,
       //   do nothing. "return" exits the function early.
 
+      // ── FEATURE ROUTING ──
+      // Check if this is an explicit feature request before sending to AI
+      const featureIntent = detectFeatureIntent(text);
+      
+      console.log(`[FEATURE ROUTING] Input: "${text}" -> Feature: ${featureIntent.feature}, Topic: ${featureIntent.topic}`);
+      
+      if (featureIntent.feature) {
+        console.log(`[FEATURE ROUTING] Executing feature: ${featureIntent.feature}`);
+        executeFeatureIntent(featureIntent);
+        userInputEl.value = "";
+        return; // DO NOT call sendMessage()
+      }
+
+      // Only call sendMessage() if no feature was detected
       sendMessage(text);
       // ^ Send the message to the AI!
 
@@ -4625,6 +4921,8 @@
         }
         sbLoadConversations(); // Update sidebar instantly after message
 
+        // Auto-action handling removed - now handled by frontend routing
+
         // Update the Crosscheck list so this new answer is selectable
         try { if (document.getElementById('crosscheck-list')) populateCrosscheckAnswers(); } catch(e) { /* ignore */ }
 
@@ -4650,6 +4948,268 @@
         userInputEl.focus();
         // ^ Put the cursor back in the input box so the user can
         //   immediately type their next message
+      }
+    }
+
+    // =====================================================================
+    //  INTELLIGENT FEATURE ROUTING HELPER FUNCTIONS
+    // =====================================================================
+
+    function showSection(sectionName) {
+      // Hide all sections first
+      chatArea.style.display = "none";
+      podcastsSection.style.display = "none";
+      flashcardsSection.style.display = "none";
+      quizSection.style.display = "none";
+      crosscheckSection.style.display = "none";
+      if (definitionsSection) definitionsSection.style.display = "none";
+      if (learningDnaSection) learningDnaSection.style.display = "none";
+      if (mistakeVaultSection) mistakeVaultSection.style.display = "none";
+
+      // Update tab buttons
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      const targetTab = [...document.querySelectorAll(".tab-btn")].find(b => b.dataset.tab === sectionName);
+      if (targetTab) targetTab.classList.add("active");
+
+      // Show the target section
+      switch(sectionName) {
+        case "chat":
+          chatArea.style.display = "flex";
+          break;
+        case "podcasts":
+          podcastsSection.style.display = "flex";
+          break;
+        case "flashcards":
+          flashcardsSection.style.display = "flex";
+          break;
+        case "quiz":
+          quizSection.style.display = "flex";
+          break;
+        case "crosscheck":
+          crosscheckSection.style.display = "flex";
+          break;
+        case "definitions":
+          if (definitionsSection) definitionsSection.style.display = "flex";
+          break;
+        case "learning-dna":
+          if (learningDnaSection) {
+            learningDnaSection.style.display = "flex";
+            if (typeof renderLearningDnaDashboard === 'function') renderLearningDnaDashboard();
+          }
+          break;
+        case "mistake-vault":
+          if (mistakeVaultSection) {
+            mistakeVaultSection.style.display = "flex";
+            if (typeof loadMistakeVault === 'function') loadMistakeVault();
+          }
+          break;
+      }
+    }
+
+    function generateFlashcardsFromResponse(responseText) {
+      const output = document.getElementById("flashcards-output");
+      if (!output || !responseText) return;
+
+      try {
+        // Parse flashcards from AI response
+        const cards = responseText.split(/(?=Q:)/i).filter(c => c.trim());
+        output.innerHTML = "";
+        
+        if (cards.length === 0) {
+          output.innerHTML = `<div style="grid-column: 1/-1; color: var(--muted); text-align: center; padding: 40px;">No flashcards found in response.</div>`;
+          return;
+        }
+
+        cards.forEach((card, idx) => {
+          const lines = card.split("\n");
+          const qLine = lines.find(l => l.match(/^Q:/i)) || "";
+          const aLine = lines.find(l => l.match(/^A:/i)) || "";
+          const q = qLine.replace(/^Q:\s*/i, "").trim();
+          const a = aLine.replace(/^A:\s*/i, "").trim();
+          
+          if (q) {
+            const div = document.createElement("div");
+            div.className = "flashcard";
+            div.textContent = q;
+            div.dataset.answer = a || "No answer provided";
+            div.addEventListener("click", function() {
+              this.classList.toggle("flipped");
+              this.textContent = this.classList.contains("flipped") ? (a || "No answer provided") : q;
+            });
+            output.appendChild(div);
+          }
+        });
+      } catch (error) {
+        console.error("Error generating flashcards:", error);
+        output.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent2); text-align: center; padding: 40px;">Error generating flashcards: ${error.message}</div>`;
+      }
+    }
+
+    function generateQuizFromResponse(responseText) {
+      const output = document.getElementById("quiz-output");
+      if (!output || !responseText) return;
+
+      try {
+        // Parse quiz questions from AI response
+        const questions = responseText.split(/(?=Q\d+:)/i).filter(q => q.trim());
+        output.innerHTML = "";
+
+        if (questions.length === 0) {
+          output.innerHTML = `<div style="color: var(--muted); text-align: center; padding: 40px;">No quiz questions found in response.</div>`;
+          return;
+        }
+
+        questions.forEach((question, idx) => {
+          const lines = question.split("\n").map(l => l.trim()).filter(l => l);
+          if (lines.length === 0) return;
+
+          const qLine = lines.find(l => l.match(/^Q\d+:/i)) || lines[0];
+          const q = qLine.replace(/^Q\d+:\s*/i, "").trim();
+          
+          const options = lines.filter(l => l.match(/^[A-D]\)/i));
+          const answerLine = lines.find(l => l.match(/^Answer:\s*[A-D]/i));
+          const correctAnswer = answerLine ? answerLine.replace(/^Answer:\s*/i, "").trim() : "";
+
+          if (q && options.length >= 2) {
+            const container = document.createElement("div");
+            container.className = "quiz-card";
+            container.innerHTML = `
+              <div class="quiz-question">${q}</div>
+              <div class="quiz-options">
+                ${options.map(opt => `
+                  <div class="quiz-option" data-option="${opt.charAt(0)}">
+                    ${opt}
+                  </div>
+                `).join('')}
+              </div>
+              <div class="quiz-feedback" style="display: none; margin-top: 10px; padding: 10px; border-radius: 4px;"></div>
+            `;
+
+            // Add click handlers for options
+            container.querySelectorAll('.quiz-option').forEach(opt => {
+              opt.addEventListener('click', function() {
+                // Clear previous selections
+                container.querySelectorAll('.quiz-option').forEach(o => o.classList.remove('selected', 'correct', 'incorrect'));
+                
+                // Mark this option as selected
+                this.classList.add('selected');
+                
+                const feedback = container.querySelector('.quiz-feedback');
+                const selectedLetter = this.dataset.option;
+                
+                if (selectedLetter === correctAnswer) {
+                  this.classList.add('correct');
+                  feedback.innerHTML = "✅ Correct!";
+                  feedback.style.backgroundColor = "rgba(34, 197, 94, 0.1)";
+                  feedback.style.color = "var(--accent3)";
+                } else {
+                  this.classList.add('incorrect');
+                  // Also highlight correct answer
+                  const correctOpt = container.querySelector(`[data-option="${correctAnswer}"]`);
+                  if (correctOpt) correctOpt.classList.add('correct');
+                  
+                  feedback.innerHTML = `❌ Incorrect. The correct answer is ${correctAnswer}.`;
+                  feedback.style.backgroundColor = "rgba(244, 63, 94, 0.1)";
+                  feedback.style.color = "#f43f5e";
+                }
+                feedback.style.display = "block";
+              });
+            });
+
+            output.appendChild(container);
+          }
+        });
+      } catch (error) {
+        console.error("Error generating quiz:", error);
+        output.innerHTML = `<div style="color: var(--accent2); text-align: center; padding: 40px;">Error generating quiz: ${error.message}</div>`;
+      }
+    }
+
+    function generatePodcastFromResponse(responseText) {
+      const output = document.getElementById("podcast-output");
+      if (!output || !responseText) return;
+
+      try {
+        // Extract podcast script
+        const scriptLines = responseText.split('\n').filter(line => 
+          line.match(/^Host [AB]:/i) || line.trim().length > 0
+        );
+
+        if (scriptLines.length === 0) {
+          output.innerHTML = `<div style="color: var(--muted); text-align: center; padding: 40px;">No podcast script found in response.</div>`;
+          return;
+        }
+
+        output.innerHTML = `
+          <div class="podcast-script" style="background: rgba(17, 24, 39, 0.6); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 16px 0; color: var(--text);">🎙️ Podcast Script</h3>
+            <div class="script-content" style="line-height: 1.6; color: var(--muted);">
+              ${responseText.replace(/\n/g, '<br>')}
+            </div>
+          </div>
+          <div style="text-align: center; color: var(--muted); font-size: 0.9rem;">
+            📝 Script generated! Use text-to-speech software to create audio.
+          </div>
+        `;
+      } catch (error) {
+        console.error("Error generating podcast:", error);
+        output.innerHTML = `<div style="color: var(--accent2); text-align: center; padding: 40px;">Error generating podcast: ${error.message}</div>`;
+      }
+    }
+
+    function generateDefinitionsFromResponse(responseText) {
+      const output = document.getElementById("definitions-output");
+      if (!output || !responseText) return;
+
+      try {
+        if (responseText.trim() === "NO_DEFINITIONS") {
+          output.innerHTML = `<div style="color: var(--muted); text-align: center; padding: 40px;">No clear definitions found in the conversation.</div>`;
+          return;
+        }
+
+        // Parse definitions from numbered list format
+        const lines = responseText.split('\n').filter(line => line.trim());
+        const definitions = [];
+
+        lines.forEach(line => {
+          const match = line.match(/^\d+\.\s*([^:]+):\s*(.+)/);
+          if (match) {
+            definitions.push({
+              term: match[1].trim(),
+              definition: match[2].trim()
+            });
+          }
+        });
+
+        if (definitions.length === 0) {
+          output.innerHTML = `<div style="color: var(--muted); text-align: center; padding: 40px;">No definitions found in expected format.</div>`;
+          return;
+        }
+
+        output.innerHTML = "";
+        definitions.forEach(def => {
+          const card = document.createElement("div");
+          card.className = "definition-card";
+          card.style.cssText = `
+            background: rgba(17, 24, 39, 0.6);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 12px;
+          `;
+          card.innerHTML = `
+            <div style="font-weight: 700; font-size: 1.1rem; color: var(--text); margin-bottom: 8px;">
+              ${def.term}
+            </div>
+            <div style="color: var(--muted); line-height: 1.5;">
+              ${def.definition}
+            </div>
+          `;
+          output.appendChild(card);
+        });
+      } catch (error) {
+        console.error("Error generating definitions:", error);
+        output.innerHTML = `<div style="color: var(--accent2); text-align: center; padding: 40px;">Error generating definitions: ${error.message}</div>`;
       }
     }
 
@@ -5529,6 +6089,7 @@
       }
 
       try {
+
         let messagesToSend = [];
         if (customTopic) {
           messagesToSend = [{ role: "user", content: `Please create a podcast about: ${customTopic}` }];
@@ -5541,6 +6102,14 @@
           messagesToSend.push({ role: "user", content: "Generate a podcast based on our entire conversation above." });
         }
 
+        // #region agent log
+        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6102',message:'STEP 3: Messages prepared for API',data:{step:3,messagesCount:messagesToSend.length,firstMessage:messagesToSend[0],status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+
+        // #region agent log
+        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6104',message:'STEP 4: Sending request to Flask',data:{step:4,url:'/api/podcast',method:'POST',payload:{messages:messagesToSend.length,model:cfg.model,notesLength:notesContent?.length||0},status:'SENDING'},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+
         const res = await fetch("/api/podcast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -5550,20 +6119,49 @@
             notes: notesContent,
           }),
         });
+
+        // #region agent log
+        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6113',message:'STEP 5: HTTP response received',data:{step:5,status:res.ok?'SUCCESS':'FAILURE',httpStatus:res.status,httpStatusText:res.statusText},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+
         const data = await res.json();
+
+        // #region agent log
+        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6115',message:'STEP 6: Response JSON parsed',data:{step:6,hasReply:!!data.reply,replyLength:data.reply?.length||0,hasError:!!data.error,error:data.error,status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+
         if (!res.ok) {
+          // #region agent log
+          fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6116',message:'STEP 6: HTTP error response',data:{step:6,status:'FAILURE',httpStatus:res.status,errorMessage:data?.error||'Failed to generate podcast'},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
           output.innerHTML = `<div style="color: var(--accent2);">❌ Error: ${data?.error || "Failed to generate podcast"}</div>`;
           return;
         }
 
         const rawText = data.reply || "";
         const speakText = sanitizeForSpeech(rawText);
+
+        // #region agent log
+        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6119',message:'STEP 7: Transcript received and sanitized',data:{step:7,rawTextLength:rawText.length,speakTextLength:speakText.length,rawTextPreview:rawText.substring(0,200),status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
+
+        // #region agent log
+        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6121',message:'STEP 8: Displaying "Playing audio" (CRITICAL ERROR)',data:{step:8,status:'PREMATURE',reason:'showing_audio_before_validation'},timestamp:Date.now(),hypothesisId:'F'})}).catch(()=>{});
+        // #endregion
+
         output.innerHTML = `<div style="margin-bottom:10px; color:var(--accent2);">Playing audio.</div>`;
 
         if (!window.speechSynthesis) {
+          // #region agent log
+          fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6124',message:'STEP 9: SpeechSynthesis not supported',data:{step:9,status:'FAILURE',reason:'browser_not_supported'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
           output.innerHTML += `<div style="color:var(--accent2);">Audio not supported in this browser.</div>`;
           return;
         }
+
+        // #region agent log
+        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6127',message:'STEP 9: SpeechSynthesis available',data:{step:9,status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
 
         // Create playback controls
         speechSynthesis.cancel();
@@ -5592,20 +6190,41 @@
 
         // Speak using the best available voice; if voices aren't loaded yet, wait
         const speakNow = () => {
+          // #region agent log
+          fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6154',message:'STEP 15: Starting audio playback',data:{step:15,speakTextLength:speakText.length,status:'STARTING'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
+
           const utter = new SpeechSynthesisUtterance(speakText);
           utter.lang = 'en-US';
           utter.rate = 1;
           utter.pitch = 1;
           const voice = pickNaturalEnglishVoice();
+
+          // #region agent log
+          fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6159',message:'STEP 14: Voice selected',data:{step:14,hasVoice:!!voice,voiceName:voice?.name||'default',voiceLang:voice?.lang||'unknown',status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
+
           if (voice) utter.voice = voice;
           speechSynthesis.cancel();
           speechSynthesis.speak(utter);
+
+          // #region agent log
+          fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6162',message:'STEP 15: Audio playback initiated',data:{step:15,status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
         };
 
         const voices = speechSynthesis.getVoices();
+
+        // #region agent log
+        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6165',message:'STEP 13: Voice loading status',data:{step:13,voicesLoaded:!!(voices&&voices.length>0),voicesCount:voices?.length||0,status:voices&&voices.length>0?'SUCCESS':'WAITING'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
+
         if (!voices || voices.length === 0) {
           // Voices not loaded yet; attach handler
           speechSynthesis.onvoiceschanged = () => {
+            // #region agent log
+            fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6168',message:'STEP 13: Voices loaded via callback',data:{step:13,voicesCount:speechSynthesis.getVoices().length,status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+            // #endregion
             speakNow();
           };
         } else {
@@ -5784,7 +6403,12 @@
     //  PODCAST GENERATOR
     // =====================================================================
 
-    document.getElementById("generate-podcast-btn").addEventListener("click", async () => {
+    function initPodcast() {
+      const podcastBtn = document.getElementById("generate-podcast-btn");
+      
+      if (podcastBtn) {
+        podcastBtn.addEventListener("click", async () => {
+
       const rawInput = document.getElementById("podcast-input").value;
       const customTopic = rawInput.trim();
 
@@ -5797,6 +6421,8 @@
         output.textContent = `❌ Network error: ${err.message}`;
       }
     });
+  }
+    }
 
     // =====================================================================
     //  FLASHCARD GENERATOR
@@ -7667,78 +8293,218 @@
       NB_CATEGORIES.forEach(category => {
         const catEntries = filteredEntries.filter(e => e.category === category);
         const icon = NB_CATEGORY_ICONS[category] || "📝";
+        
+        // Display name for Important Points
+        const displayName = category === "Key Points" ? "Important Points" : category;
 
-        const card = document.createElement("div");
-        card.className = "nb-sidebar-cat-card";
+        // Use subject-grouped layout for ALL categories
+        nbRenderCategoryWithSubjects(container, catEntries, icon, displayName, category);
+      });
+    }
 
-        const header = document.createElement("div");
-        header.className = "nb-sidebar-cat-header";
-        header.innerHTML = `
-          <div style="display:flex; align-items:center; gap:6px;">
-            <span>${icon}</span> <span>${escapeHtml(category)}</span>
-            <span style="font-size:0.72rem; opacity:0.7;">(${catEntries.length})</span>
+    function nbRenderCategoryWithSubjects(container, categoryEntries, icon, displayName, category) {
+      // Group entries by subject
+      const subjectGroups = {};
+      categoryEntries.forEach(entry => {
+        const subject = entry.subject || 'General';
+        if (!subjectGroups[subject]) {
+          subjectGroups[subject] = [];
+        }
+        subjectGroups[subject].push(entry);
+      });
+
+      const subjects = Object.keys(subjectGroups);
+      const totalEntries = categoryEntries.length;
+
+      // Main category card
+      const card = document.createElement("div");
+      card.className = "nb-sidebar-cat-card";
+
+      const header = document.createElement("div");
+      header.className = "nb-sidebar-cat-header";
+      header.innerHTML = `
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span>${icon}</span> <span>${escapeHtml(displayName)}</span>
+          <span style="font-size:0.72rem; opacity:0.7;">(${totalEntries} items)</span>
+        </div>
+        <button class="ce-btn-sm ce-btn-sm-primary" style="padding:2px 8px; font-size:0.75rem;" type="button" onclick="nbOpenAddForm('${escapeHtml(nbSelectedSubject === 'All' ? 'General' : nbSelectedSubject)}', '${escapeHtml(category)}')">+ Add</button>
+      `;
+
+      const list = document.createElement("div");
+      list.style.cssText = "display:flex; flex-direction:column; gap:8px;";
+
+      if (subjects.length === 0) {
+        list.innerHTML = `
+          <div style="text-align:center; padding:12px 8px; color:var(--muted); font-size:0.78rem; border:1px dashed rgba(255,255,255,0.06); border-radius:6px;">
+            No ${escapeHtml(displayName.toLowerCase())} added yet.
           </div>
-          <button class="ce-btn-sm ce-btn-sm-primary" style="padding:2px 8px; font-size:0.75rem;" type="button" onclick="nbOpenAddForm('${escapeHtml(nbSelectedSubject === 'All' ? 'General' : nbSelectedSubject)}', '${escapeHtml(category)}')">+ Add</button>
         `;
+      } else {
+        // Create subject headings followed by individual topic cards
+        subjects.forEach(subject => {
+          const subjectEntries = subjectGroups[subject];
 
-        const list = document.createElement("div");
-        list.style.cssText = "display:flex; flex-direction:column; gap:8px;";
+          // Create subject heading
+          const subjectHeading = document.createElement("div");
+          subjectHeading.style.cssText = "font-weight: 700; font-size: 0.9rem; color: var(--text); margin: 16px 0 8px 0; padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 6px; border-left: 3px solid var(--accent);";
+          subjectHeading.textContent = subject;
+          list.appendChild(subjectHeading);
 
-        if (catEntries.length === 0) {
-          list.innerHTML = `
-            <div style="text-align:center; padding:12px 8px; color:var(--muted); font-size:0.78rem; border:1px dashed rgba(255,255,255,0.06); border-radius:6px;">
-              No ${escapeHtml(category.toLowerCase())} added yet.
-            </div>
-          `;
-        } else {
-          catEntries.forEach((entry, idx) => {
-            const entryEl = document.createElement("div");
-            entryEl.className = "nb-entry-card";
-            entryEl.dataset.id = entry.id || "";
+          // Create individual cards for each bullet point across all entries in this subject
+          subjectEntries.forEach((entry, entryIdx) => {
+            if (!entry.content) return;
 
-            const entryHeader = document.createElement("div");
-            entryHeader.className = "nb-entry-header";
+            // Split content into individual bullet points
+            const lines = entry.content.split('\n').map(line => line.trim()).filter(line => line);
             
-            entryHeader.innerHTML = `
-              <span class="nb-entry-subject-tag">${escapeHtml(entry.subject || 'General')}</span>
-              <div style="display:flex; align-items:center; gap:4px;">
-                <button class="nb-reorder-btn" title="Move Up" onclick="nbMoveEntry(${entry.id}, -1)">▲</button>
-                <button class="nb-reorder-btn" title="Move Down" onclick="nbMoveEntry(${entry.id}, 1)">▼</button>
-                <button class="nb-entry-delete-btn" style="margin-left:4px;" title="Delete" onclick="nbDeleteEntry(${entry.id}, this)">🗑️</button>
-              </div>
-            `;
+            lines.forEach((line, lineIdx) => {
+              if (!line.startsWith('•') && !line.startsWith('-') && !line.startsWith('*')) {
+                // Skip non-bullet lines for now
+                return;
+              }
 
-            const textarea = document.createElement("textarea");
-            textarea.className = "nb-entry-textarea";
-            textarea.value = entry.content;
-            textarea.rows = Math.max(2, entry.content.split('\n').length);
+              // Extract topic title and explanation from the bullet point
+              const cleanLine = line.replace(/^[•\-\*]\s*/, '').trim();
+              if (!cleanLine) return;
 
-            textarea.addEventListener("input", function() {
+              // Use first few words as title, rest as explanation
+              const words = cleanLine.split(' ');
+              let topicTitle, explanation;
+              
+              if (words.length <= 4) {
+                topicTitle = cleanLine;
+                explanation = '';
+              } else {
+                topicTitle = words.slice(0, 4).join(' ') + '...';
+                explanation = cleanLine;
+              }
+
+              // Create separate entry object for this bullet point
+              const bulletEntry = {
+                ...entry,
+                content: cleanLine,
+                id: entry.id + '_' + lineIdx  // Create unique ID for each bullet
+              };
+
+              // Create individual topic card
+              const entryEl = document.createElement("div");
+              entryEl.className = "nb-entry-card";
+              entryEl.dataset.id = bulletEntry.id || "";
+
+              const entryHeader = document.createElement("div");
+              entryHeader.className = "nb-entry-header";
+              entryHeader.innerHTML = `
+                <span style="font-weight: 600; color: var(--text); font-size: 0.85rem;">${escapeHtml(topicTitle)}</span>
+                <div style="display:flex; align-items:center; gap:4px;">
+                  <button class="nb-entry-delete-btn" style="font-size: 0.7rem; padding: 2px 6px;" title="Delete" onclick="nbDeleteEntry(${entry.id}, this)">🗑️</button>
+                </div>
+              `;
+
+              const textarea = document.createElement("textarea");
+              textarea.className = "nb-entry-textarea";
+              textarea.value = explanation;
+
+            // Auto-resize function
+            const autoResize = function() {
               this.style.height = "auto";
               this.style.height = this.scrollHeight + "px";
-              nbHandleInlineEdit(entry.id, this.value, entryEl);
+            };
+
+              // Auto-resize based on content
+              textarea.addEventListener("input", function() {
+                autoResize.call(this);
+                // Save the full content (title + explanation)
+                nbHandleInlineEdit(entry.id, `${topicTitle}\n${this.value}`, entryEl);
+                });
+
+              const footer = document.createElement("div");
+              footer.className = "nb-entry-footer";
+
+              const status = document.createElement("span");
+              status.className = "nb-entry-status";
+              status.textContent = "Saved ✓";
+
+              footer.appendChild(status);
+
+              entryEl.appendChild(entryHeader);
+              entryEl.appendChild(textarea);
+              entryEl.appendChild(footer);
+              list.appendChild(entryEl);
+
+              // Initial auto-resize AFTER element is in DOM
+              requestAnimationFrame(() => {
+                autoResize.call(textarea);
+              });
             });
-
-            const footer = document.createElement("div");
-            footer.className = "nb-entry-footer";
-
-            const status = document.createElement("span");
-            status.className = "nb-entry-status";
-            status.textContent = "Saved ✓";
-
-            footer.appendChild(status);
-
-            entryEl.appendChild(entryHeader);
-            entryEl.appendChild(textarea);
-            entryEl.appendChild(footer);
-            list.appendChild(entryEl);
           });
-        }
+        });
+      }
 
-        card.appendChild(header);
-        card.appendChild(list);
-        container.appendChild(card);
-      });
+      card.appendChild(header);
+      card.appendChild(list);
+      container.appendChild(card);
+    }
+
+
+    async function nbHandleSubjectEdit(subject, newContent) {
+      // Update all entries for this subject with the new combined content
+      const subjectEntries = nbEntries.filter(e => e.category === 'Key Points' && e.subject === subject);
+      
+      if (subjectEntries.length > 0) {
+        // Update the first entry with all content, remove others
+        const firstEntry = subjectEntries[0];
+        firstEntry.content = newContent;
+        firstEntry.updated_at = new Date().toISOString();
+        
+        // Remove other entries for this subject
+        nbEntries = nbEntries.filter(e => !(e.category === 'Key Points' && e.subject === subject && e.id !== firstEntry.id));
+        
+        nbSaveLocal();
+        
+        // Update server
+        if (currentUser?.loggedIn && firstEntry.id) {
+          try {
+            await fetch(`/api/notebook/entry/${firstEntry.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ content: newContent })
+            });
+            
+            // Delete other entries from server
+            for (let i = 1; i < subjectEntries.length; i++) {
+              if (subjectEntries[i].id) {
+                await fetch(`/api/notebook/entry/${subjectEntries[i].id}`, { method: "DELETE" });
+              }
+            }
+          } catch (err) {
+            console.error("Error updating subject content:", err);
+          }
+        }
+      }
+    }
+
+    async function nbDeleteSubject(subject) {
+      if (!confirm(`Delete all Important Points for ${subject}?`)) return;
+      
+      // Find all entries for this subject
+      const subjectEntries = nbEntries.filter(e => e.category === 'Key Points' && e.subject === subject);
+      const entryIds = subjectEntries.map(e => e.id).filter(id => id);
+      
+      // Remove from local storage
+      nbEntries = nbEntries.filter(e => !(e.category === 'Key Points' && e.subject === subject));
+      nbSaveLocal();
+      nbRender();
+      
+      // Remove from server
+      if (currentUser?.loggedIn && entryIds.length > 0) {
+        try {
+          for (const entryId of entryIds) {
+            await fetch(`/api/notebook/entry/${entryId}`, { method: "DELETE" });
+          }
+        } catch (err) {
+          console.error("Error deleting subject entries:", err);
+        }
+      }
     }
 
     window.nbOpenAddForm = function(subject, category) {
@@ -7924,26 +8690,50 @@
         addBtn.textContent = "⏳ Preparing...";
 
         try {
+          // Try to extract subject from current conversation or use selected notebook subject
+          let currentSubject = "General";
+          if (nbSelectedSubject && nbSelectedSubject !== "All") {
+            currentSubject = nbSelectedSubject;
+          } else if (cfg && cfg.subjects && cfg.subjects.length > 0) {
+            // Use the first configured subject as default
+            currentSubject = cfg.subjects[0];
+          }
+          
           const res = await fetch("/api/notebook/ai_extract", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: replyText, model: cfg.model })
+            body: JSON.stringify({ 
+              text: replyText, 
+              model: cfg.model,
+              subject: currentSubject
+            })
           });
           const data = await res.json();
-          if (res.ok && data.extracted && data.extracted.length > 0) {
-            const first = data.extracted[0];
-            const contentInput = document.getElementById("nb-input-content");
-            if (contentInput) {
-              contentInput.value = first.content;
+          if (res.ok && data.entry) {
+            // Success - show feedback about the Important Points update
+            const action = data.action || "updated";
+            const pointsAdded = data.new_points_added || 0;
+            const subject = data.subject || "General";
+            
+            if (action === "created") {
+              suggestContainer.innerHTML = `<span style="color:var(--accent3); font-weight:700;">📌 Created Important Points for ${subject} with ${pointsAdded} bullet points!</span>`;
+            } else if (action === "merged") {
+              suggestContainer.innerHTML = `<span style="color:var(--accent3); font-weight:700;">📌 Added ${pointsAdded} new points to ${subject} Important Points!</span>`;
             }
-            nbOpenAddForm(first.subject || "General", first.category || "Key Points");
-            suggestContainer.innerHTML = `<span style="color:var(--accent3); font-weight:700;">📝 Opened in Living Notebook right sidebar. Click Save to confirm!</span>`;
-            setTimeout(() => suggestContainer.remove(), 3000);
+            
+            // Refresh the notebook to show updated content
+            if (typeof nbLoadEntries === 'function') {
+              nbLoadEntries();
+            }
+            
+            setTimeout(() => suggestContainer.remove(), 4000);
           } else {
+            // Fallback - open manual add form
             nbOpenAddForm("General", "Key Points");
             const contentInput = document.getElementById("nb-input-content");
             if (contentInput) contentInput.value = replyText.slice(0, 300);
-            suggestContainer.remove();
+            suggestContainer.innerHTML = `<span style="color:var(--muted);">⚠️ Couldn't auto-extract. Please add manually.</span>`;
+            setTimeout(() => suggestContainer.remove(), 3000);
           }
         } catch (e) {
           nbOpenAddForm("General", "Key Points");
@@ -8012,6 +8802,7 @@
       initDict();
       await nbLoadEntries();
       initNotebook();
+      initPodcast();
       if (typeof startDnaHeartbeat === 'function') startDnaHeartbeat();
     }
 
