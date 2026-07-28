@@ -151,20 +151,25 @@ _EMOTION_PROSODY = {
 
 
 def _parse_podcast_turns(script: str):
-    """Split 'Host A:' / 'Host B:' script into ordered speaker turns."""
+    """Split named-host (Alex/Maya) or Host A/B script into ordered speaker turns."""
     turns = []
     current = None
     buf = []
+    # Preferred: Alex / Maya. Fallback: Host A / Host B / A / B.
+    label_re = re.compile(
+        r"^(Alex|Maya|Host\s*[AB]|A|B)\s*[:\-—]\s*(.*)$",
+        re.IGNORECASE,
+    )
     for raw in (script or "").splitlines():
         line = raw.strip()
         if not line:
             continue
-        m = re.match(r"^(Host\s*[AB]|A|B)\s*[:\-—]\s*(.*)$", line, re.IGNORECASE)
+        m = label_re.match(line)
         if m:
             if current and buf:
                 turns.append((current, " ".join(buf).strip()))
-            speaker = m.group(1).upper().replace(" ", "")
-            if speaker in ("A", "HOSTA"):
+            label = m.group(1).upper().replace(" ", "")
+            if label in ("ALEX", "A", "HOSTA"):
                 current = "A"
             else:
                 current = "B"
@@ -486,10 +491,10 @@ def synthesize_podcast_audio(script: str) -> dict:
 
     turns = _parse_podcast_turns(script)
     if not turns:
-        raise ValueError("Could not parse Host A / Host B turns from podcast script.")
+        raise ValueError("Could not parse Alex / Maya (or Host A / B) turns from podcast script.")
 
-    # Cap turns for latency budget (script should already be short)
-    turns = turns[:8]
+    # Cap turns for latency budget (teaching scripts are ~10–12 turns)
+    turns = turns[:12]
 
     def _synth_one(index_speaker_line):
         i, speaker, line = index_speaker_line
@@ -1232,21 +1237,28 @@ def chat():
     elif endpoint == "podcast":
         system_prompt = (
             f"{system_prompt}\n\n"
-            "You write FAST short educational podcasts with TWO hosts.\n"
-            "Host A = energetic lead. Host B = curious co-host.\n\n"
-            "FORMAT (strict — every line MUST start with Host A: or Host B:):\n"
-            "Host A: [tag] spoken line\n"
-            "Host B: [tag] spoken line\n\n"
-            "LENGTH (critical for speed):\n"
-            "- Exactly 6 to 8 dialogue turns total (count Host A + Host B lines).\n"
-            "- At most 150 words in the entire script.\n"
-            "- Each line: one short sentence (max ~20 words).\n"
-            "- Spoken length should be about 60–90 seconds when read aloud.\n\n"
+            "You write a student-friendly educational podcast with TWO named hosts.\n"
+            "Alex = energetic lead teacher who explains clearly.\n"
+            "Maya = curious co-host who asks the questions a confused student would ask.\n\n"
+            "FORMAT (strict — every line MUST start with Alex: or Maya: — never Host A/B):\n"
+            "Alex: [tag] spoken line\n"
+            "Maya: [tag] spoken line\n\n"
+            "LENGTH:\n"
+            "- Exactly 10 to 12 dialogue turns total.\n"
+            "- About 280–350 words in the entire script (~2–3 minutes spoken).\n"
+            "- Each line can be 1–2 clear sentences.\n\n"
+            "TEACHING ARC (cover all of these):\n"
+            "1) Quick hook + say what today's topic is.\n"
+            "2) Clear definition of the core idea in plain language.\n"
+            "3) Step-by-step explanation with one concrete everyday example.\n"
+            "4) Common mistake / 'don't confuse this with…'.\n"
+            "5) Short recap students can remember.\n"
+            "Maya asks clarifying questions; Alex answers with detail and examples.\n\n"
             "VOCAL TAGS (at start of spoken text):\n"
             "Use one of: [cheerful] [excited] [curious] [surprised] [thoughtful] "
             "[encouraging] [sympathetic] [confident] [laugh]\n"
             "Vary tags. English only. No markdown, bullets, or stage directions outside [tags].\n"
-            "Return ONLY the Host A / Host B script."
+            "Return ONLY the Alex / Maya script."
         )
     elif endpoint == "flashcards":
         system_prompt = (
@@ -1304,10 +1316,10 @@ def chat():
     # --- Talk to Groq AI ---
     try:
         client = get_groq_client()
-        # Podcast: force fast small model + tight token budget for ≤10s generation
+        # Podcast: fast model + enough tokens for named teaching scripts
         if endpoint == "podcast":
             target_model = "llama-3.1-8b-instant"
-            completion_kwargs = {"max_tokens": 450}
+            completion_kwargs = {"max_tokens": 750}
         else:
             target_model = resolve_groq_model(model_name)
             completion_kwargs = {}
