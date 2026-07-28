@@ -156,8 +156,9 @@ def _parse_podcast_turns(script: str):
     current = None
     buf = []
     # Preferred: Alex / Maya. Fallback: Host A / Host B / A / B.
+    # Also accept leading vocal tags: "[cheerful] Alex: ..."
     label_re = re.compile(
-        r"^(Alex|Maya|Host\s*[AB]|A|B)\s*[:\-—]\s*(.*)$",
+        r"^(?:\[([a-zA-Z]+)\]\s*)?(Alex|Maya|Host\s*[AB]|A|B)\s*[:\-—]\s*(.*)$",
         re.IGNORECASE,
     )
     for raw in (script or "").splitlines():
@@ -168,12 +169,16 @@ def _parse_podcast_turns(script: str):
         if m:
             if current and buf:
                 turns.append((current, " ".join(buf).strip()))
-            label = m.group(1).upper().replace(" ", "")
+            leading_tag = m.group(1)
+            label = m.group(2).upper().replace(" ", "")
             if label in ("ALEX", "A", "HOSTA"):
                 current = "A"
             else:
                 current = "B"
-            rest = (m.group(2) or "").strip()
+            rest = (m.group(3) or "").strip()
+            # Preserve leading tag if the model put it before the name
+            if leading_tag and not rest.startswith("["):
+                rest = f"[{leading_tag.lower()}] {rest}"
             buf = [rest] if rest else []
         elif current:
             buf.append(line)
@@ -1242,7 +1247,9 @@ def chat():
             "Maya = curious co-host who asks the questions a confused student would ask.\n\n"
             "FORMAT (strict — every line MUST start with Alex: or Maya: — never Host A/B):\n"
             "Alex: [tag] spoken line\n"
-            "Maya: [tag] spoken line\n\n"
+            "Maya: [tag] spoken line\n"
+            "Do NOT put the tag before the name. Wrong: [cheerful] Alex: hello\n"
+            "Correct: Alex: [cheerful] hello\n\n"
             "LENGTH:\n"
             "- Exactly 10 to 12 dialogue turns total.\n"
             "- About 280–350 words in the entire script (~2–3 minutes spoken).\n"
