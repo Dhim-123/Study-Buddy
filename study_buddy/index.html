@@ -6035,6 +6035,19 @@
       }
     }
 
+    async function readJsonResponse(res) {
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error(
+          res.status >= 500
+            ? "Server timed out or restarted. Try again in a few seconds."
+            : "Server returned an invalid response."
+        );
+      }
+    }
+
     async function generatePodcast(customTopic, switchToTab = true) {
       if (switchToTab) {
         document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -6049,7 +6062,7 @@
 
       const output = document.getElementById("podcast-output");
       const t0 = performance.now();
-      output.innerHTML = `<div style="display:flex; align-items:center; gap:10px; min-height:120px;"><div class="loading-spinner"></div> Writing short script…</div>`;
+      output.innerHTML = `<div style="display:flex; align-items:center; gap:10px; min-height:120px;"><div class="loading-spinner"></div> Writing script…</div>`;
 
       try {
         let messagesToSend = [];
@@ -6074,8 +6087,8 @@
           }),
         });
 
-        const data = await res.json();
-        const elapsedSec = ((performance.now() - t0) / 1000).toFixed(1);
+        const data = await readJsonResponse(res);
+        const scriptSec = ((performance.now() - t0) / 1000).toFixed(1);
 
         if (!res.ok) {
           output.innerHTML = `<div style="color: var(--accent2);">❌ Error: ${data?.error || "Failed to generate podcast"}</div>`;
@@ -6088,11 +6101,11 @@
           return;
         }
 
+        // Show transcript immediately (script-only response)
         output.innerHTML = "";
-
         const statusEl = document.createElement("div");
-        statusEl.style.cssText = "margin-bottom:10px; font-weight:700;";
-        statusEl.textContent = `Ready in ${elapsedSec}s`;
+        statusEl.style.cssText = "margin-bottom:10px; font-weight:700; display:flex; align-items:center; gap:10px;";
+        statusEl.innerHTML = `<div class="loading-spinner"></div> Script ready in ${scriptSec}s — voicing Alex & Maya…`;
         statusEl.style.color = "var(--accent3)";
         output.appendChild(statusEl);
 
@@ -6109,10 +6122,29 @@
         scriptEl.appendChild(scriptBody);
         output.appendChild(scriptEl);
 
-        // Studio-quality server TTS only (edge-tts). Never use flat browser speechSynthesis.
-        if (data.audio_base64 && data.audio_mime) {
-          const src = `data:${data.audio_mime};base64,${data.audio_base64}`;
-          const engine = data.tts_engine || "expressive-tts";
+        // Step 2: TTS only (separate request — avoids proxy timeouts)
+        let audioData = null;
+        try {
+          const ttsRes = await fetch("/api/podcast/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ script: rawText }),
+          });
+          audioData = await readJsonResponse(ttsRes);
+          if (!ttsRes.ok) {
+            throw new Error(audioData?.error || audioData?.tts_error || "Audio synthesis failed");
+          }
+        } catch (ttsErr) {
+          statusEl.textContent = `Transcript ready. Audio failed: ${ttsErr.message}`;
+          statusEl.style.color = "var(--accent2)";
+          return;
+        }
+
+        const elapsedSec = ((performance.now() - t0) / 1000).toFixed(1);
+
+        if (audioData.audio_base64 && audioData.audio_mime) {
+          const src = `data:${audioData.audio_mime};base64,${audioData.audio_base64}`;
+          const engine = audioData.tts_engine || "edge-tts";
 
           const playerWrap = document.createElement("div");
           playerWrap.style.cssText = "background: rgba(30,41,59,0.55); border:1px solid var(--border); border-radius: var(--radius-lg); padding:16px;";
@@ -6124,7 +6156,7 @@
 
           const meta = document.createElement("div");
           meta.style.cssText = "margin-bottom:10px; color:var(--muted); font-size:0.82rem;";
-          meta.textContent = `Alex & Maya · ${data.tts_turns || "?"} turns · ${engine} · ${elapsedSec}s`;
+          meta.textContent = `Alex & Maya · ${audioData.tts_turns || "?"} turns · ${engine} · ${elapsedSec}s`;
           playerWrap.appendChild(meta);
 
           const audio = document.createElement("audio");
@@ -6153,6 +6185,9 @@
           playerWrap.appendChild(audio);
           output.appendChild(playerWrap);
 
+          statusEl.textContent = `Ready in ${elapsedSec}s — press play for the studio podcast.`;
+          statusEl.style.color = "var(--accent3)";
+
           const playPromise = audio.play();
           if (playPromise && typeof playPromise.catch === "function") {
             playPromise.catch(() => {
@@ -6161,13 +6196,11 @@
             });
           }
         } else {
-          statusEl.textContent = data.tts_error
-            ? `Transcript ready in ${elapsedSec}s. Audio synthesis failed: ${data.tts_error}`
-            : `Transcript ready in ${elapsedSec}s. Audio was not returned by the server.`;
+          statusEl.textContent = `Transcript ready in ${elapsedSec}s. Audio was not returned by the server.`;
           statusEl.style.color = "var(--accent2)";
         }
       } catch (err) {
-        output.innerHTML = `<div style="color: var(--accent2);">❌ Network error: ${err.message}</div>`;
+        output.innerHTML = `<div style="color: var(--accent2);">❌ ${err.message}</div>`;
       }
     }
 
@@ -6349,7 +6382,7 @@
       const customTopic = rawInput.trim();
 
       const output = document.getElementById("podcast-output");
-      output.innerHTML = `<div class="loading-spinner"></div> Writing short script…`;
+      output.innerHTML = `<div class="loading-spinner"></div> Writing script…`;
 
       try {
         await generatePodcast(customTopic, false);

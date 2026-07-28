@@ -498,8 +498,8 @@ def synthesize_podcast_audio(script: str) -> dict:
     if not turns:
         raise ValueError("Could not parse Alex / Maya (or Host A / B) turns from podcast script.")
 
-    # Cap turns for latency budget (teaching scripts are ~10–12 turns)
-    turns = turns[:12]
+    # Cap turns for latency budget (teaching scripts ~10 turns)
+    turns = turns[:10]
 
     def _synth_one(index_speaker_line):
         i, speaker, line = index_speaker_line
@@ -1251,8 +1251,8 @@ def chat():
             "Do NOT put the tag before the name. Wrong: [cheerful] Alex: hello\n"
             "Correct: Alex: [cheerful] hello\n\n"
             "LENGTH:\n"
-            "- Exactly 10 to 12 dialogue turns total.\n"
-            "- About 280–350 words in the entire script (~2–3 minutes spoken).\n"
+            "- Exactly 10 dialogue turns total.\n"
+            "- About 280 words in the entire script (~2 minutes spoken).\n"
             "- Each line can be 1–2 clear sentences.\n\n"
             "TEACHING ARC (cover all of these):\n"
             "1) Quick hook + say what today's topic is.\n"
@@ -1403,35 +1403,33 @@ def chat():
                             (conv_id,)
                         )
 
-        # Expressive multi-host TTS for podcast endpoint
-        if endpoint == "podcast":
-            try:
-                audio_payload = synthesize_podcast_audio(reply)
-                return jsonify({
-                    "reply": reply,
-                    "conversation_id": conv_id,
-                    "audio_base64": audio_payload["audio_base64"],
-                    "audio_mime": audio_payload["audio_mime"],
-                    "tts_engine": audio_payload["engine"],
-                    "tts_turns": audio_payload["turns"],
-                })
-            except Exception as tts_err:
-                print(f"[ERROR] Podcast TTS: {tts_err}")
-                # Still return the script so the UI can show it
-                return jsonify({
-                    "reply": reply,
-                    "conversation_id": conv_id,
-                    "audio_base64": None,
-                    "audio_mime": None,
-                    "tts_error": str(tts_err),
-                })
-
+        # Podcast script only — TTS is a separate /api/podcast/tts call (avoids proxy timeouts)
         return jsonify({"reply": reply, "conversation_id": conv_id})
 
     except Exception as e:
         error_msg = str(e)
         print(f"[ERROR] Groq API: {error_msg}")
         return jsonify({"error": error_msg}), 500
+
+
+@app.route("/api/podcast/tts", methods=["POST"])
+def podcast_tts():
+    """Synthesize Alex/Maya podcast audio from an existing script (separate from LLM)."""
+    data = request.get_json(force=True) or {}
+    script = (data.get("script") or data.get("reply") or "").strip()
+    if not script:
+        return jsonify({"error": "No podcast script provided."}), 400
+    try:
+        audio_payload = synthesize_podcast_audio(script)
+        return jsonify({
+            "audio_base64": audio_payload["audio_base64"],
+            "audio_mime": audio_payload["audio_mime"],
+            "tts_engine": audio_payload["engine"],
+            "tts_turns": audio_payload["turns"],
+        })
+    except Exception as tts_err:
+        print(f"[ERROR] Podcast TTS: {tts_err}")
+        return jsonify({"error": str(tts_err), "tts_error": str(tts_err)}), 500
 
 
 # Feature routing is now handled in frontend JavaScript
