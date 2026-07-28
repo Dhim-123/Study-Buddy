@@ -1,0 +1,14 @@
+[project]
+name = "study-buddy"
+version = "1.0.0"
+description = "AI-powered personal study assistant"
+requires-python = ">=3.10"
+dependencies = [
+  "flask",
+  "flask-cors",
+  "python-dotenv",
+  "groq",
+]
+
+[tool.vercel]
+entrypoint = "app:app"

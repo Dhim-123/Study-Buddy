@@ -90,7 +90,8 @@ SYSTEM_PROMPT = os.getenv(
 #  STEP 3: CREATE THE WEB SERVER
 # =====================================================================
 
-app = Flask(__name__, static_folder=".", static_url_path="")
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__, static_folder=_APP_DIR, static_url_path="")
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "study_buddy_persistent_secret_key_2025")
 # Note: Using a fixed secret_key in production — set FLASK_SECRET_KEY in .env
 # to keep sessions alive across restarts.
@@ -102,7 +103,12 @@ CORS(app, supports_credentials=True)
 #  STEP 4: DATABASE SETUP — SQLite for persistence
 # =====================================================================
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "study_buddy.db")
+# Vercel serverless filesystem is read-only except /tmp (use OS temp dir)
+if os.environ.get("VERCEL"):
+    import tempfile
+    DB_PATH = os.path.join(tempfile.gettempdir(), "study_buddy.db")
+else:
+    DB_PATH = os.path.join(_APP_DIR, "study_buddy.db")
 
 
 def get_db():
@@ -330,13 +336,19 @@ def save_mistake_to_vault(user_id: int, subject: str, topic: str, question: str,
 @app.route("/")
 def index():
     """Serve the main page."""
-    return send_from_directory(".", "index.html")
+    return send_from_directory(_APP_DIR, "index.html")
 
 
 @app.route("/career-dreamer")
 def career_dreamer():
     """Redirect legacy Career Dreamer requests to home."""
     return redirect("/")
+
+
+@app.route("/api/health", methods=["GET"])
+def api_health():
+    """Lightweight JSON health check for deployment verification."""
+    return jsonify({"ok": True, "service": "study-buddy"})
 
 
 # ── Auth Routes ──────────────────────────────────────────────────────
@@ -710,34 +722,7 @@ def chat():
     Handle chat, podcast generation, flashcard generation, quiz generation, crosscheck generation, and definitions extraction.
     For /api/chat: also persists messages to SQLite (auto-creates conversation on first message).
     """
-    # Backend instrumentation
-    import json
-    try:
-        with open("debug-0d0d85.log", "a") as f:
-            f.write(json.dumps({
-                "sessionId": "0d0d85",
-                "location": "app.py:708",
-                "message": "STEP 4: Flask endpoint reached",
-                "data": {"step": 4, "path": request.path, "method": request.method, "status": "SUCCESS"},
-                "timestamp": int(__import__("time").time() * 1000),
-                "hypothesisId": "C"
-            }) + "\n")
-    except: pass
-
     data = request.get_json(force=True)
-
-    # Log request data received
-    try:
-        with open("debug-0d0d85.log", "a") as f:
-            f.write(json.dumps({
-                "sessionId": "0d0d85",
-                "location": "app.py:715",
-                "message": "STEP 5: Request data parsed",
-                "data": {"step": 5, "hasData": bool(data), "messagesCount": len(data.get("messages", [])), "model": data.get("model"), "status": "SUCCESS"},
-                "timestamp": int(__import__("time").time() * 1000),
-                "hypothesisId": "C"
-            }) + "\n")
-    except: pass
 
     endpoint   = request.path.split("/")[-1]
     messages   = data.get("messages", [])
@@ -844,19 +829,6 @@ def chat():
 
     # --- Talk to Groq AI ---
     try:
-        # Log LLM request start
-        try:
-            with open("debug-0d0d85.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "0d0d85",
-                    "location": "app.py:835",
-                    "message": "STEP 6: Starting LLM API call",
-                    "data": {"step": 6, "endpoint": endpoint, "model": model_name, "messagesCount": len(messages), "status": "STARTING"},
-                    "timestamp": int(__import__("time").time() * 1000),
-                    "hypothesisId": "D"
-                }) + "\n")
-        except: pass
-
         client = get_groq_client()
         target_model = resolve_groq_model(model_name)
 
@@ -871,37 +843,11 @@ def chat():
                 "content": msg["content"]
             })
 
-        # Log before API call
-        try:
-            with open("debug-0d0d85.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "0d0d85",
-                    "location": "app.py:847",
-                    "message": "STEP 6: Calling Groq API",
-                    "data": {"step": 6, "model": target_model, "groqMessagesCount": len(groq_messages), "status": "CALLING"},
-                    "timestamp": int(__import__("time").time() * 1000),
-                    "hypothesisId": "D"
-                }) + "\n")
-        except: pass
-
         response = client.chat.completions.create(
             model=target_model,
             messages=groq_messages,
         )
         reply = response.choices[0].message.content
-
-        # Log LLM success
-        try:
-            with open("debug-0d0d85.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "0d0d85",
-                    "location": "app.py:851",
-                    "message": "STEP 7: LLM response received",
-                    "data": {"step": 7, "replyLength": len(reply) if reply else 0, "replyPreview": reply[:200] if reply else "", "status": "SUCCESS"},
-                    "timestamp": int(__import__("time").time() * 1000),
-                    "hypothesisId": "D"
-                }) + "\n")
-        except: pass
         last_message = messages[-1]["content"] if messages else ""
 
         # --- Persist to DB (only for /api/chat when user is logged in) ---
@@ -957,38 +903,11 @@ def chat():
                             (conv_id,)
                         )
 
-        # Log successful return
-        try:
-            with open("debug-0d0d85.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "0d0d85",
-                    "location": "app.py:974",
-                    "message": "STEP 8: Returning successful response",
-                    "data": {"step": 8, "hasReply": bool(reply), "replyLength": len(reply) if reply else 0, "conversationId": conv_id, "status": "SUCCESS"},
-                    "timestamp": int(__import__("time").time() * 1000),
-                    "hypothesisId": "C"
-                }) + "\n")
-        except: pass
-
         return jsonify({"reply": reply, "conversation_id": conv_id})
 
     except Exception as e:
         error_msg = str(e)
         print(f"[ERROR] Groq API: {error_msg}")
-
-        # Log error response
-        try:
-            with open("debug-0d0d85.log", "a") as f:
-                f.write(json.dumps({
-                    "sessionId": "0d0d85",
-                    "location": "app.py:979",
-                    "message": "STEP 8: Returning error response",
-                    "data": {"step": 8, "error": error_msg, "status": "FAILURE"},
-                    "timestamp": int(__import__("time").time() * 1000),
-                    "hypothesisId": "D"
-                }) + "\n")
-        except: pass
-
         return jsonify({"error": error_msg}), 500
 
 
@@ -2012,6 +1931,15 @@ def get_mistake_subjects():
 # =====================================================================
 #  STEP 7: START THE SERVER
 # =====================================================================
+
+# Cold-start DB tables when running as a Vercel serverless function
+# (local `python app.py` still initializes in __main__ below).
+if os.environ.get("VERCEL"):
+    try:
+        init_db()
+    except Exception as e:
+        print(f"[WARN] init_db on Vercel cold start: {e}")
+
 
 if __name__ == "__main__":
     init_db()

@@ -6075,17 +6075,45 @@
       function pickNaturalEnglishVoice() {
         const voices = speechSynthesis.getVoices();
         if (!voices || !voices.length) return null;
-          // Prefer neural or high-quality voices from common providers
-          const preferNames = [/neural/i, /wave?net/i, /google/i, /microsoft/i, /amazon/i, /samantha/i, /alex/i];
-          for (const re of preferNames) {
-            const v = voices.find(v => re.test(v.name) || (v.lang && re.test(v.lang)));
-            if (v) return v;
+        const enVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith("en"));
+        const pool = enVoices.length ? enVoices : voices;
+        // Prefer LOCAL voices only — remote Google voices encode text into a
+        // TTS URL and throw NetworkError ("string does not match the expected
+        // pattern") on long podcast transcripts.
+        const local = pool.filter(v => v.localService);
+        const preferNames = [/microsoft/i, /samantha/i, /zira/i, /david/i, /alex/i, /neural/i];
+        const search = local.length ? local : pool;
+        for (const re of preferNames) {
+          const v = search.find(v => re.test(v.name));
+          if (v) return v;
+        }
+        return search[0] || null;
+      }
+
+      // Chunk long transcripts so SpeechSynthesis never builds an invalid TTS URL
+      function chunkForSpeech(text, maxLen = 180) {
+        const parts = [];
+        const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
+        let buf = "";
+        for (const s of sentences) {
+          const piece = s.trim();
+          if (!piece) continue;
+          if ((buf + " " + piece).trim().length <= maxLen) {
+            buf = (buf + " " + piece).trim();
+          } else {
+            if (buf) parts.push(buf);
+            if (piece.length <= maxLen) {
+              buf = piece;
+            } else {
+              for (let i = 0; i < piece.length; i += maxLen) {
+                parts.push(piece.slice(i, i + maxLen));
+              }
+              buf = "";
+            }
           }
-          // Prefer en-US voices next
-          const en = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('en'));
-          if (en) return en;
-          // Fallback to first voice
-          return voices[0];
+        }
+        if (buf) parts.push(buf);
+        return parts.length ? parts : [text];
       }
 
       try {
@@ -6102,13 +6130,7 @@
           messagesToSend.push({ role: "user", content: "Generate a podcast based on our entire conversation above." });
         }
 
-        // #region agent log
-        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6102',message:'STEP 3: Messages prepared for API',data:{step:3,messagesCount:messagesToSend.length,firstMessage:messagesToSend[0],status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
 
-        // #region agent log
-        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6104',message:'STEP 4: Sending request to Flask',data:{step:4,url:'/api/podcast',method:'POST',payload:{messages:messagesToSend.length,model:cfg.model,notesLength:notesContent?.length||0},status:'SENDING'},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
 
         const res = await fetch("/api/podcast", {
           method: "POST",
@@ -6120,20 +6142,9 @@
           }),
         });
 
-        // #region agent log
-        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6113',message:'STEP 5: HTTP response received',data:{step:5,status:res.ok?'SUCCESS':'FAILURE',httpStatus:res.status,httpStatusText:res.statusText},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-
         const data = await res.json();
 
-        // #region agent log
-        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6115',message:'STEP 6: Response JSON parsed',data:{step:6,hasReply:!!data.reply,replyLength:data.reply?.length||0,hasError:!!data.error,error:data.error,status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-
         if (!res.ok) {
-          // #region agent log
-          fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6116',message:'STEP 6: HTTP error response',data:{step:6,status:'FAILURE',httpStatus:res.status,errorMessage:data?.error||'Failed to generate podcast'},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-          // #endregion
           output.innerHTML = `<div style="color: var(--accent2);">❌ Error: ${data?.error || "Failed to generate podcast"}</div>`;
           return;
         }
@@ -6141,29 +6152,37 @@
         const rawText = data.reply || "";
         const speakText = sanitizeForSpeech(rawText);
 
-        // #region agent log
-        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6119',message:'STEP 7: Transcript received and sanitized',data:{step:7,rawTextLength:rawText.length,speakTextLength:speakText.length,rawTextPreview:rawText.substring(0,200),status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
-
-        // #region agent log
-        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6121',message:'STEP 8: Displaying "Playing audio" (CRITICAL ERROR)',data:{step:8,status:'PREMATURE',reason:'showing_audio_before_validation'},timestamp:Date.now(),hypothesisId:'F'})}).catch(()=>{});
-        // #endregion
-
-        output.innerHTML = `<div style="margin-bottom:10px; color:var(--accent2);">Playing audio.</div>`;
-
-        if (!window.speechSynthesis) {
-          // #region agent log
-          fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6124',message:'STEP 9: SpeechSynthesis not supported',data:{step:9,status:'FAILURE',reason:'browser_not_supported'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
-          output.innerHTML += `<div style="color:var(--accent2);">Audio not supported in this browser.</div>`;
+        if (!speakText) {
+          output.innerHTML = `<div style="color: var(--accent2);">❌ Empty podcast transcript returned.</div>`;
           return;
         }
 
-        // #region agent log
-        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6127',message:'STEP 9: SpeechSynthesis available',data:{step:9,status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
+        if (!window.speechSynthesis) {
+          output.innerHTML = `<div style="color:var(--accent2);">Audio not supported in this browser.</div>
+            <div class="podcast-script" style="margin-top:12px; background: rgba(17, 24, 39, 0.6); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px;">
+              <h3 style="margin:0 0 12px 0; color:var(--text);">🎙️ Podcast Script</h3>
+              <div style="line-height:1.6; color:var(--muted); white-space:pre-wrap;">${escapeHtml(rawText)}</div>
+            </div>`;
+          return;
+        }
 
-        // Create playback controls
+        // Show transcript first — never claim audio is playing until speech starts
+        output.innerHTML = "";
+        const statusEl = document.createElement("div");
+        statusEl.style.cssText = "margin-bottom:10px; color:var(--muted);";
+        statusEl.textContent = "Preparing audio…";
+        output.appendChild(statusEl);
+
+        const scriptEl = document.createElement("div");
+        scriptEl.className = "podcast-script";
+        scriptEl.style.cssText = "background: rgba(17, 24, 39, 0.6); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 12px;";
+        scriptEl.innerHTML = `<h3 style="margin:0 0 12px 0; color:var(--text);">🎙️ Podcast Script</h3>`;
+        const scriptBody = document.createElement("div");
+        scriptBody.style.cssText = "line-height:1.6; color:var(--muted); white-space:pre-wrap;";
+        scriptBody.textContent = rawText;
+        scriptEl.appendChild(scriptBody);
+        output.appendChild(scriptEl);
+
         speechSynthesis.cancel();
         const controls = document.createElement("div");
         controls.style.marginTop = "8px";
@@ -6181,50 +6200,64 @@
         const stopBtn = document.createElement("button");
         stopBtn.className = "step-btn secondary";
         stopBtn.textContent = "Stop";
-        stopBtn.onclick = () => speechSynthesis.cancel();
+        stopBtn.onclick = () => {
+          speechSynthesis.cancel();
+          statusEl.textContent = "Stopped.";
+          statusEl.style.color = "var(--muted)";
+        };
 
         controls.appendChild(pauseBtn);
         controls.appendChild(resumeBtn);
         controls.appendChild(stopBtn);
         output.appendChild(controls);
 
-        // Speak using the best available voice; if voices aren't loaded yet, wait
+        const chunks = chunkForSpeech(speakText);
+
         const speakNow = () => {
-          // #region agent log
-          fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6154',message:'STEP 15: Starting audio playback',data:{step:15,speakTextLength:speakText.length,status:'STARTING'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
-
-          const utter = new SpeechSynthesisUtterance(speakText);
-          utter.lang = 'en-US';
-          utter.rate = 1;
-          utter.pitch = 1;
           const voice = pickNaturalEnglishVoice();
+          let idx = 0;
 
-          // #region agent log
-          fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6159',message:'STEP 14: Voice selected',data:{step:14,hasVoice:!!voice,voiceName:voice?.name||'default',voiceLang:voice?.lang||'unknown',status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
+          const speakNext = () => {
+            if (idx >= chunks.length) {
+              statusEl.textContent = "Finished.";
+              statusEl.style.color = "var(--muted)";
+              return;
+            }
+            const utter = new SpeechSynthesisUtterance(chunks[idx]);
+            // Match voice language when available — mismatched lang + remote
+            // Google voices is a common trigger for the pattern NetworkError.
+            if (voice) {
+              utter.voice = voice;
+              utter.lang = voice.lang || "en-US";
+            } else {
+              utter.lang = "en-US";
+            }
+            utter.rate = 1;
+            utter.pitch = 1;
 
-          if (voice) utter.voice = voice;
-          speechSynthesis.cancel();
-          speechSynthesis.speak(utter);
+            utter.onstart = () => {
+              statusEl.textContent = `Playing audio (${idx + 1}/${chunks.length})…`;
+              statusEl.style.color = "var(--accent3)";
+            };
+            utter.onerror = (ev) => {
+              const code = ev.error || "unknown";
+              statusEl.textContent = `Audio error: ${code}. Transcript is shown above.`;
+              statusEl.style.color = "var(--accent2)";
+            };
+            utter.onend = () => {
+              idx += 1;
+              speakNext();
+            };
+            speechSynthesis.speak(utter);
+          };
 
-          // #region agent log
-          fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6162',message:'STEP 15: Audio playback initiated',data:{step:15,status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
+          speakNext();
         };
 
         const voices = speechSynthesis.getVoices();
-
-        // #region agent log
-        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6165',message:'STEP 13: Voice loading status',data:{step:13,voicesLoaded:!!(voices&&voices.length>0),voicesCount:voices?.length||0,status:voices&&voices.length>0?'SUCCESS':'WAITING'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
-
         if (!voices || voices.length === 0) {
-          // Voices not loaded yet; attach handler
           speechSynthesis.onvoiceschanged = () => {
-            // #region agent log
-            fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0d0d85'},body:JSON.stringify({sessionId:'0d0d85',location:'index.html:6168',message:'STEP 13: Voices loaded via callback',data:{step:13,voicesCount:speechSynthesis.getVoices().length,status:'SUCCESS'},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
-            // #endregion
+            speechSynthesis.onvoiceschanged = null;
             speakNow();
           };
         } else {

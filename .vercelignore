@@ -1,0 +1,14 @@
+.cursor/
+**/__pycache__/
+**/*.pyc
+**/.venv/
+**/venv/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/test_*.py
+**/.env
+**/.env.*
+debug*.log
+*.md
+!README.md
