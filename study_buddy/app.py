@@ -841,6 +841,34 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
 
 
+def nickname_from_email(email: str) -> str:
+    """Derive a short username from an email local-part (last segment)."""
+    local = (email or "").split("@", 1)[0].strip().lower()
+    parts = [p for p in re.split(r"[._\-]+", local) if p]
+    if parts:
+        return parts[-1][:32]
+    return (local or "user")[:32]
+
+
+def allocate_unique_identifier(conn, base: str) -> str:
+    """Return base, or base2/base3/... if taken."""
+    candidate = (base or "user").strip().lower() or "user"
+    candidate = re.sub(r"[^a-z0-9_]+", "", candidate)[:32] or "user"
+    existing = conn.execute(
+        "SELECT id FROM users WHERE identifier=?", (candidate,)
+    ).fetchone()
+    if not existing:
+        return candidate
+    for i in range(2, 1000):
+        alt = f"{candidate}{i}"[:32]
+        existing = conn.execute(
+            "SELECT id FROM users WHERE identifier=?", (alt,)
+        ).fetchone()
+        if not existing:
+            return alt
+    return f"user{secrets.token_hex(4)}"
+
+
 def current_user_id():
     """Return the logged-in user's DB id, or None."""
     return session.get("user_id")
@@ -921,24 +949,25 @@ def auth_me():
 
 @app.route("/api/auth/register", methods=["POST"])
 def auth_register():
-    """Register a new user."""
+    """Register a new user with username + password."""
     data = request.get_json(force=True)
     identifier = (data.get("identifier") or "").strip()
     password   = (data.get("password")   or "").strip()
-    buddy_name = (data.get("buddyName")  or "Max").strip()
+    buddy_name = (data.get("buddyName")  or "Max").strip() or "Max"
 
     if not identifier or not password:
-        return jsonify({"error": "Identifier and password are required."}), 400
+        return jsonify({"error": "Username is either taken or incorrect password"}), 400
+    if "@" in identifier:
+        return jsonify({"error": "Please use a username, not an email."}), 400
     if len(password) < 6:
         return jsonify({"error": "Password must be at least 6 characters."}), 400
 
     ph = hash_password(password)
     try:
         with get_db() as conn:
-            # Check if exists
             existing = conn.execute("SELECT id FROM users WHERE identifier=?", (identifier,)).fetchone()
             if existing:
-                return jsonify({"error": "Identifier already registered."}), 400
+                return jsonify({"error": "Username is either taken or incorrect password"}), 400
 
             conn.execute(
                 "INSERT INTO users (identifier, password_hash, buddy_name) VALUES (?,?,?)",
@@ -954,13 +983,13 @@ def auth_register():
 
 @app.route("/api/auth/login", methods=["POST"])
 def auth_login():
-    """Log in with identifier + password."""
+    """Log in with username + password."""
     data = request.get_json(force=True)
     identifier = (data.get("identifier") or "").strip()
     password   = (data.get("password")   or "").strip()
 
     if not identifier or not password:
-        return jsonify({"error": "Identifier and password are required."}), 400
+        return jsonify({"error": "Username is either taken or incorrect password"}), 400
 
     ph = hash_password(password)
     with get_db() as conn:
@@ -970,7 +999,7 @@ def auth_login():
         ).fetchone()
 
     if not row:
-        return jsonify({"error": "Invalid identifier or password."}), 401
+        return jsonify({"error": "Username is either taken or incorrect password"}), 401
 
     session.permanent = True
     session["user_id"] = row["id"]
@@ -1054,9 +1083,7 @@ def auth_firebase():
         return jsonify({"error": "Token missing uid."}), 401
 
     email = (decoded.get("email") or "").strip()
-    name = (decoded.get("name") or "").strip()
-    identifier = email or f"google:{firebase_uid}"
-    buddy_name = (name.split()[0] if name else "Max").strip() or "Max"
+    base_nick = nickname_from_email(email) if email else f"google{firebase_uid[:6]}"
 
     try:
         with get_db() as conn:
@@ -1069,31 +1096,36 @@ def auth_firebase():
                     "SELECT * FROM users WHERE identifier=?", (email,)
                 ).fetchone()
                 if existing:
+                    nick = allocate_unique_identifier(conn, base_nick)
                     conn.execute(
-                        "UPDATE users SET firebase_uid=? WHERE id=?",
-                        (firebase_uid, existing["id"]),
+                        "UPDATE users SET firebase_uid=?, identifier=? WHERE id=?",
+                        (firebase_uid, nick, existing["id"]),
                     )
                     row = conn.execute(
                         "SELECT * FROM users WHERE id=?", (existing["id"],)
                     ).fetchone()
 
             if not row:
+                nick = allocate_unique_identifier(conn, base_nick)
                 unusable = "firebase_only:" + secrets.token_hex(32)
-                # Avoid identifier clashes with a unique fallback
-                try:
-                    conn.execute(
-                        "INSERT INTO users (identifier, password_hash, buddy_name, firebase_uid) VALUES (?,?,?,?)",
-                        (identifier, unusable, buddy_name, firebase_uid),
-                    )
-                except sqlite3.IntegrityError:
-                    identifier = f"google:{firebase_uid}"
-                    conn.execute(
-                        "INSERT INTO users (identifier, password_hash, buddy_name, firebase_uid) VALUES (?,?,?,?)",
-                        (identifier, unusable, buddy_name, firebase_uid),
-                    )
+                conn.execute(
+                    "INSERT INTO users (identifier, password_hash, buddy_name, firebase_uid) VALUES (?,?,?,?)",
+                    (nick, unusable, "Max", firebase_uid),
+                )
                 row = conn.execute(
                     "SELECT * FROM users WHERE firebase_uid=?", (firebase_uid,)
                 ).fetchone()
+            else:
+                current_id = row["identifier"] or ""
+                if "@" in current_id:
+                    nick = allocate_unique_identifier(conn, base_nick)
+                    conn.execute(
+                        "UPDATE users SET identifier=? WHERE id=?",
+                        (nick, row["id"]),
+                    )
+                    row = conn.execute(
+                        "SELECT * FROM users WHERE id=?", (row["id"],)
+                    ).fetchone()
 
         session.permanent = True
         session["user_id"] = row["id"]

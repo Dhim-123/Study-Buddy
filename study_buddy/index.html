@@ -2760,8 +2760,8 @@
             <div class="auth-card" id="auth-card">
               <h3 id="auth-mode-title">Login</h3>
               <div class="field">
-                <label for="auth-identifier">Email or Mobile</label>
-                <input type="text" class="input" id="auth-identifier" placeholder="email@example.com or +91XXXXXXXXXX" />
+                <label for="auth-identifier">Username</label>
+                <input type="text" class="input" id="auth-identifier" placeholder="Choose a username" />
               </div>
               <div class="field" style="margin-top: 10px;">
                 <label for="auth-password">Password</label>
@@ -3549,11 +3549,9 @@
         return;
       }
 
-      const rawId = (currentUser.identifier || "").trim();
-      const isEmail = rawId.includes("@");
-
-      if (!isEmail && rawId.length > 0) {
-        welcomeTitle.textContent = `Hi ${rawId}! 👋 I'm ${buddyName}.`;
+      const username = (currentUser.identifier || "").trim();
+      if (username) {
+        welcomeTitle.textContent = `Hey ${username}! I'm ${buddyName}.`;
         welcomeDesc.textContent = "What would you like to learn today?";
       } else {
         welcomeTitle.textContent = `Hi! 👋 I'm ${buddyName}.`;
@@ -4105,11 +4103,15 @@
         const mode = authCard.dataset.mode || "login";
 
         if (!identifier || !password) {
-          showAuthMessage("Email/mobile and password are required.", true);
+          showAuthMessage("Username is either taken or incorrect password", true);
           return;
         }
         if (mode === "register" && password.length < 6) {
           showAuthMessage("Password must be at least 6 characters.", true);
+          return;
+        }
+        if (identifier.includes("@")) {
+          showAuthMessage("Please use a username, not an email.", true);
           return;
         }
 
@@ -4148,10 +4150,22 @@
             authPasswordInput.value = "";
             updateAuthUI({ clearMessage: false });
             showAuthMessage(successMsg);
+            updateWelcomeGreeting();
             await fetchChatHistory();
           } else {
             updateAuthUI({ clearMessage: false });
-            showAuthMessage(data.error || `Error ${mode}.`, true);
+            const errText = (data.error || "").toLowerCase();
+            const authFail = res.status === 401 || res.status === 400
+              || errText.includes("taken")
+              || errText.includes("incorrect")
+              || errText.includes("invalid")
+              || errText.includes("already");
+            showAuthMessage(
+              authFail
+                ? "Username is either taken or incorrect password"
+                : (data.error || `Error ${mode}.`),
+              true
+            );
           }
         } catch (err) {
           updateAuthUI({ clearMessage: false });
@@ -4230,6 +4244,7 @@
             localStorage.setItem("sb_auth_identifier", data.identifier || "");
             updateAuthUI({ clearMessage: false });
             showAuthMessage(`Login successful. Welcome, ${data.buddyName}!`);
+            updateWelcomeGreeting();
             await fetchChatHistory();
           } catch (err) {
             updateAuthUI({ clearMessage: false });
