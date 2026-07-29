@@ -4724,6 +4724,52 @@
       return "ENTIRE_CONVERSATION";
     }
 
+    /** True when the user wants a short / one-line notebook note (not the full last answer). */
+    function isShortNotebookRequest(message) {
+      const msg = (message || "").toLowerCase();
+      if (!msg) return false;
+      if (/\b(1\s*-?\s*line|1line|one\s*-?\s*line|one\s*liner)s?\b/.test(msg)) return true;
+      if (/\b(short|quick|brief)\s+notes?\b/.test(msg)) return true;
+      if (/\bnotes?\b[\s\S]{0,25}\b(short|quick|brief|1\s*-?\s*line|one\s*-?\s*line)\b/.test(msg)) return true;
+      return false;
+    }
+
+    /** Strip AI tip wrappers so only the real note body is saved. */
+    function cleanNotebookNoteContent(text) {
+      let t = (text || "").trim();
+      if (!t) return "";
+
+      const original = t;
+      t = t.replace(/^here'?s\s+(a\s+)?(one[-\s]?line|1[-\s]?line|short|quick|brief)?\s*note[^\n:]*:\s*/i, "");
+      t = t.replace(/^here\s+is\s+(a\s+)?(one[-\s]?line|1[-\s]?line|short|quick|brief)?\s*note[^\n:]*:\s*/i, "");
+      t = t.replace(/^a\s+(one[-\s]?line|1[-\s]?line|short|quick|brief)\s+note\s+you\s+can\s+add[^\n:]*:\s*/i, "");
+      t = t.replace(/^you\s+can\s+add\s+(this|the\s+following)\s+(to\s+(your\s+)?)?(living\s+)?notebook[^\n:]*:\s*/i, "");
+      t = t.replace(/^here'?s\s+something\s+you\s+can\s+add[^\n:]*:\s*/i, "");
+
+      const fullyQuoted = t.match(/^["“']([\s\S]*?)["”']\s*$/);
+      if (fullyQuoted) {
+        t = fullyQuoted[1].trim();
+      } else if (/note you can add|living notebook|here'?s a|you can add/i.test(original)) {
+        const inner = original.match(/["“]([^"”]+)["”]/);
+        if (inner && inner[1].trim().length > 10) {
+          t = inner[1].trim();
+        }
+      }
+
+      return t.trim();
+    }
+
+    /** One sentence / ~220 chars for short-note saves. */
+    function compressToOneLineNote(text) {
+      let t = cleanNotebookNoteContent(text);
+      if (!t) return "";
+      const sentence = t.match(/^([\s\S]+?[.!?])(\s|$)/);
+      if (sentence) t = sentence[1].trim();
+      t = t.replace(/\s+/g, " ").trim();
+      if (t.length > 220) t = t.slice(0, 217).trim() + "…";
+      return t;
+    }
+
     /** True when the user is asking to save something to Living Notebook (not asking what a notebook is). */
     function isNotebookSaveIntent(message) {
       const msg = (message || "").toLowerCase().trim();
@@ -4735,7 +4781,7 @@
       }
 
       // "add a note to my living notebook", "save notes to notebook", etc.
-      if (/\b(add|save|put|store)\b[\s\S]{0,50}\bnotes?\b[\s\S]{0,40}\b(living\s+)?notebook\b/.test(msg)) {
+      if (/\b(add|save|put|store)\b[\s\S]{0,60}\bnotes?\b[\s\S]{0,60}\b(living\s+)?notebook\b/.test(msg)) {
         return true;
       }
       // "add this to my notebook", "save that to living notebook"
@@ -4750,8 +4796,15 @@
       if (/\bput\b[\s\S]{0,25}\bin\s+(my\s+)?(living\s+)?notebook\b/.test(msg)) {
         return true;
       }
+      // 1-line / one-line note variants
+      if (/\b(add|save|create|write|make)\b[\s\S]{0,50}\b(1\s*-?\s*line|1line|one\s*-?\s*line|one\s*liner)s?\b[\s\S]{0,40}\bnotes?\b/.test(msg)) {
+        return true;
+      }
+      if (/\b(add|save|create|write|make)\b[\s\S]{0,50}\bnotes?\b[\s\S]{0,40}\b(1\s*-?\s*line|1line|one\s*-?\s*line)\b/.test(msg)) {
+        return true;
+      }
       // "can u add a short note", "add a note", "save a quick note" (no "notebook" required)
-      if (/\b(add|save|create|write)\b[\s\S]{0,30}\b(a\s+)?(short\s+|quick\s+|brief\s+)?notes?\b/.test(msg)) {
+      if (/\b(add|save|create|write)\b[\s\S]{0,50}\b(a\s+)?((short|quick|brief|1\s*-?\s*line|1line|one\s*-?\s*line)\s+)?notes?\b/.test(msg)) {
         return true;
       }
       // "note this down", "save this note", "store this information"
@@ -4769,7 +4822,10 @@
 
       // Living Notebook — flexible natural phrasing (must run before chat / AI)
       if (isNotebookSaveIntent(message)) {
-        return { feature: "living_notebook", topic: "LAST_AI_RESPONSE" };
+        return {
+          feature: "living_notebook",
+          topic: isShortNotebookRequest(message) ? "SHORT_NOTE" : "LAST_AI_RESPONSE"
+        };
       }
 
       // Flexible intent patterns — catch natural phrasing so AI doesn't "explain how"
@@ -4881,6 +4937,20 @@
         return;
       }
 
+      const lastUser = [...history].reverse().find(m => m.role === "user")?.content || "";
+      const shortReq = topic === "SHORT_NOTE" || isShortNotebookRequest(lastUser);
+
+      if (shortReq) {
+        contentToSave = compressToOneLineNote(contentToSave);
+      } else {
+        contentToSave = cleanNotebookNoteContent(contentToSave);
+      }
+
+      if (!contentToSave) {
+        appendBubble("ai", "❌ **Error saving to notebook:** Could not extract a clean note to save.");
+        return;
+      }
+
       const recent = history.slice(-8);
       const subject = detectNotebookSubject(contentToSave, recent);
       saveLivingNotebookEntry(subject, "Key Points", contentToSave);
@@ -4945,7 +5015,7 @@
     async function saveLivingNotebookEntry(subject, category, content) {
       subject = (subject || "General").trim() || "General";
       category = category || "Key Points";
-      content = (content || "").trim();
+      content = cleanNotebookNoteContent(content);
 
       if (!content) {
         appendBubble("ai", "❌ **Error saving to notebook:** No content to save.");
@@ -4958,7 +5028,7 @@
       }
 
       const preview = content.length > 200 ? content.slice(0, 200).trim() + "…" : content;
-      const successMsg = `✅ **Saved to Living Notebook**\n\n**Subject:** ${subject}\n**Category:** ${category}\n\n${preview}`;
+      const successMsg = `✅ **Saved to Living Notebook (${subject})**\n\n${preview}`;
       const lastUserForSuggest = [...history].reverse().find(m => m.role === "user")?.content || "";
 
       try {
