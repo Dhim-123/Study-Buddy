@@ -835,6 +835,180 @@ def get_firebase_web_config():
     except Exception:
         return None
 
+
+def get_firestore():
+    """Lazy Firestore client from Admin SDK. Returns None if Firebase is not configured."""
+    if not init_firebase_admin():
+        return None
+    try:
+        from firebase_admin import firestore
+        return firestore.client()
+    except Exception as e:
+        print(f"[Firestore] Failed to create client: {e}")
+        return None
+
+
+def _fs_notebook_ref(db, user_id, entry_id):
+    return (
+        db.collection("users")
+        .document(str(user_id))
+        .collection("notebook")
+        .document(str(entry_id))
+    )
+
+
+def _entry_to_fs_payload(user_id, entry):
+    return {
+        "user_id": int(user_id),
+        "subject": entry.get("subject") or "General",
+        "category": entry.get("category") or "Key Points",
+        "content": entry.get("content") or "",
+        "position": int(entry.get("position") or 0),
+        "created_at": entry.get("created_at") or "",
+        "updated_at": entry.get("updated_at") or "",
+    }
+
+
+def fs_upsert_notebook_entry(user_id, entry):
+    """Mirror one notebook entry to Firestore. Soft-fails if Firestore is unavailable."""
+    db = get_firestore()
+    if not db or not entry:
+        return
+    try:
+        entry_id = entry.get("id")
+        if entry_id is None:
+            return
+        _fs_notebook_ref(db, user_id, entry_id).set(
+            _entry_to_fs_payload(user_id, entry),
+            merge=True,
+        )
+    except Exception as e:
+        print(f"[Firestore] upsert notebook entry failed: {e}")
+
+
+def fs_delete_notebook_entry(user_id, entry_id):
+    """Delete one notebook entry from Firestore. Soft-fails if unavailable."""
+    db = get_firestore()
+    if not db or entry_id is None:
+        return
+    try:
+        _fs_notebook_ref(db, user_id, entry_id).delete()
+    except Exception as e:
+        print(f"[Firestore] delete notebook entry failed: {e}")
+
+
+def fs_pull_notebook_into_sqlite(user_id):
+    """Pull remote notebook docs into local SQLite for this user. Soft-fails."""
+    db = get_firestore()
+    if not db:
+        return
+    try:
+        docs = (
+            db.collection("users")
+            .document(str(user_id))
+            .collection("notebook")
+            .stream()
+        )
+        with get_db() as conn:
+            for doc in docs:
+                data = doc.to_dict() or {}
+                try:
+                    entry_id = int(doc.id)
+                except (TypeError, ValueError):
+                    continue
+                subject = (data.get("subject") or "General")[:50]
+                category = data.get("category") or "Key Points"
+                if category not in VALID_NOTEBOOK_CATEGORIES:
+                    category = "My Own Notes"
+                content = data.get("content") or ""
+                if not str(content).strip():
+                    continue
+                position = int(data.get("position") or 0)
+                created_at = data.get("created_at") or None
+                updated_at = data.get("updated_at") or None
+
+                owned = conn.execute(
+                    "SELECT id FROM living_notebook WHERE id=? AND user_id=?",
+                    (entry_id, user_id),
+                ).fetchone()
+                if owned:
+                    conn.execute(
+                        """
+                        UPDATE living_notebook
+                        SET subject=?, category=?, content=?, position=?,
+                            created_at=COALESCE(?, created_at),
+                            updated_at=COALESCE(?, updated_at)
+                        WHERE id=? AND user_id=?
+                        """,
+                        (subject, category, content, position, created_at, updated_at, entry_id, user_id),
+                    )
+                    continue
+
+                id_taken = conn.execute(
+                    "SELECT id, user_id FROM living_notebook WHERE id=?",
+                    (entry_id,),
+                ).fetchone()
+                if id_taken:
+                    # Local id belongs to another user — insert as a new row and re-key in Firestore
+                    cur = conn.execute(
+                        """
+                        INSERT INTO living_notebook (user_id, subject, category, content, position)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (user_id, subject, category, content, position),
+                    )
+                    new_id = cur.lastrowid
+                    row = conn.execute(
+                        "SELECT * FROM living_notebook WHERE id=?", (new_id,)
+                    ).fetchone()
+                    try:
+                        _fs_notebook_ref(db, user_id, new_id).set(
+                            _entry_to_fs_payload(user_id, dict(row)),
+                            merge=True,
+                        )
+                        _fs_notebook_ref(db, user_id, entry_id).delete()
+                    except Exception as e:
+                        print(f"[Firestore] re-key notebook entry failed: {e}")
+                else:
+                    if created_at and updated_at:
+                        conn.execute(
+                            """
+                            INSERT INTO living_notebook
+                              (id, user_id, subject, category, content, position, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (entry_id, user_id, subject, category, content, position, created_at, updated_at),
+                        )
+                    else:
+                        conn.execute(
+                            """
+                            INSERT INTO living_notebook
+                              (id, user_id, subject, category, content, position)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                            """,
+                            (entry_id, user_id, subject, category, content, position),
+                        )
+    except Exception as e:
+        print(f"[Firestore] pull notebook failed: {e}")
+
+
+def fs_push_all_notebook_entries(user_id):
+    """Push all local notebook entries for a user to Firestore. Soft-fails."""
+    db = get_firestore()
+    if not db:
+        return
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT * FROM living_notebook WHERE user_id=?",
+                (user_id,),
+            ).fetchall()
+        for row in rows:
+            fs_upsert_notebook_entry(user_id, dict(row))
+    except Exception as e:
+        print(f"[Firestore] push all notebook failed: {e}")
+
+
 def hash_password(password: str) -> str:
     """SHA-256 hash of the password with a salt prefix."""
     salt = "studybuddy_salt_2025"
@@ -1632,6 +1806,10 @@ def get_notebook_entries():
     if err:
         return err
 
+    # Pull remote notes into SQLite, then mirror local notes up (soft-fail)
+    fs_pull_notebook_into_sqlite(user["id"])
+    fs_push_all_notebook_entries(user["id"])
+
     with get_db() as conn:
         rows = conn.execute("""
             SELECT id, user_id, subject, category, content, position, created_at, updated_at
@@ -1665,6 +1843,13 @@ def reorder_notebook_entries():
                     "UPDATE living_notebook SET position=? WHERE id=? AND user_id=?",
                     (pos, entry_id, user["id"])
                 )
+        rows = conn.execute(
+            "SELECT * FROM living_notebook WHERE user_id=?",
+            (user["id"],),
+        ).fetchall()
+
+    for row in rows:
+        fs_upsert_notebook_entry(user["id"], dict(row))
 
     return jsonify({"ok": True})
 
@@ -1695,7 +1880,9 @@ def add_notebook_entry():
         entry_id = cur.lastrowid
         row = conn.execute("SELECT * FROM living_notebook WHERE id=?", (entry_id,)).fetchone()
 
-    return jsonify(dict(row)), 201
+    entry = dict(row)
+    fs_upsert_notebook_entry(user["id"], entry)
+    return jsonify(entry), 201
 
 
 @app.route("/api/notebook/entry/<int:entry_id>", methods=["PATCH"])
@@ -1743,7 +1930,9 @@ def update_notebook_entry(entry_id):
 
         updated = conn.execute("SELECT * FROM living_notebook WHERE id=?", (entry_id,)).fetchone()
 
-    return jsonify(dict(updated))
+    entry = dict(updated)
+    fs_upsert_notebook_entry(user["id"], entry)
+    return jsonify(entry)
 
 
 @app.route("/api/notebook/entry/<int:entry_id>", methods=["DELETE"])
@@ -1759,6 +1948,7 @@ def delete_notebook_entry(entry_id):
             return jsonify({"error": "Entry not found."}), 404
         conn.execute("DELETE FROM living_notebook WHERE id=?", (entry_id,))
 
+    fs_delete_notebook_entry(user["id"], entry_id)
     return jsonify({"ok": True})
 
 
@@ -1904,6 +2094,9 @@ Return ONLY JSON format:
             final_entry = conn.execute("""
                 SELECT * FROM living_notebook WHERE id = ?
             """, (entry_id,)).fetchone()
+
+        if final_entry:
+            fs_upsert_notebook_entry(uid, dict(final_entry))
 
         return jsonify({
             "action": action,
