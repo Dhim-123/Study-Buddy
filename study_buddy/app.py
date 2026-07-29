@@ -956,7 +956,7 @@ def auth_register():
     buddy_name = (data.get("buddyName")  or "Max").strip() or "Max"
 
     if not identifier or not password:
-        return jsonify({"error": "Username is either taken or incorrect password"}), 400
+        return jsonify({"error": "Username and password are required."}), 400
     if "@" in identifier:
         return jsonify({"error": "Please use a username, not an email."}), 400
     if len(password) < 6:
@@ -967,7 +967,7 @@ def auth_register():
         with get_db() as conn:
             existing = conn.execute("SELECT id FROM users WHERE identifier=?", (identifier,)).fetchone()
             if existing:
-                return jsonify({"error": "Username is either taken or incorrect password"}), 400
+                return jsonify({"error": "Username is taken"}), 400
 
             conn.execute(
                 "INSERT INTO users (identifier, password_hash, buddy_name) VALUES (?,?,?)",
@@ -989,7 +989,7 @@ def auth_login():
     password   = (data.get("password")   or "").strip()
 
     if not identifier or not password:
-        return jsonify({"error": "Username is either taken or incorrect password"}), 400
+        return jsonify({"error": "Incorrect username or password"}), 400
 
     ph = hash_password(password)
     with get_db() as conn:
@@ -999,7 +999,7 @@ def auth_login():
         ).fetchone()
 
     if not row:
-        return jsonify({"error": "Username is either taken or incorrect password"}), 401
+        return jsonify({"error": "Incorrect username or password"}), 401
 
     session.permanent = True
     session["user_id"] = row["id"]

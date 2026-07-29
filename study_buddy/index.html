@@ -4103,7 +4103,12 @@
         const mode = authCard.dataset.mode || "login";
 
         if (!identifier || !password) {
-          showAuthMessage("Username is either taken or incorrect password", true);
+          showAuthMessage(
+            mode === "register"
+              ? "Username and password are required."
+              : "Incorrect username or password",
+            true
+          );
           return;
         }
         if (mode === "register" && password.length < 6) {
@@ -4155,17 +4160,13 @@
           } else {
             updateAuthUI({ clearMessage: false });
             const errText = (data.error || "").toLowerCase();
-            const authFail = res.status === 401 || res.status === 400
-              || errText.includes("taken")
-              || errText.includes("incorrect")
-              || errText.includes("invalid")
-              || errText.includes("already");
-            showAuthMessage(
-              authFail
-                ? "Username is either taken or incorrect password"
-                : (data.error || `Error ${mode}.`),
-              true
-            );
+            let msg = data.error || `Error ${mode}.`;
+            if (mode === "login") {
+              msg = "Incorrect username or password";
+            } else if (mode === "register" && (errText.includes("taken") || errText.includes("already"))) {
+              msg = "Username is taken";
+            }
+            showAuthMessage(msg, true);
           }
         } catch (err) {
           updateAuthUI({ clearMessage: false });
