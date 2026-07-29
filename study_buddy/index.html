@@ -4677,14 +4677,55 @@
       }
     }
 
+    function isNotebookStatusMessage(content) {
+      const t = (content || "").trim();
+      return /Saved to Living Notebook|Error saving to notebook|Please log in.*Living Notebook|No AI response found to save|Network error:.*notebook/i.test(t);
+    }
+
+    function detectNotebookSubject(content, recentMessages) {
+      if (typeof nbSelectedSubject === "string" && nbSelectedSubject && nbSelectedSubject !== "All") {
+        return nbSelectedSubject;
+      }
+
+      const corpus = [
+        content || "",
+        ...(recentMessages || []).map(m => m?.content || "")
+      ].join("\n").toLowerCase();
+
+      const subjectKeywords = [
+        { subject: "Physics", keywords: ["newton", "force", "motion", "velocity", "acceleration", "gravity", "optics", "lens", "mirror", "electricity", "current", "voltage", "magnet", "friction", "momentum", "energy", "work done", "pressure", "sound wave", "light ray"] },
+        { subject: "Chemistry", keywords: ["acid", "base", "alkali", "atom", "molecule", "reaction", "periodic", "element", "compound", "ion", "salt", "oxide", "mole", "valency", "bond", "organic", "inorganic", "ph "] },
+        { subject: "Biology", keywords: ["cell", "photosynthesis", "digestion", "respiration", "enzyme", "tissue", "organ", "blood", "neuron", "dna", "gene", "plant", "animal", "ecology", "diffusion", "osmosis", "mitosis", "meiosis"] },
+        { subject: "Math", keywords: ["algebra", "equation", "geometry", "triangle", "circle", "quadratic", "polynomial", "calculus", "trigonometry", "sin ", "cos ", "tan ", "matrix", "probability", "permutation", "integration", "differentiation", "theorem", "pythagoras"] },
+        { subject: "Geography", keywords: ["climate", "rainfall", "continent", "latitude", "longitude", "plateau", "river", "ocean", "monsoon", "map", "soil", "vegetation", "population", "resource"] },
+        { subject: "History", keywords: ["empire", "war", "revolution", "independence", "mughal", "british", "constitution", "ancient", "medieval", "freedom struggle", "dynasty"] },
+        { subject: "English", keywords: ["grammar", "essay", "poem", "prose", "comprehension", "noun", "verb", "adjective", "literature", "figure of speech"] },
+        { subject: "Hindi", keywords: ["हिंदी", "vyakaran", "व्याकरण", "कविता", "गद्य", "निबंध"] },
+        { subject: "Computer Science", keywords: ["algorithm", "programming", "python", "java", "loop", "array", "database", "binary", "cpu", "memory", "software", "hardware"] },
+      ];
+
+      let best = { subject: "General", score: 0 };
+      for (const row of subjectKeywords) {
+        let score = 0;
+        for (const kw of row.keywords) {
+          if (corpus.includes(kw)) score += 1;
+        }
+        // Boost if subject name itself appears
+        if (corpus.includes(row.subject.toLowerCase())) score += 3;
+        if (score > best.score) best = { subject: row.subject, score };
+      }
+      return best.score > 0 ? best.subject : "General";
+    }
+
     function executeLivingNotebook(topic) {
       let contentToSave = "";
 
       for (let i = history.length - 1; i >= 0; i--) {
-        if (history[i].role === "assistant" || history[i].role === "ai") {
-          contentToSave = history[i].content;
-          break;
-        }
+        const msg = history[i];
+        if (msg.role !== "assistant" && msg.role !== "ai") continue;
+        if (isNotebookStatusMessage(msg.content)) continue;
+        contentToSave = msg.content;
+        break;
       }
 
       if (!contentToSave) {
@@ -4692,7 +4733,9 @@
         return;
       }
 
-      saveLivingNotebookEntry("General", "Key Points", contentToSave);
+      const recent = history.slice(-8);
+      const subject = detectNotebookSubject(contentToSave, recent);
+      saveLivingNotebookEntry(subject, "Key Points", contentToSave);
     }
 
     function featureTopicSource(topic) {
@@ -4765,12 +4808,14 @@
         return;
       }
 
+      const preview = content.length > 200 ? content.slice(0, 200).trim() + "…" : content;
+      const successMsg = `✅ **Saved to Living Notebook**\n\n**Subject:** ${subject}\n**Category:** ${category}\n\n${preview}`;
+      const lastUserForSuggest = [...history].reverse().find(m => m.role === "user")?.content || "";
+
       try {
-        // Prefer the same path as the manual New Note form (local cache + server)
-        const lastUserForSuggest = [...history].reverse().find(m => m.role === "user")?.content || "";
         if (typeof nbAddEntry === "function") {
           await nbAddEntry(subject, category, content);
-          appendBubble("ai", `✅ **Saved to Living Notebook**\n\n**Subject:** ${subject}\n**Category:** ${category}\n\n${content}`, lastUserForSuggest);
+          appendBubble("ai", successMsg, lastUserForSuggest);
           return;
         }
 
@@ -4784,7 +4829,7 @@
         const data = await response.json();
 
         if (response.ok) {
-          appendBubble("ai", `✅ **Saved to Living Notebook**\n\n**Subject:** ${subject}\n**Category:** ${category}\n\n${content}`, lastUserForSuggest);
+          appendBubble("ai", successMsg, lastUserForSuggest);
           if (typeof nbLoadEntries === "function") {
             try { await nbLoadEntries(); } catch (e) { console.log("Notebook refresh error:", e); }
           }
@@ -8310,33 +8355,101 @@
       });
     }
 
+    function nbCreateNoteCard(entry, title, bodyText, listEl) {
+      const entryEl = document.createElement("div");
+      entryEl.className = "nb-entry-card";
+      entryEl.dataset.id = String(entry.id ?? "");
+
+      const entryHeader = document.createElement("div");
+      entryHeader.className = "nb-entry-header";
+
+      const titleSpan = document.createElement("span");
+      titleSpan.style.cssText = "font-weight: 600; color: var(--text); font-size: 0.85rem;";
+      titleSpan.textContent = title || "Note";
+
+      const actions = document.createElement("div");
+      actions.style.cssText = "display:flex; align-items:center; gap:4px;";
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "nb-entry-delete-btn";
+      delBtn.type = "button";
+      delBtn.style.cssText = "font-size: 0.7rem; padding: 2px 6px;";
+      delBtn.title = "Delete";
+      delBtn.textContent = "🗑️";
+      delBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        nbDeleteEntry(entry.id, entryEl);
+      });
+      actions.appendChild(delBtn);
+
+      entryHeader.appendChild(titleSpan);
+      entryHeader.appendChild(actions);
+
+      const textarea = document.createElement("textarea");
+      textarea.className = "nb-entry-textarea";
+      textarea.value = bodyText || "";
+
+      const autoResize = function() {
+        this.style.height = "auto";
+        this.style.height = Math.max(this.scrollHeight, 48) + "px";
+      };
+
+      textarea.addEventListener("input", function() {
+        autoResize.call(this);
+        nbHandleInlineEdit(entry.id, this.value, entryEl);
+      });
+
+      const footer = document.createElement("div");
+      footer.className = "nb-entry-footer";
+      const status = document.createElement("span");
+      status.className = "nb-entry-status";
+      status.textContent = "Saved ✓";
+      footer.appendChild(status);
+
+      entryEl.appendChild(entryHeader);
+      entryEl.appendChild(textarea);
+      entryEl.appendChild(footer);
+      listEl.appendChild(entryEl);
+
+      requestAnimationFrame(() => autoResize.call(textarea));
+    }
+
     function nbRenderCategoryWithSubjects(container, categoryEntries, icon, displayName, category) {
       // Group entries by subject
       const subjectGroups = {};
       categoryEntries.forEach(entry => {
-        const subject = entry.subject || 'General';
-        if (!subjectGroups[subject]) {
-          subjectGroups[subject] = [];
-        }
+        const subject = entry.subject || "General";
+        if (!subjectGroups[subject]) subjectGroups[subject] = [];
         subjectGroups[subject].push(entry);
       });
 
       const subjects = Object.keys(subjectGroups);
       const totalEntries = categoryEntries.length;
 
-      // Main category card
       const card = document.createElement("div");
       card.className = "nb-sidebar-cat-card";
 
       const header = document.createElement("div");
       header.className = "nb-sidebar-cat-header";
-      header.innerHTML = `
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span>${icon}</span> <span>${escapeHtml(displayName)}</span>
-          <span style="font-size:0.72rem; opacity:0.7;">(${totalEntries} items)</span>
-        </div>
-        <button class="ce-btn-sm ce-btn-sm-primary" style="padding:2px 8px; font-size:0.75rem;" type="button" onclick="nbOpenAddForm('${escapeHtml(nbSelectedSubject === 'All' ? 'General' : nbSelectedSubject)}', '${escapeHtml(category)}')">+ Add</button>
-      `;
+
+      const headerLeft = document.createElement("div");
+      headerLeft.style.cssText = "display:flex; align-items:center; gap:6px;";
+      headerLeft.innerHTML = `<span>${icon}</span> <span>${escapeHtml(displayName)}</span><span style="font-size:0.72rem; opacity:0.7;">(${totalEntries} items)</span>`;
+
+      const addBtn = document.createElement("button");
+      addBtn.className = "ce-btn-sm ce-btn-sm-primary";
+      addBtn.type = "button";
+      addBtn.style.cssText = "padding:2px 8px; font-size:0.75rem;";
+      addBtn.textContent = "+ Add";
+      addBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const subj = nbSelectedSubject === "All" ? "General" : nbSelectedSubject;
+        nbOpenAddForm(subj, category);
+      });
+
+      header.appendChild(headerLeft);
+      header.appendChild(addBtn);
 
       const list = document.createElement("div");
       list.style.cssText = "display:flex; flex-direction:column; gap:8px;";
@@ -8348,101 +8461,38 @@
           </div>
         `;
       } else {
-        // Create subject headings followed by individual topic cards
         subjects.forEach(subject => {
           const subjectEntries = subjectGroups[subject];
 
-          // Create subject heading
           const subjectHeading = document.createElement("div");
           subjectHeading.style.cssText = "font-weight: 700; font-size: 0.9rem; color: var(--text); margin: 16px 0 8px 0; padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 6px; border-left: 3px solid var(--accent);";
           subjectHeading.textContent = subject;
           list.appendChild(subjectHeading);
 
-          // Create individual cards for each bullet point across all entries in this subject
-          subjectEntries.forEach((entry, entryIdx) => {
+          subjectEntries.forEach((entry) => {
             if (!entry.content) return;
 
-            // Split content into individual bullet points
-            const lines = entry.content.split('\n').map(line => line.trim()).filter(line => line);
-            
-            lines.forEach((line, lineIdx) => {
-              if (!line.startsWith('•') && !line.startsWith('-') && !line.startsWith('*')) {
-                // Skip non-bullet lines for now
-                return;
-              }
+            const lines = entry.content.split("\n").map(line => line.trim()).filter(Boolean);
+            const bulletLines = lines.filter(line => /^[•\-\*]/.test(line));
 
-              // Extract topic title and explanation from the bullet point
-              const cleanLine = line.replace(/^[•\-\*]\s*/, '').trim();
+            // Plain prose notes (chat auto-save) — show full content with delete
+            if (bulletLines.length === 0) {
+              const words = entry.content.trim().split(/\s+/);
+              const title = words.length <= 8
+                ? entry.content.trim().slice(0, 80)
+                : words.slice(0, 6).join(" ") + "…";
+              nbCreateNoteCard(entry, title, entry.content.trim(), list);
+              return;
+            }
+
+            bulletLines.forEach((line) => {
+              const cleanLine = line.replace(/^[•\-\*]\s*/, "").trim();
               if (!cleanLine) return;
-
-              // Use first few words as title, rest as explanation
-              const words = cleanLine.split(' ');
-              let topicTitle, explanation;
-              
-              if (words.length <= 4) {
-                topicTitle = cleanLine;
-                explanation = '';
-              } else {
-                topicTitle = words.slice(0, 4).join(' ') + '...';
-                explanation = cleanLine;
-              }
-
-              // Create separate entry object for this bullet point
-              const bulletEntry = {
-                ...entry,
-                content: cleanLine,
-                id: entry.id + '_' + lineIdx  // Create unique ID for each bullet
-              };
-
-              // Create individual topic card
-              const entryEl = document.createElement("div");
-              entryEl.className = "nb-entry-card";
-              entryEl.dataset.id = bulletEntry.id || "";
-
-              const entryHeader = document.createElement("div");
-              entryHeader.className = "nb-entry-header";
-              entryHeader.innerHTML = `
-                <span style="font-weight: 600; color: var(--text); font-size: 0.85rem;">${escapeHtml(topicTitle)}</span>
-                <div style="display:flex; align-items:center; gap:4px;">
-                  <button class="nb-entry-delete-btn" style="font-size: 0.7rem; padding: 2px 6px;" title="Delete" onclick="nbDeleteEntry(${entry.id}, this)">🗑️</button>
-                </div>
-              `;
-
-              const textarea = document.createElement("textarea");
-              textarea.className = "nb-entry-textarea";
-              textarea.value = explanation;
-
-            // Auto-resize function
-            const autoResize = function() {
-              this.style.height = "auto";
-              this.style.height = this.scrollHeight + "px";
-            };
-
-              // Auto-resize based on content
-              textarea.addEventListener("input", function() {
-                autoResize.call(this);
-                // Save the full content (title + explanation)
-                nbHandleInlineEdit(entry.id, `${topicTitle}\n${this.value}`, entryEl);
-                });
-
-              const footer = document.createElement("div");
-              footer.className = "nb-entry-footer";
-
-              const status = document.createElement("span");
-              status.className = "nb-entry-status";
-              status.textContent = "Saved ✓";
-
-              footer.appendChild(status);
-
-              entryEl.appendChild(entryHeader);
-              entryEl.appendChild(textarea);
-              entryEl.appendChild(footer);
-              list.appendChild(entryEl);
-
-              // Initial auto-resize AFTER element is in DOM
-              requestAnimationFrame(() => {
-                autoResize.call(textarea);
-              });
+              const words = cleanLine.split(" ");
+              const topicTitle = words.length <= 4
+                ? cleanLine
+                : words.slice(0, 4).join(" ") + "…";
+              nbCreateNoteCard(entry, topicTitle, cleanLine, list);
             });
           });
         });
@@ -8629,18 +8679,26 @@
     async function nbDeleteEntry(entryId, elem) {
       if (!confirm("Delete this notebook entry?")) return;
 
-      nbEntries = nbEntries.filter(e => e.id !== entryId);
+      const idNum = Number(entryId);
+      nbEntries = nbEntries.filter(e => Number(e.id) !== idNum && e.id !== entryId);
       nbSaveLocal();
       nbRender();
 
-      if (currentUser?.loggedIn && entryId && typeof entryId === 'number') {
+      if (currentUser?.loggedIn && entryId != null && entryId !== "") {
         try {
-          await fetch(`/api/notebook/entry/${entryId}`, { method: "DELETE" });
+          await fetch(`/api/notebook/entry/${entryId}`, {
+            method: "DELETE",
+            credentials: "include",
+          });
         } catch (err) {
           console.error("Error deleting entry from server:", err);
         }
       }
     }
+
+    // Expose for any remaining HTML onclick handlers
+    window.nbDeleteEntry = nbDeleteEntry;
+    window.nbDeleteSubject = nbDeleteSubject;
 
     async function nbMoveEntry(entryId, direction) {
       const idx = nbEntries.findIndex(e => e.id === entryId);
