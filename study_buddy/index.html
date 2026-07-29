@@ -5246,13 +5246,64 @@
       }
     }
 
+    function renderCollapsiblePodcastScript(container, rawText) {
+      const fullText = (rawText || "").trim();
+      const nonEmptyLines = fullText.split("\n").map(l => l.trimEnd()).filter(l => l.trim().length > 0);
+
+      const scriptEl = document.createElement("div");
+      scriptEl.className = "podcast-script";
+      scriptEl.style.cssText = "background: rgba(17, 24, 39, 0.6); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 14px;";
+
+      const scriptTitle = document.createElement("h3");
+      scriptTitle.style.cssText = "margin:0 0 12px 0; color:var(--text);";
+      scriptTitle.textContent = "🎙️ Podcast Script";
+      scriptEl.appendChild(scriptTitle);
+
+      const scriptBody = document.createElement("div");
+      scriptBody.className = "script-content";
+      scriptBody.style.cssText = "line-height:1.6; color:var(--muted); white-space:pre-wrap;";
+
+      if (nonEmptyLines.length <= 2) {
+        scriptBody.textContent = fullText;
+        scriptEl.appendChild(scriptBody);
+        container.appendChild(scriptEl);
+        return scriptEl;
+      }
+
+      const firstLine = nonEmptyLines[0];
+      const lastLine = nonEmptyLines[nonEmptyLines.length - 1];
+      const collapsedPreview = `${firstLine}\n.........\n${lastLine}`;
+      let expanded = false;
+
+      scriptBody.textContent = collapsedPreview;
+      scriptEl.appendChild(scriptBody);
+
+      const toggleBtn = document.createElement("button");
+      toggleBtn.type = "button";
+      toggleBtn.className = "step-btn secondary";
+      toggleBtn.style.cssText = "margin-top:12px;";
+      toggleBtn.textContent = "Expand";
+      toggleBtn.addEventListener("click", () => {
+        expanded = !expanded;
+        if (expanded) {
+          scriptBody.textContent = fullText;
+          toggleBtn.textContent = "Shrink";
+        } else {
+          scriptBody.textContent = collapsedPreview;
+          toggleBtn.textContent = "Expand";
+        }
+      });
+      scriptEl.appendChild(toggleBtn);
+      container.appendChild(scriptEl);
+      return scriptEl;
+    }
+
     function generatePodcastFromResponse(responseText) {
       const output = document.getElementById("podcast-output");
       if (!output || !responseText) return;
 
       try {
-        // Extract podcast script
-        const scriptLines = responseText.split('\n').filter(line => 
+        const scriptLines = responseText.split('\n').filter(line =>
           line.match(/^Host [AB]:/i) || line.trim().length > 0
         );
 
@@ -5261,17 +5312,13 @@
           return;
         }
 
-        output.innerHTML = `
-          <div class="podcast-script" style="background: rgba(17, 24, 39, 0.6); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 16px 0; color: var(--text);">🎙️ Podcast Script</h3>
-            <div class="script-content" style="line-height: 1.6; color: var(--muted);">
-              ${responseText.replace(/\n/g, '<br>')}
-            </div>
-          </div>
-          <div style="text-align: center; color: var(--muted); font-size: 0.9rem;">
-            📝 Script generated! Use text-to-speech software to create audio.
-          </div>
-        `;
+        output.innerHTML = "";
+        renderCollapsiblePodcastScript(output, responseText);
+
+        const note = document.createElement("div");
+        note.style.cssText = "text-align: center; color: var(--muted); font-size: 0.9rem;";
+        note.textContent = "📝 Script generated! Use text-to-speech software to create audio.";
+        output.appendChild(note);
       } catch (error) {
         console.error("Error generating podcast:", error);
         output.innerHTML = `<div style="color: var(--accent2); text-align: center; padding: 40px;">Error generating podcast: ${error.message}</div>`;
@@ -6266,18 +6313,7 @@
         statusEl.style.color = "var(--accent3)";
         output.appendChild(statusEl);
 
-        const scriptEl = document.createElement("div");
-        scriptEl.className = "podcast-script";
-        scriptEl.style.cssText = "background: rgba(17, 24, 39, 0.6); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 14px;";
-        const scriptTitle = document.createElement("h3");
-        scriptTitle.style.cssText = "margin:0 0 12px 0; color:var(--text);";
-        scriptTitle.textContent = "🎙️ Podcast Script";
-        scriptEl.appendChild(scriptTitle);
-        const scriptBody = document.createElement("div");
-        scriptBody.style.cssText = "line-height:1.6; color:var(--muted); white-space:pre-wrap;";
-        scriptBody.textContent = rawText;
-        scriptEl.appendChild(scriptBody);
-        output.appendChild(scriptEl);
+        renderCollapsiblePodcastScript(output, rawText);
 
         // Step 2: TTS only (separate request — avoids proxy timeouts)
         let audioData = null;
