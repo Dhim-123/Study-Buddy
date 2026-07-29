@@ -4539,27 +4539,56 @@
 
 
     // =====================================================================
-    //  KEYBOARD SHORTCUT — Press Enter to send, Shift+Enter for new line
+    //  KEYBOARD SHORTCUT — Enter generates only the ACTIVE feature
     // =====================================================================
 
-    userInputEl.addEventListener("keydown", e => {
-      // ^ "keydown" fires when you press ANY key
+    function getActiveFeatureTab() {
+      const active = document.querySelector(".tab-btn.active");
+      return active?.dataset?.tab || "chat";
+    }
 
-      if (e.key === "Enter" && !e.shiftKey) {
-        // ^ If you pressed Enter WITHOUT holding Shift:
+    function triggerActiveFeatureGenerate() {
+      const tab = getActiveFeatureTab();
+      const buttonIds = {
+        podcasts: "generate-podcast-btn",
+        flashcards: "generate-flashcard-btn",
+        quiz: "generate-quiz-btn",
+        crosscheck: "generate-crosscheck-btn",
+        definitions: "generate-definitions-btn",
+      };
+      const btnId = buttonIds[tab];
+      if (!btnId) return;
+      document.getElementById(btnId)?.click();
+    }
 
+    function bindEnterToGenerate(el) {
+      if (!el) return;
+      el.addEventListener("keydown", e => {
+        if (e.key !== "Enter" || e.shiftKey) return;
         e.preventDefault();
-        // ^ Prevent the default behavior (which would add a new line)
+        // Only generate the feature for the screen we're on
+        triggerActiveFeatureGenerate();
+      });
+    }
 
-        triggerSend();
-        // ^ Send the message instead!
+    // Chat: Enter sends only when Chat tab is active
+    userInputEl.addEventListener("keydown", e => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        if (getActiveFeatureTab() === "chat") {
+          triggerSend();
+        }
       }
-      // If you're holding Shift + Enter, nothing special happens —
-      // the default behavior (new line) occurs naturally.
     });
 
     sendBtn.onclick = triggerSend;
-    // ^ Clicking the ➤ button also sends the message
+
+    // Feature screens: Enter generates only that feature's button
+    bindEnterToGenerate(document.getElementById("podcast-input"));
+    bindEnterToGenerate(document.getElementById("flashcard-input"));
+    bindEnterToGenerate(document.getElementById("quiz-input"));
+    bindEnterToGenerate(document.getElementById("crosscheck-question-input"));
+    bindEnterToGenerate(document.getElementById("crosscheck-answer-input"));
 
 
     // =====================================================================
