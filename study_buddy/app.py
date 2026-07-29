@@ -1009,6 +1009,286 @@ def fs_push_all_notebook_entries(user_id):
         print(f"[Firestore] push all notebook failed: {e}")
 
 
+def _fs_conversation_ref(db, user_id, conv_id):
+    return (
+        db.collection("users")
+        .document(str(user_id))
+        .collection("conversations")
+        .document(str(conv_id))
+    )
+
+
+def _fs_message_ref(db, user_id, conv_id, msg_id):
+    return _fs_conversation_ref(db, user_id, conv_id).collection("messages").document(str(msg_id))
+
+
+def _conv_to_fs_payload(user_id, conv):
+    return {
+        "user_id": int(user_id),
+        "title": (conv.get("title") or "New Chat")[:100],
+        "pinned": 1 if conv.get("pinned") else 0,
+        "archived": 1 if conv.get("archived") else 0,
+        "created_at": conv.get("created_at") or "",
+        "updated_at": conv.get("updated_at") or "",
+    }
+
+
+def _msg_to_fs_payload(msg):
+    role = msg.get("role") or "user"
+    if role == "ai":
+        role = "assistant"
+    return {
+        "role": role,
+        "content": msg.get("content") or "",
+        "created_at": msg.get("created_at") or "",
+        "conversation_id": int(msg.get("conversation_id") or 0),
+    }
+
+
+def fs_upsert_conversation(user_id, conv):
+    """Mirror one conversation metadata doc to Firestore. Soft-fails."""
+    db = get_firestore()
+    if not db or not conv:
+        return
+    try:
+        conv_id = conv.get("id")
+        if conv_id is None:
+            return
+        _fs_conversation_ref(db, user_id, conv_id).set(
+            _conv_to_fs_payload(user_id, conv),
+            merge=True,
+        )
+    except Exception as e:
+        print(f"[Firestore] upsert conversation failed: {e}")
+
+
+def fs_upsert_message(user_id, conv_id, msg):
+    """Mirror one chat message to Firestore. Soft-fails."""
+    db = get_firestore()
+    if not db or not msg or conv_id is None:
+        return
+    try:
+        msg_id = msg.get("id")
+        if msg_id is None:
+            return
+        payload = _msg_to_fs_payload(msg)
+        payload["conversation_id"] = int(conv_id)
+        _fs_message_ref(db, user_id, conv_id, msg_id).set(payload, merge=True)
+    except Exception as e:
+        print(f"[Firestore] upsert message failed: {e}")
+
+
+def fs_delete_conversation(user_id, conv_id):
+    """Delete conversation doc and its message subcollection. Soft-fails."""
+    db = get_firestore()
+    if not db or conv_id is None:
+        return
+    try:
+        conv_ref = _fs_conversation_ref(db, user_id, conv_id)
+        for msg_doc in conv_ref.collection("messages").stream():
+            msg_doc.reference.delete()
+        conv_ref.delete()
+    except Exception as e:
+        print(f"[Firestore] delete conversation failed: {e}")
+
+
+def fs_pull_conversations_into_sqlite(user_id):
+    """Pull remote conversations + messages into local SQLite. Soft-fails."""
+    db = get_firestore()
+    if not db:
+        return
+    try:
+        conv_docs = (
+            db.collection("users")
+            .document(str(user_id))
+            .collection("conversations")
+            .stream()
+        )
+        with get_db() as conn:
+            for conv_doc in conv_docs:
+                data = conv_doc.to_dict() or {}
+                try:
+                    remote_conv_id = int(conv_doc.id)
+                except (TypeError, ValueError):
+                    continue
+
+                title = (data.get("title") or "New Chat")[:100]
+                pinned = 1 if data.get("pinned") else 0
+                archived = 1 if data.get("archived") else 0
+                created_at = data.get("created_at") or None
+                updated_at = data.get("updated_at") or None
+
+                local_conv_id = None
+                owned = conn.execute(
+                    "SELECT id FROM conversations WHERE id=? AND user_id=?",
+                    (remote_conv_id, user_id),
+                ).fetchone()
+                if owned:
+                    local_conv_id = remote_conv_id
+                    conn.execute(
+                        """
+                        UPDATE conversations
+                        SET title=?, pinned=?, archived=?,
+                            created_at=COALESCE(?, created_at),
+                            updated_at=COALESCE(?, updated_at)
+                        WHERE id=? AND user_id=?
+                        """,
+                        (title, pinned, archived, created_at, updated_at, remote_conv_id, user_id),
+                    )
+                else:
+                    id_taken = conn.execute(
+                        "SELECT id FROM conversations WHERE id=?",
+                        (remote_conv_id,),
+                    ).fetchone()
+                    if id_taken:
+                        cur = conn.execute(
+                            "INSERT INTO conversations (user_id, title, pinned, archived) VALUES (?,?,?,?)",
+                            (user_id, title, pinned, archived),
+                        )
+                        local_conv_id = cur.lastrowid
+                        row = conn.execute(
+                            "SELECT * FROM conversations WHERE id=?", (local_conv_id,)
+                        ).fetchone()
+                        try:
+                            _fs_conversation_ref(db, user_id, local_conv_id).set(
+                                _conv_to_fs_payload(user_id, dict(row)),
+                                merge=True,
+                            )
+                            # Move messages under new id, then delete old remote conv
+                            for msg_doc in _fs_conversation_ref(db, user_id, remote_conv_id).collection("messages").stream():
+                                msg_data = msg_doc.to_dict() or {}
+                                _fs_message_ref(db, user_id, local_conv_id, msg_doc.id).set(msg_data, merge=True)
+                                msg_doc.reference.delete()
+                            _fs_conversation_ref(db, user_id, remote_conv_id).delete()
+                        except Exception as e:
+                            print(f"[Firestore] re-key conversation failed: {e}")
+                    else:
+                        if created_at and updated_at:
+                            conn.execute(
+                                """
+                                INSERT INTO conversations
+                                  (id, user_id, title, pinned, archived, created_at, updated_at)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                                """,
+                                (remote_conv_id, user_id, title, pinned, archived, created_at, updated_at),
+                            )
+                        else:
+                            conn.execute(
+                                """
+                                INSERT INTO conversations (id, user_id, title, pinned, archived)
+                                VALUES (?, ?, ?, ?, ?)
+                                """,
+                                (remote_conv_id, user_id, title, pinned, archived),
+                            )
+                        local_conv_id = remote_conv_id
+
+                if local_conv_id is None:
+                    continue
+
+                # Messages live under the local conversation id in Firestore after any re-key
+                try:
+                    msg_docs = list(
+                        _fs_conversation_ref(db, user_id, local_conv_id)
+                        .collection("messages")
+                        .stream()
+                    )
+                except Exception:
+                    msg_docs = []
+
+                for msg_doc in msg_docs:
+                    mdata = msg_doc.to_dict() or {}
+                    try:
+                        remote_msg_id = int(msg_doc.id)
+                    except (TypeError, ValueError):
+                        continue
+                    role = mdata.get("role") or "user"
+                    if role == "ai":
+                        role = "assistant"
+                    if role not in ("user", "assistant"):
+                        continue
+                    content = (mdata.get("content") or "").strip()
+                    if not content:
+                        continue
+                    msg_created = mdata.get("created_at") or None
+
+                    msg_owned = conn.execute(
+                        "SELECT id FROM messages WHERE id=? AND conversation_id=?",
+                        (remote_msg_id, local_conv_id),
+                    ).fetchone()
+                    if msg_owned:
+                        conn.execute(
+                            """
+                            UPDATE messages
+                            SET role=?, content=?, created_at=COALESCE(?, created_at)
+                            WHERE id=? AND conversation_id=?
+                            """,
+                            (role, content, msg_created, remote_msg_id, local_conv_id),
+                        )
+                        continue
+
+                    msg_id_taken = conn.execute(
+                        "SELECT id FROM messages WHERE id=?",
+                        (remote_msg_id,),
+                    ).fetchone()
+                    if msg_id_taken:
+                        cur = conn.execute(
+                            "INSERT INTO messages (conversation_id, role, content) VALUES (?,?,?)",
+                            (local_conv_id, role, content),
+                        )
+                        new_msg_id = cur.lastrowid
+                        row = conn.execute(
+                            "SELECT * FROM messages WHERE id=?", (new_msg_id,)
+                        ).fetchone()
+                        try:
+                            fs_upsert_message(user_id, local_conv_id, dict(row))
+                            _fs_message_ref(db, user_id, local_conv_id, remote_msg_id).delete()
+                        except Exception as e:
+                            print(f"[Firestore] re-key message failed: {e}")
+                    else:
+                        if msg_created:
+                            conn.execute(
+                                """
+                                INSERT INTO messages (id, conversation_id, role, content, created_at)
+                                VALUES (?, ?, ?, ?, ?)
+                                """,
+                                (remote_msg_id, local_conv_id, role, content, msg_created),
+                            )
+                        else:
+                            conn.execute(
+                                """
+                                INSERT INTO messages (id, conversation_id, role, content)
+                                VALUES (?, ?, ?, ?)
+                                """,
+                                (remote_msg_id, local_conv_id, role, content),
+                            )
+    except Exception as e:
+        print(f"[Firestore] pull conversations failed: {e}")
+
+
+def fs_push_all_conversations(user_id):
+    """Push all local conversations + messages for a user to Firestore. Soft-fails."""
+    db = get_firestore()
+    if not db:
+        return
+    try:
+        with get_db() as conn:
+            convs = conn.execute(
+                "SELECT * FROM conversations WHERE user_id=?",
+                (user_id,),
+            ).fetchall()
+            for conv in convs:
+                c = dict(conv)
+                fs_upsert_conversation(user_id, c)
+                msgs = conn.execute(
+                    "SELECT * FROM messages WHERE conversation_id=? ORDER BY created_at ASC",
+                    (c["id"],),
+                ).fetchall()
+                for msg in msgs:
+                    fs_upsert_message(user_id, c["id"], dict(msg))
+    except Exception as e:
+        print(f"[Firestore] push all conversations failed: {e}")
+
+
 def hash_password(password: str) -> str:
     """SHA-256 hash of the password with a salt prefix."""
     salt = "studybuddy_salt_2025"
@@ -1320,6 +1600,9 @@ def list_conversations():
     if err:
         return err
 
+    fs_pull_conversations_into_sqlite(user["id"])
+    fs_push_all_conversations(user["id"])
+
     with get_db() as conn:
         rows = conn.execute("""
             SELECT c.id, c.title, c.pinned, c.archived, c.created_at, c.updated_at,
@@ -1350,7 +1633,9 @@ def create_conversation():
         conv_id = cur.lastrowid
         row = conn.execute("SELECT * FROM conversations WHERE id=?", (conv_id,)).fetchone()
 
-    return jsonify(dict(row)), 201
+    conv = dict(row)
+    fs_upsert_conversation(user["id"], conv)
+    return jsonify(conv), 201
 
 
 @app.route("/api/conversations/<int:conv_id>", methods=["PATCH"])
@@ -1390,7 +1675,9 @@ def update_conversation(conv_id):
             )
         updated = conn.execute("SELECT * FROM conversations WHERE id=?", (conv_id,)).fetchone()
 
-    return jsonify(dict(updated))
+    conv = dict(updated)
+    fs_upsert_conversation(user["id"], conv)
+    return jsonify(conv)
 
 
 @app.route("/api/conversations/<int:conv_id>", methods=["DELETE"])
@@ -1409,6 +1696,7 @@ def delete_conversation(conv_id):
             return jsonify({"error": "Conversation not found."}), 404
         conn.execute("DELETE FROM conversations WHERE id=?", (conv_id,))
 
+    fs_delete_conversation(user["id"], conv_id)
     return jsonify({"ok": True})
 
 
@@ -1418,6 +1706,9 @@ def get_messages(conv_id):
     user, err = require_auth()
     if err:
         return err
+
+    # Ensure remote history is available before reading messages
+    fs_pull_conversations_into_sqlite(user["id"])
 
     with get_db() as conn:
         row = conn.execute(
@@ -1460,15 +1751,22 @@ def post_message(conv_id):
         if not row:
             return jsonify({"error": "Conversation not found."}), 404
 
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO messages (conversation_id, role, content) VALUES (?,?,?)",
             (conv_id, role, content)
         )
+        msg_id = cur.lastrowid
         conn.execute(
             "UPDATE conversations SET updated_at=datetime('now') WHERE id=?",
             (conv_id,)
         )
+        msg_row = conn.execute("SELECT * FROM messages WHERE id=?", (msg_id,)).fetchone()
+        conv_row = conn.execute("SELECT * FROM conversations WHERE id=?", (conv_id,)).fetchone()
 
+    if conv_row:
+        fs_upsert_conversation(user["id"], dict(conv_row))
+    if msg_row:
+        fs_upsert_message(user["id"], conv_id, dict(msg_row))
     return jsonify({"ok": True}), 201
 
 
@@ -1761,6 +2059,31 @@ def chat():
                             "UPDATE conversations SET updated_at=datetime('now') WHERE id=?",
                             (conv_id,)
                         )
+
+                # Mirror chat persistence to Firestore
+                if endpoint == "chat":
+                    uid_fs = current_user_id()
+                    if uid_fs and conv_id:
+                        try:
+                            with get_db() as conn_fs:
+                                conv_full = conn_fs.execute(
+                                    "SELECT * FROM conversations WHERE id=? AND user_id=?",
+                                    (conv_id, uid_fs),
+                                ).fetchone()
+                                recent_msgs = conn_fs.execute(
+                                    """
+                                    SELECT * FROM messages
+                                    WHERE conversation_id=?
+                                    ORDER BY id DESC LIMIT 4
+                                    """,
+                                    (conv_id,),
+                                ).fetchall()
+                            if conv_full:
+                                fs_upsert_conversation(uid_fs, dict(conv_full))
+                            for msg in reversed(list(recent_msgs or [])):
+                                fs_upsert_message(uid_fs, conv_id, dict(msg))
+                        except Exception as e:
+                            print(f"[Firestore] chat persist mirror failed: {e}")
 
         # Podcast script only — TTS is a separate /api/podcast/tts call (avoids proxy timeouts)
         return jsonify({"reply": reply, "conversation_id": conv_id})
