@@ -1289,6 +1289,156 @@ def fs_push_all_conversations(user_id):
         print(f"[Firestore] push all conversations failed: {e}")
 
 
+def _fs_learning_dna_ref(db, user_id):
+    return (
+        db.collection("users")
+        .document(str(user_id))
+        .collection("learning_dna")
+        .document("profile")
+    )
+
+
+def _fs_subject_analytics_ref(db, user_id, subject):
+    # Firestore doc ids cannot contain /
+    safe = re.sub(r"[/\\]", "_", (subject or "General").strip()[:80]) or "General"
+    return (
+        db.collection("users")
+        .document(str(user_id))
+        .collection("subject_analytics")
+        .document(safe)
+    )
+
+
+def fs_upsert_learning_dna(user_id, profile):
+    """Mirror learning_dna profile row to Firestore. Soft-fails."""
+    db = get_firestore()
+    if not db or not profile:
+        return
+    try:
+        payload = {
+            "user_id": int(user_id),
+            "total_study_minutes": int(profile.get("total_study_minutes") or 0),
+            "total_quizzes": int(profile.get("total_quizzes") or 0),
+            "total_quiz_questions": int(profile.get("total_quiz_questions") or 0),
+            "correct_quiz_questions": int(profile.get("correct_quiz_questions") or 0),
+            "preferred_style": profile.get("preferred_style") or "Step-by-Step",
+            "learning_pace": profile.get("learning_pace") or "Steady",
+            "updated_at": profile.get("updated_at") or "",
+        }
+        _fs_learning_dna_ref(db, user_id).set(payload, merge=True)
+    except Exception as e:
+        print(f"[Firestore] upsert learning_dna failed: {e}")
+
+
+def fs_upsert_subject_analytics(user_id, row):
+    """Mirror one subject_analytics row to Firestore. Soft-fails."""
+    db = get_firestore()
+    if not db or not row:
+        return
+    try:
+        subject = (row.get("subject") or "General").strip()[:50] or "General"
+        payload = {
+            "user_id": int(user_id),
+            "subject": subject,
+            "questions_taken": int(row.get("questions_taken") or 0),
+            "questions_correct": int(row.get("questions_correct") or 0),
+            "study_minutes": int(row.get("study_minutes") or 0),
+            "updated_at": row.get("updated_at") or "",
+        }
+        _fs_subject_analytics_ref(db, user_id, subject).set(payload, merge=True)
+    except Exception as e:
+        print(f"[Firestore] upsert subject_analytics failed: {e}")
+
+
+def fs_pull_learning_dna_into_sqlite(user_id):
+    """Pull Learning DNA profile + subject analytics into SQLite. Soft-fails."""
+    db = get_firestore()
+    if not db:
+        return
+    try:
+        with get_db() as conn:
+            # Profile
+            snap = _fs_learning_dna_ref(db, user_id).get()
+            if snap.exists:
+                data = snap.to_dict() or {}
+                get_or_create_learning_dna(conn, user_id)
+                conn.execute(
+                    """
+                    UPDATE learning_dna SET
+                      total_study_minutes=?,
+                      total_quizzes=?,
+                      total_quiz_questions=?,
+                      correct_quiz_questions=?,
+                      preferred_style=?,
+                      learning_pace=?,
+                      updated_at=COALESCE(?, updated_at)
+                    WHERE user_id=?
+                    """,
+                    (
+                        int(data.get("total_study_minutes") or 0),
+                        int(data.get("total_quizzes") or 0),
+                        int(data.get("total_quiz_questions") or 0),
+                        int(data.get("correct_quiz_questions") or 0),
+                        (data.get("preferred_style") or "Step-by-Step")[:50],
+                        (data.get("learning_pace") or "Steady")[:50],
+                        data.get("updated_at") or None,
+                        user_id,
+                    ),
+                )
+
+            # Subject analytics
+            for doc in (
+                db.collection("users")
+                .document(str(user_id))
+                .collection("subject_analytics")
+                .stream()
+            ):
+                data = doc.to_dict() or {}
+                subject = (data.get("subject") or doc.id or "General").strip()[:50] or "General"
+                conn.execute(
+                    """
+                    INSERT INTO subject_analytics
+                      (user_id, subject, questions_taken, questions_correct, study_minutes, updated_at)
+                    VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')))
+                    ON CONFLICT(user_id, subject) DO UPDATE SET
+                      questions_taken=excluded.questions_taken,
+                      questions_correct=excluded.questions_correct,
+                      study_minutes=excluded.study_minutes,
+                      updated_at=COALESCE(excluded.updated_at, subject_analytics.updated_at)
+                    """,
+                    (
+                        user_id,
+                        subject,
+                        int(data.get("questions_taken") or 0),
+                        int(data.get("questions_correct") or 0),
+                        int(data.get("study_minutes") or 0),
+                        data.get("updated_at") or None,
+                    ),
+                )
+    except Exception as e:
+        print(f"[Firestore] pull learning_dna failed: {e}")
+
+
+def fs_push_all_learning_dna(user_id):
+    """Push local Learning DNA profile + all subject analytics. Soft-fails."""
+    db = get_firestore()
+    if not db:
+        return
+    try:
+        with get_db() as conn:
+            profile = get_or_create_learning_dna(conn, user_id)
+            rows = conn.execute(
+                "SELECT * FROM subject_analytics WHERE user_id=?",
+                (user_id,),
+            ).fetchall()
+        if profile:
+            fs_upsert_learning_dna(user_id, profile)
+        for row in rows:
+            fs_upsert_subject_analytics(user_id, dict(row))
+    except Exception as e:
+        print(f"[Firestore] push learning_dna failed: {e}")
+
+
 def hash_password(password: str) -> str:
     """SHA-256 hash of the password with a salt prefix."""
     salt = "studybuddy_salt_2025"
@@ -2552,6 +2702,10 @@ def get_learning_dna():
         return err
 
     uid = user["id"]
+    # Pull remote Learning DNA into SQLite, then mirror local up (soft-fail)
+    fs_pull_learning_dna_into_sqlite(uid)
+    fs_push_all_learning_dna(uid)
+
     with get_db() as conn:
         import json
         from datetime import datetime, timedelta
@@ -2974,6 +3128,9 @@ def track_learning_dna():
                 INSERT INTO student_mistakes (user_id, subject, topic, question, wrong_answer, correct_answer, explanation, source_type)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (uid, subject, 'General', 'Legacy mistake entry', 'Unknown', 'See explanation', mistake_text[:500], 'learning_dna'))
+
+    # Mirror updated Learning DNA + subject analytics to Firestore (soft-fail)
+    fs_push_all_learning_dna(uid)
 
     return jsonify({"ok": True})
 
