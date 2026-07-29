@@ -199,9 +199,10 @@
       display: flex;
       flex-direction: column;
       height: 100%;
+      min-height: 0;
       position: relative;
       transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1), min-width 220ms cubic-bezier(0.4, 0, 0.2, 1), border-right-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
-      overflow: visible !important;
+      overflow: hidden;
       z-index: 100;
     }
 
@@ -440,13 +441,14 @@
       flex-shrink: 0;
       height: 100%;
       max-height: 100%;
+      min-height: 0; /* allow flex child to shrink so chat isn't squeezed */
       background: var(--surface);
       border-left: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       position: relative;
       transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1), min-width 220ms cubic-bezier(0.4, 0, 0.2, 1), border-left-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
-      overflow: visible !important;
+      overflow: hidden; /* contain New Note form — do not grow main layout */
       box-sizing: border-box;
       z-index: 100;
     }
@@ -465,18 +467,33 @@
       transition: opacity 150ms ease;
     }
 
-    /* Fix: Allow notebook cards to expand naturally without internal scrolling */
+    /* Notebook lives inside a scrollable sidebar — never expand the page */
     #nb-section-container {
+      flex-shrink: 0;
       overflow: visible;
     }
-    
+
     #nb-section-content {
       overflow: visible;
     }
 
-    /* Remove scrollbar from right sidebar to allow notebook cards to expand naturally */
     #dict-sidebar .sidebar-content {
-      overflow: visible !important;
+      flex: 1;
+      min-height: 0;
+      height: 100%;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+    }
+
+    .nb-sidebar-add-form {
+      flex-shrink: 0;
+      box-sizing: border-box;
+    }
+
+    .nb-sidebar-add-form textarea#nb-input-content {
+      max-height: 100px;
+      min-height: 64px;
+      resize: vertical;
     }
 
     #right-sidebar-handle {
@@ -948,6 +965,7 @@
       flex-direction: column;
       overflow: hidden;
       min-width: 0;
+      min-height: 0;
     }
 
     /* messages */
@@ -3537,7 +3555,8 @@
       // =====================================================================
       let currentUser = null;
 
-      function updateAuthUI() {
+      function updateAuthUI(options = {}) {
+        const clearMessage = options.clearMessage !== false;
         const authCard = document.getElementById("auth-card");
         const authModeTitle = document.getElementById("auth-mode-title");
         const authSubmitBtn = document.getElementById("auth-submit-btn");
@@ -3549,60 +3568,78 @@
         const loggedInOnlyElements = document.querySelectorAll(".logged-in-only");
         const authIdentifierInput = document.getElementById("auth-identifier");
         const authPasswordInput = document.getElementById("auth-password");
-
+        const idLabel = document.querySelector('.auth-card .field label[for="auth-identifier"]');
+        const pwLabel = document.querySelector('.auth-card .field label[for="auth-password"]');
         const usernameInputEl = document.getElementById("username-input");
+        const headerAuthBtn = document.getElementById("auth-btn");
 
-        authMessage.style.display = "none";
-        authBuddyNameInput.value = currentUser?.buddyName || "Nova";
+        if (!authCard) return;
+        if (!authCard.dataset.mode) authCard.dataset.mode = "login";
+
+        if (clearMessage && authMessage) {
+          authMessage.style.display = "none";
+        }
+        if (authBuddyNameInput) {
+          authBuddyNameInput.value = currentUser?.buddyName || "Nova";
+        }
 
         if (currentUser?.loggedIn) {
-          authModeTitle.textContent = `Logged in as ${currentUser.identifier}`;
-          authSubmitBtn.style.display = "none";
-          authToggleBtn.style.display = "none";
-          authIdentifierInput.style.display = "none"; // Hide identifier input
-          authPasswordInput.style.display = "none";  // Hide password input
-          document.querySelector(".auth-card .field label[for=\"auth-identifier\"]").style.display = "none";
-          document.querySelector(".auth-card .field label[for=\"auth-password\"]").style.display = "none";
-          logoutBtn.style.display = "block";
-          buddyNameField.style.display = "none";
+          if (authModeTitle) authModeTitle.textContent = `Logged in as ${currentUser.identifier}`;
+          if (authSubmitBtn) authSubmitBtn.style.display = "none";
+          if (authToggleBtn) authToggleBtn.style.display = "none";
+          if (authIdentifierInput) authIdentifierInput.style.display = "none";
+          if (authPasswordInput) authPasswordInput.style.display = "none";
+          if (idLabel) idLabel.style.display = "none";
+          if (pwLabel) pwLabel.style.display = "none";
+          if (logoutBtn) logoutBtn.style.display = "block";
+          if (buddyNameField) buddyNameField.style.display = "none";
 
           loggedInOnlyElements.forEach(el => el.style.display = "block");
           if (buddyNameEl) buddyNameEl.value = currentUser.buddyName || "Nova";
           if (usernameInputEl) usernameInputEl.value = currentUser.identifier || "";
           cfg.buddyName = currentUser.buddyName || "Nova";
           localStorage.setItem("sb_config", JSON.stringify({ buddyName: cfg.buddyName }));
+          if (headerAuthBtn) {
+            const shortId = (currentUser.identifier || "Account").slice(0, 18);
+            headerAuthBtn.textContent = `👤 ${shortId}`;
+            headerAuthBtn.title = `Logged in as ${currentUser.identifier}`;
+          }
           updateWelcomeGreeting();
         } else {
-          authModeTitle.textContent = "Login";
-          authSubmitBtn.style.display = "block";
-          authToggleBtn.style.display = "block";
-          authIdentifierInput.style.display = "block"; // Show identifier input
-          authPasswordInput.style.display = "block";  // Show password input
-          document.querySelector(".auth-card .field label[for=\"auth-identifier\"]").style.display = "block";
-          document.querySelector(".auth-card .field label[for=\"auth-password\"]").style.display = "block";
-          logoutBtn.style.display = "none";
+          if (authModeTitle) authModeTitle.textContent = "Login";
+          if (authSubmitBtn) authSubmitBtn.style.display = "block";
+          if (authToggleBtn) authToggleBtn.style.display = "block";
+          if (authIdentifierInput) authIdentifierInput.style.display = "block";
+          if (authPasswordInput) authPasswordInput.style.display = "block";
+          if (idLabel) idLabel.style.display = "block";
+          if (pwLabel) pwLabel.style.display = "block";
+          if (logoutBtn) logoutBtn.style.display = "none";
 
           loggedInOnlyElements.forEach(el => el.style.display = "none");
           if (buddyNameEl) buddyNameEl.value = "";
           if (usernameInputEl) usernameInputEl.value = "";
+          if (headerAuthBtn) {
+            headerAuthBtn.textContent = "🚪 Login / Register";
+            headerAuthBtn.title = "Open login / register";
+          }
         }
 
         if (authCard.dataset.mode === "register") {
           if (currentUser?.loggedIn) {
-            authModeTitle.textContent = `Logged in as ${currentUser.identifier}`;
-            authSubmitBtn.style.display = "none";
-            authToggleBtn.style.display = "none";
-            buddyNameField.style.display = "none";
+            if (authModeTitle) authModeTitle.textContent = `Logged in as ${currentUser.identifier}`;
+            if (authSubmitBtn) authSubmitBtn.style.display = "none";
+            if (authToggleBtn) authToggleBtn.style.display = "none";
+            if (buddyNameField) buddyNameField.style.display = "none";
           } else {
-            authModeTitle.textContent = "Register New Account";
-            authSubmitBtn.textContent = "Register";
-            authToggleBtn.textContent = "Already have an account? Login";
-            buddyNameField.style.display = "block";
+            if (authModeTitle) authModeTitle.textContent = "Register New Account";
+            if (authSubmitBtn) authSubmitBtn.textContent = "Register";
+            if (authToggleBtn) authToggleBtn.textContent = "Already have an account? Login";
+            if (buddyNameField) buddyNameField.style.display = "block";
           }
         } else {
-          authSubmitBtn.textContent = "Login";
-          authToggleBtn.textContent = "New user? Register";
-          if (!currentUser?.loggedIn) {
+          if (authSubmitBtn) authSubmitBtn.textContent = "Login";
+          if (authToggleBtn) authToggleBtn.textContent = "New user? Register";
+          if (!currentUser?.loggedIn && buddyNameField) {
             buddyNameField.style.display = "none";
           }
         }
@@ -3610,6 +3647,7 @@
 
       function showAuthMessage(message, isError = false) {
         const authMessage = document.getElementById("auth-message");
+        if (!authMessage) return;
         authMessage.textContent = message;
         authMessage.style.color = isError ? "#f43f5e" : "#52e8a0";
         authMessage.style.display = "block";
@@ -3618,7 +3656,7 @@
       // Function to check login status on page load
       async function checkLoginStatus() {
         try {
-          const res = await fetch("/api/auth/me");
+          const res = await fetch("/api/auth/me", { credentials: "include" });
           const data = await res.json();
           if (data.loggedIn) {
             currentUser = { 
@@ -3791,6 +3829,7 @@
             await fetch("/api/auth/update_buddy", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
+              credentials: "include",
               body: JSON.stringify({ buddyName: newBuddyName })
             });
           } catch(err) {
@@ -3804,6 +3843,7 @@
               const res = await fetch("/api/auth/update_username", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                credentials: "include",
                 body: JSON.stringify({ identifier: newUsername })
               });
               const data = await res.json();
@@ -3963,7 +4003,14 @@
       authBtn.onclick = () => {
         sidebarEl.classList.remove("hidden");
         updateLeftSidebarState();
-        document.getElementById("auth-card").scrollIntoView({ behavior: "smooth" });
+        const card = document.getElementById("auth-card");
+        if (card) {
+          card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+        if (!currentUser?.loggedIn) {
+          const idInput = document.getElementById("auth-identifier");
+          setTimeout(() => idInput?.focus(), 150);
+        }
       };
     }
 
@@ -4006,10 +4053,19 @@
 
       // Handle Login/Register submission
       authSubmitBtn.addEventListener("click", async () => {
-        const identifier = authIdentifierInput.value;
-        const password = authPasswordInput.value;
-        const buddyName = authBuddyNameInput.value || "Nova";
-        const mode = authCard.dataset.mode;
+        const identifier = (authIdentifierInput.value || "").trim();
+        const password = (authPasswordInput.value || "").trim();
+        const buddyName = (authBuddyNameInput.value || "").trim() || "Nova";
+        const mode = authCard.dataset.mode || "login";
+
+        if (!identifier || !password) {
+          showAuthMessage("Email/mobile and password are required.", true);
+          return;
+        }
+        if (mode === "register" && password.length < 6) {
+          showAuthMessage("Password must be at least 6 characters.", true);
+          return;
+        }
 
         let url = "";
         let body = {};
@@ -4022,10 +4078,12 @@
           body = { identifier, password };
         }
 
+        authSubmitBtn.disabled = true;
         try {
           const res = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify(body),
           });
           const data = await res.json();
@@ -4036,22 +4094,24 @@
               identifier: data.identifier,
               buddyName: data.buddyName
             };
+            localStorage.setItem("sb_auth_identifier", data.identifier || identifier);
             let successMsg = `Login successful. Welcome, ${data.buddyName}!`;
             if (mode === "register") {
-              successMsg = `Registration successful. Welcome, ${data.buddyName}! You can now customize your Study Buddy\`s name in the settings panel.`;
+              successMsg = `Registration successful. Welcome, ${data.buddyName}! You can now customize your Study Buddy's name in the settings panel.`;
             }
-            showAuthMessage(successMsg);
-            // Clear inputs after successful auth
             authPasswordInput.value = "";
-            // Fetch chat history after successful login
+            updateAuthUI({ clearMessage: false });
+            showAuthMessage(successMsg);
             await fetchChatHistory();
           } else {
+            updateAuthUI({ clearMessage: false });
             showAuthMessage(data.error || `Error ${mode}.`, true);
           }
         } catch (err) {
+          updateAuthUI({ clearMessage: false });
           showAuthMessage(`Network error: ${err.message}`, true);
         } finally {
-          updateAuthUI();
+          authSubmitBtn.disabled = false;
         }
       });
 
@@ -4065,10 +4125,10 @@
         try {
           const res = await fetch("/api/auth/logout", {
             method: "POST",
+            credentials: "include",
           });
           if (res.ok) {
             currentUser = { loggedIn: false };
-            showAuthMessage("Logged out successfully.");
             history = []; // Clear chat history on logout
             currentConvId = null;
             conversations = [];
@@ -4076,14 +4136,16 @@
             messagesEl.innerHTML = "";
             messagesEl.appendChild(welcomeEl);
             welcomeEl.style.display = "flex";
+            updateAuthUI({ clearMessage: false });
+            showAuthMessage("Logged out successfully.");
           } else {
             const data = await res.json();
+            updateAuthUI({ clearMessage: false });
             showAuthMessage(data.error || "Failed to log out.", true);
           }
         } catch (err) {
+          updateAuthUI({ clearMessage: false });
           showAuthMessage(`Network error: ${err.message}`, true);
-        } finally {
-          updateAuthUI();
         }
       });
 
@@ -4504,148 +4566,111 @@
     //  FEATURE INTENT DETECTION AND ROUTING
     // =====================================================================
 
+    function extractFeatureTopic(message, feature) {
+      const patterns = [
+        new RegExp(`(?:make|generate|create|build|turn\\s+(?:this|it)\\s+into)\\s+(?:a\\s+|some\\s+)?(?:${feature})\\s+(?:on|about|for|from|covering)?\\s*(.+)$`, "i"),
+        /(?:on|about|for|from|covering)\s+(.+?)(?:[.!?]|$)/i,
+        new RegExp(`(?:${feature})\\s+(?:on|about|for|from)?\\s*(.+)$`, "i"),
+      ];
+      for (const pattern of patterns) {
+        const match = message.match(pattern);
+        if (match && match[1]) {
+          let topic = match[1].trim().replace(/[.!?]+$/, "").trim();
+          topic = topic.replace(/^(on|about|for|from|covering|me|a|the|some)\s+/i, "").trim();
+          if (topic && !/^(on|about|for|from|me|please|now)$/i.test(topic)) {
+            return topic;
+          }
+        }
+      }
+      return "ENTIRE_CONVERSATION";
+    }
+
+    /** True when the user is asking to save something to Living Notebook (not asking what a notebook is). */
+    function isNotebookSaveIntent(message) {
+      const msg = (message || "").toLowerCase().trim();
+      if (!msg) return false;
+
+      // "add a note to my living notebook", "save notes to notebook", etc.
+      if (/\b(add|save|put|store)\b[\s\S]{0,50}\bnotes?\b[\s\S]{0,40}\b(living\s+)?notebook\b/.test(msg)) {
+        return true;
+      }
+      // "add this to my notebook", "save that to living notebook"
+      if (/\b(add|save|put|store)\b[\s\S]{0,30}\b(this|that|it)\b[\s\S]{0,30}\b(living\s+)?notebook\b/.test(msg)) {
+        return true;
+      }
+      // "add to notebook", "save to my living notebook"
+      if (/\b(add|save|put|store)\b[\s\S]{0,20}\bto\s+(my\s+)?(living\s+)?notebook\b/.test(msg)) {
+        return true;
+      }
+      // "put this in my living notebook"
+      if (/\bput\b[\s\S]{0,25}\bin\s+(my\s+)?(living\s+)?notebook\b/.test(msg)) {
+        return true;
+      }
+      // "note this down", "save this note", "store this information"
+      if (/\bnote\s+this\s+down\b/.test(msg)) return true;
+      if (/\bsave\s+this\s+note\b/.test(msg)) return true;
+      if (/\bstore\s+this\s+information\b/.test(msg)) return true;
+      // "make a note on/about ..." (save request)
+      if (/\bmake\s+a\s+note\s+(on|about|for)\b/.test(msg)) return true;
+
+      return false;
+    }
+
     function detectFeatureIntent(message) {
       const msg = message.toLowerCase().trim();
-      
-      // Living Notebook keywords
-      const notebookKeywords = [
-        "add this to my notebook", "save this note", "store this", 
-        "put this in my living notebook", "make a note on", "add to notebook",
-        "save to notebook", "note this down", "store this information",
-        "add this to notebook", "save this"
-      ];
-      
-      // Flashcards keywords
-      const flashcardKeywords = [
-        "make flashcards", "generate flashcards", "create flashcards",
-        "flashcards on", "flashcards about", "flashcards for"
-      ];
-      
-      // Quiz keywords  
-      const quizKeywords = [
-        "make a quiz", "create a test", "quiz me", "generate a quiz",
-        "create a quiz", "quiz on", "test me on", "make quiz"
-      ];
-      
-      // Podcast keywords
-      const podcastKeywords = [
-        "generate a podcast", "make a podcast", "turn this into a podcast",
-        "create a podcast", "podcast on", "podcast about"
-      ];
-      
-      // Definitions keywords
-      const definitionKeywords = [
-        "define these", "make definitions", "explain these terms",
-        "define", "definitions for", "what do these mean"
-      ];
-      
-      // Check for Living Notebook
-      for (const keyword of notebookKeywords) {
-        if (msg.includes(keyword)) {
-          return {
-            feature: "living_notebook",
-            topic: "LAST_AI_RESPONSE"  // Special marker for last AI response
-          };
-        }
+
+      // Living Notebook — flexible natural phrasing (must run before chat / AI)
+      if (isNotebookSaveIntent(message)) {
+        return { feature: "living_notebook", topic: "LAST_AI_RESPONSE" };
       }
-      
-      // Check for other features with topic extraction
-      let detectedFeature = null;
-      
-      // Flashcards
-      for (const keyword of flashcardKeywords) {
-        if (msg.includes(keyword)) {
-          detectedFeature = "flashcards";
-          break;
-        }
+
+      // Flexible intent patterns — catch natural phrasing so AI doesn't "explain how"
+      if (/\bflash\s*cards?\b/.test(msg) && /\b(make|generate|create|build|give|prepare)\b/.test(msg)
+          || /\bflash\s*cards?\s+(on|about|for|from)\b/.test(msg)) {
+        return { feature: "flashcards", topic: extractFeatureTopic(message, "flash\\s*cards?") };
       }
-      
-      // Quiz
-      if (!detectedFeature) {
-        for (const keyword of quizKeywords) {
-          if (msg.includes(keyword)) {
-            detectedFeature = "quiz";
-            break;
-          }
-        }
+
+      if (/\b(quiz|test)\b/.test(msg) && /\b(make|generate|create|build|give|prepare|quiz\s+me|test\s+me)\b/.test(msg)
+          || /\b(quiz|test)\s+(me\s+)?(on|about|for)\b/.test(msg)) {
+        return { feature: "quiz", topic: extractFeatureTopic(message, "quiz|test") };
       }
-      
-      // Podcast
-      if (!detectedFeature) {
-        for (const keyword of podcastKeywords) {
-          if (msg.includes(keyword)) {
-            detectedFeature = "podcast";
-            break;
-          }
-        }
+
+      if (/\bpodcast\b/.test(msg) && /\b(make|generate|create|build|give|prepare|turn)\b/.test(msg)
+          || /\bpodcast\s+(on|about|for|from)\b/.test(msg)) {
+        return { feature: "podcast", topic: extractFeatureTopic(message, "podcast") };
       }
-      
-      // Definitions
-      if (!detectedFeature) {
-        for (const keyword of definitionKeywords) {
-          if (msg.includes(keyword)) {
-            detectedFeature = "definitions";
-            break;
-          }
-        }
+
+      if (/\b(define these|make definitions|definitions for|extract definitions)\b/.test(msg)) {
+        return { feature: "definitions", topic: extractFeatureTopic(message, "definitions?") };
       }
-      
-      if (detectedFeature) {
-        // Extract topic using simpler patterns
-        let topic = "ENTIRE_CONVERSATION";  // Default fallback
-        
-        // Look for "on X", "about X", "for X" patterns
-        const topicPatterns = [
-          /(?:on|about|for)\s+(.+?)(?:\.|$)/i,
-          /(?:flashcards?|quiz|podcast|definitions?)\s+(.+?)(?:\.|$)/i
-        ];
-        
-        for (const pattern of topicPatterns) {
-          const match = message.match(pattern);
-          if (match && match[1] && !match[1].match(/^(on|about|for)$/i)) {
-            topic = match[1].trim();
-            break;
-          }
-        }
-        
-        return {
-          feature: detectedFeature,
-          topic: topic
-        };
-      }
-      
-      // No feature detected
-      return {
-        feature: null,
-        topic: null
-      };
+
+      return { feature: null, topic: null };
     }
 
     function executeFeatureIntent(intent) {
-      if (!currentUser?.loggedIn) {
-        alert("Please log in to use features.");
+      const { feature, topic } = intent;
+
+      // Notebook needs a logged-in user (server save). Other generators work without auth.
+      if (feature === "living_notebook" && !currentUser?.loggedIn) {
+        appendBubble("ai", "Please log in first to save notes to your Living Notebook.");
+        const btn = document.getElementById("auth-btn");
+        if (btn) btn.click();
         return;
       }
 
-      const { feature, topic } = intent;
-      
       switch (feature) {
         case "living_notebook":
           executeLivingNotebook(topic);
           break;
-          
         case "flashcards":
           executeFlashcards(topic);
           break;
-          
         case "quiz":
           executeQuiz(topic);
           break;
-          
         case "podcast":
           executePodcast(topic);
           break;
-          
         case "definitions":
           executeDefinitions(topic);
           break;
@@ -4653,115 +4678,122 @@
     }
 
     function executeLivingNotebook(topic) {
-      // Get the last AI response from history
       let contentToSave = "";
-      
+
       for (let i = history.length - 1; i >= 0; i--) {
         if (history[i].role === "assistant" || history[i].role === "ai") {
           contentToSave = history[i].content;
           break;
         }
       }
-      
+
       if (!contentToSave) {
-        alert("No AI response found to save to notebook.");
+        appendBubble("ai", "No AI response found to save to notebook. Ask a study question first, then say “add this to my notebook.”");
         return;
       }
-      
-      // Directly save to notebook via API
+
       saveLivingNotebookEntry("General", "Key Points", contentToSave);
     }
 
+    function featureTopicSource(topic) {
+      if (topic && topic !== "ENTIRE_CONVERSATION") return topic.trim();
+      const lastAi = [...history].reverse().find(m => m.role === "assistant" || m.role === "ai");
+      if (lastAi?.content) return lastAi.content;
+      const lastUser = [...history].reverse().find(m => m.role === "user");
+      if (lastUser?.content) return lastUser.content;
+      return "key ICSE concepts from our conversation";
+    }
+
     function executeFlashcards(topic) {
-      // Switch to flashcards tab
-      showSection('flashcards');
-      
-      // Fill the topic input and generate
-      const flashcardInput = document.getElementById('flashcard-input');
-      if (flashcardInput) {
-        flashcardInput.value = topic === "ENTIRE_CONVERSATION" ? "" : topic;
+      const source = featureTopicSource(topic);
+      // Generate immediately — do not leave the user on a Generate button
+      if (typeof generateFlashcardsFromAnswer === "function") {
+        generateFlashcardsFromAnswer(source, true);
+        return;
       }
-      
-      // Trigger generation
-      setTimeout(() => {
-        const generateBtn = document.getElementById('generate-flashcard-btn');
-        if (generateBtn) generateBtn.click();
-      }, 100);
+      showSection("flashcards");
+      const flashcardInput = document.getElementById("flashcard-input");
+      if (flashcardInput) {
+        flashcardInput.value = topic === "ENTIRE_CONVERSATION" ? "" : (topic || "");
+      }
+      setTimeout(() => document.getElementById("generate-flashcard-btn")?.click(), 100);
     }
 
     function executeQuiz(topic) {
-      // Switch to quiz tab  
-      showSection('quiz');
-      
-      // Fill the topic input and generate
-      const quizInput = document.getElementById('quiz-input');
-      if (quizInput) {
-        quizInput.value = topic === "ENTIRE_CONVERSATION" ? "" : topic;
+      const source = featureTopicSource(topic);
+      if (typeof generateQuizFromAnswer === "function") {
+        generateQuizFromAnswer(source, true);
+        return;
       }
-      
-      // Trigger generation
-      setTimeout(() => {
-        const generateBtn = document.getElementById('generate-quiz-btn');
-        if (generateBtn) generateBtn.click();
-      }, 100);
+      showSection("quiz");
+      const quizInput = document.getElementById("quiz-input");
+      if (quizInput) {
+        quizInput.value = topic === "ENTIRE_CONVERSATION" ? "" : (topic || "");
+      }
+      setTimeout(() => document.getElementById("generate-quiz-btn")?.click(), 100);
     }
 
     function executePodcast(topic) {
-      // Switch to podcast tab
-      showSection('podcasts');
-      
-      // Fill the topic input and generate
-      const podcastInput = document.getElementById('podcast-input');
-      if (podcastInput) {
-        podcastInput.value = topic === "ENTIRE_CONVERSATION" ? "" : topic;
+      const topicText = (topic && topic !== "ENTIRE_CONVERSATION") ? topic.trim() : "";
+      if (typeof generatePodcast === "function") {
+        generatePodcast(topicText, true);
+        return;
       }
-      
-      // Trigger generation
-      setTimeout(() => {
-        const generateBtn = document.getElementById('generate-podcast-btn');
-        if (generateBtn) generateBtn.click();
-      }, 100);
+      showSection("podcasts");
+      const podcastInput = document.getElementById("podcast-input");
+      if (podcastInput) podcastInput.value = topicText;
+      setTimeout(() => document.getElementById("generate-podcast-btn")?.click(), 100);
     }
 
     function executeDefinitions(topic) {
-      // Switch to definitions tab
-      showSection('definitions');
-      
-      // Definitions doesn't have an input field, just generate
-      setTimeout(() => {
-        const generateBtn = document.getElementById('generate-definitions-btn');
-        if (generateBtn) generateBtn.click();
-      }, 100);
+      showSection("definitions");
+      setTimeout(() => document.getElementById("generate-definitions-btn")?.click(), 100);
     }
 
     async function saveLivingNotebookEntry(subject, category, content) {
+      subject = (subject || "General").trim() || "General";
+      category = category || "Key Points";
+      content = (content || "").trim();
+
+      if (!content) {
+        appendBubble("ai", "❌ **Error saving to notebook:** No content to save.");
+        return;
+      }
+
+      if (!currentUser?.loggedIn) {
+        appendBubble("ai", "❌ **Please log in** to save notes to your Living Notebook.");
+        return;
+      }
+
       try {
-        const response = await fetch("/api/notebook/add", {
+        // Prefer the same path as the manual New Note form (local cache + server)
+        const lastUserForSuggest = [...history].reverse().find(m => m.role === "user")?.content || "";
+        if (typeof nbAddEntry === "function") {
+          await nbAddEntry(subject, category, content);
+          appendBubble("ai", `✅ **Saved to Living Notebook**\n\n**Subject:** ${subject}\n**Category:** ${category}\n\n${content}`, lastUserForSuggest);
+          return;
+        }
+
+        const response = await fetch("/api/notebook/entry", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            subject: subject,
-            category: category,
-            content: content
-          })
+          credentials: "include",
+          body: JSON.stringify({ subject, category, content })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
-          // Show success message in chat
-          appendBubble("ai", `✅ **Saved to Living Notebook**\n\n**Subject:** ${subject}\n**Category:** ${category}\n\n${content}`);
-          
-          // Refresh notebook in sidebar
-          if (typeof nbLoadEntries === 'function') {
-            try { nbLoadEntries(); } catch(e) { console.log("Notebook refresh error:", e); }
+          appendBubble("ai", `✅ **Saved to Living Notebook**\n\n**Subject:** ${subject}\n**Category:** ${category}\n\n${content}`, lastUserForSuggest);
+          if (typeof nbLoadEntries === "function") {
+            try { await nbLoadEntries(); } catch (e) { console.log("Notebook refresh error:", e); }
           }
         } else {
-          appendBubble("ai", `❌ **Error saving to notebook:** ${data.error || 'Unknown error'}`);
+          appendBubble("ai", `❌ **Error saving to notebook:** ${data.error || "Unknown error"}`, lastUserForSuggest);
         }
       } catch (error) {
         console.error("Error saving to notebook:", error);
-        appendBubble("ai", `❌ **Network error:** Could not save to notebook.`);
+        appendBubble("ai", "❌ **Network error:** Could not save to notebook.");
       }
     }
 
@@ -4785,9 +4817,14 @@
       
       if (featureIntent.feature) {
         console.log(`[FEATURE ROUTING] Executing feature: ${featureIntent.feature}`);
+        // Show the request in chat so the action is visible, then run it immediately
+        if (welcomeEl.parentElement) welcomeEl.remove();
+        appendBubble("user", text);
+        history.push({ role: "user", content: text });
         executeFeatureIntent(featureIntent);
         userInputEl.value = "";
-        return; // DO NOT call sendMessage()
+        autoGrow(userInputEl);
+        return; // DO NOT call sendMessage() — no "here's how to…" AI reply
       }
 
       // Only call sendMessage() if no feature was detected
@@ -5444,10 +5481,12 @@
         const greeting    = isGreeting(lastUserMsg);
         const stepByStep  = isMultiStep(text);
         const mathPhysics = isMathPhysics(lastUserMsg, text);
+        const notebookStatus = /Saved to Living Notebook|Error saving to notebook|Please log in.*Living Notebook|No AI response found to save/i.test(text)
+          || (typeof isNotebookSaveIntent === "function" && isNotebookSaveIntent(lastUserMsg));
 
-        // Mode 1 — greeting/small talk: show no buttons at all
-        if (greeting) {
-          // intentionally empty — keep the reply clean
+        // Mode 1 — greeting/small talk or notebook auto-save status: show no buttons
+        if (greeting || notebookStatus) {
+          // intentionally empty — keep the reply clean (no Add Note / Podcast / Quiz chrome)
         } else {
           // Modes 2 & 3 both show Podcast and Quiz
           const actions = document.createElement("div");
@@ -8482,6 +8521,14 @@
         if (typeof updateRightSidebarState === "function") updateRightSidebarState();
       }
 
+      // Keep section expanded so the form is visible without layout jumps
+      const sectionContent = document.getElementById("nb-section-content");
+      const sectionIcon = document.getElementById("nb-toggle-icon");
+      if (sectionContent?.classList.contains("collapsed")) {
+        sectionContent.classList.remove("collapsed");
+        sectionIcon?.classList.remove("collapsed");
+      }
+
       const form = document.getElementById("nb-add-form");
       const subjInput = document.getElementById("nb-input-subject");
       const catSelect = document.getElementById("nb-input-category");
@@ -8491,10 +8538,13 @@
         form.style.display = "block";
         if (subjInput) subjInput.value = subject || (nbSelectedSubject === "All" ? "General" : nbSelectedSubject);
         if (catSelect) catSelect.value = category || "Key Points";
-        if (contentInput) {
-          if (!contentInput.value.trim()) contentInput.value = "";
-          contentInput.focus();
-        }
+        if (contentInput && !contentInput.value.trim()) contentInput.value = "";
+
+        // Scroll inside the right sidebar only — do not resize the main chat pane
+        requestAnimationFrame(() => {
+          form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          contentInput?.focus({ preventScroll: true });
+        });
       }
     };
 
@@ -8638,6 +8688,8 @@
     // AI suggestion function (never auto-saves without confirmation!)
     function nbSuggestAiAddition(userMsg, replyText, bubbleEl) {
       if (!replyText || isGreeting(userMsg)) return;
+      // If the user already asked to save to the notebook, don't show the button
+      if (typeof isNotebookSaveIntent === "function" && isNotebookSaveIntent(userMsg)) return;
 
       const suggestContainer = document.createElement("div");
       suggestContainer.className = "ai-nb-suggestion";
