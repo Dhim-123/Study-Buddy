@@ -1439,6 +1439,274 @@ def fs_push_all_learning_dna(user_id):
         print(f"[Firestore] push learning_dna failed: {e}")
 
 
+def _fs_mistake_ref(db, user_id, mistake_id):
+    return (
+        db.collection("users")
+        .document(str(user_id))
+        .collection("mistakes")
+        .document(str(mistake_id))
+    )
+
+
+def _mistake_to_fs_payload(user_id, mistake):
+    return {
+        "user_id": int(user_id),
+        "subject": mistake.get("subject") or "General",
+        "topic": mistake.get("topic") or "General",
+        "question": mistake.get("question") or "",
+        "wrong_answer": mistake.get("wrong_answer") or "",
+        "correct_answer": mistake.get("correct_answer") or "",
+        "explanation": mistake.get("explanation") or "",
+        "mastered": int(mistake.get("mastered") or 0),
+        "source_type": mistake.get("source_type") or "quiz",
+        "created_at": mistake.get("created_at") or "",
+        "mastered_at": mistake.get("mastered_at") or "",
+    }
+
+
+def fs_upsert_mistake(user_id, mistake):
+    """Mirror one Mistake Vault row to Firestore. Soft-fails."""
+    db = get_firestore()
+    if not db or not mistake:
+        return
+    try:
+        mistake_id = mistake.get("id")
+        if mistake_id is None:
+            return
+        _fs_mistake_ref(db, user_id, mistake_id).set(
+            _mistake_to_fs_payload(user_id, mistake),
+            merge=True,
+        )
+    except Exception as e:
+        print(f"[Firestore] upsert mistake failed: {e}")
+
+
+def fs_delete_mistake(user_id, mistake_id):
+    """Delete one mistake from Firestore. Soft-fails."""
+    db = get_firestore()
+    if not db or mistake_id is None:
+        return
+    try:
+        _fs_mistake_ref(db, user_id, mistake_id).delete()
+    except Exception as e:
+        print(f"[Firestore] delete mistake failed: {e}")
+
+
+def fs_pull_mistakes_into_sqlite(user_id):
+    """Pull remote Mistake Vault docs into local SQLite. Soft-fails."""
+    db = get_firestore()
+    if not db:
+        return
+    try:
+        docs = (
+            db.collection("users")
+            .document(str(user_id))
+            .collection("mistakes")
+            .stream()
+        )
+        with get_db() as conn:
+            for doc in docs:
+                data = doc.to_dict() or {}
+                try:
+                    mistake_id = int(doc.id)
+                except (TypeError, ValueError):
+                    continue
+                question = (data.get("question") or "").strip()
+                correct_answer = (data.get("correct_answer") or "").strip()
+                explanation = (data.get("explanation") or "").strip()
+                if not question or not correct_answer or not explanation:
+                    continue
+                subject = (data.get("subject") or "General")[:50]
+                topic = (data.get("topic") or "General")[:100]
+                wrong_answer = data.get("wrong_answer") or ""
+                mastered = 1 if data.get("mastered") else 0
+                source_type = (data.get("source_type") or "quiz")[:50]
+                created_at = data.get("created_at") or None
+                mastered_at = data.get("mastered_at") or None
+
+                owned = conn.execute(
+                    "SELECT id FROM student_mistakes WHERE id=? AND user_id=?",
+                    (mistake_id, user_id),
+                ).fetchone()
+                if owned:
+                    conn.execute(
+                        """
+                        UPDATE student_mistakes SET
+                          subject=?, topic=?, question=?, wrong_answer=?,
+                          correct_answer=?, explanation=?, mastered=?,
+                          source_type=?,
+                          created_at=COALESCE(?, created_at),
+                          mastered_at=?
+                        WHERE id=? AND user_id=?
+                        """,
+                        (
+                            subject, topic, question, wrong_answer,
+                            correct_answer, explanation, mastered,
+                            source_type, created_at, mastered_at,
+                            mistake_id, user_id,
+                        ),
+                    )
+                    continue
+
+                id_taken = conn.execute(
+                    "SELECT id FROM student_mistakes WHERE id=?",
+                    (mistake_id,),
+                ).fetchone()
+                if id_taken:
+                    cur = conn.execute(
+                        """
+                        INSERT INTO student_mistakes
+                          (user_id, subject, topic, question, wrong_answer,
+                           correct_answer, explanation, mastered, source_type, mastered_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            user_id, subject, topic, question, wrong_answer,
+                            correct_answer, explanation, mastered, source_type,
+                            mastered_at,
+                        ),
+                    )
+                    new_id = cur.lastrowid
+                    row = conn.execute(
+                        "SELECT * FROM student_mistakes WHERE id=?", (new_id,)
+                    ).fetchone()
+                    try:
+                        _fs_mistake_ref(db, user_id, new_id).set(
+                            _mistake_to_fs_payload(user_id, dict(row)),
+                            merge=True,
+                        )
+                        _fs_mistake_ref(db, user_id, mistake_id).delete()
+                    except Exception as e:
+                        print(f"[Firestore] re-key mistake failed: {e}")
+                else:
+                    if created_at:
+                        conn.execute(
+                            """
+                            INSERT INTO student_mistakes
+                              (id, user_id, subject, topic, question, wrong_answer,
+                               correct_answer, explanation, mastered, source_type,
+                               created_at, mastered_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                mistake_id, user_id, subject, topic, question,
+                                wrong_answer, correct_answer, explanation,
+                                mastered, source_type, created_at, mastered_at,
+                            ),
+                        )
+                    else:
+                        conn.execute(
+                            """
+                            INSERT INTO student_mistakes
+                              (id, user_id, subject, topic, question, wrong_answer,
+                               correct_answer, explanation, mastered, source_type,
+                               mastered_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                mistake_id, user_id, subject, topic, question,
+                                wrong_answer, correct_answer, explanation,
+                                mastered, source_type, mastered_at,
+                            ),
+                        )
+    except Exception as e:
+        print(f"[Firestore] pull mistakes failed: {e}")
+
+
+def fs_push_all_mistakes(user_id):
+    """Push all local Mistake Vault rows for a user to Firestore. Soft-fails."""
+    db = get_firestore()
+    if not db:
+        return
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT * FROM student_mistakes WHERE user_id=?",
+                (user_id,),
+            ).fetchall()
+        for row in rows:
+            fs_upsert_mistake(user_id, dict(row))
+    except Exception as e:
+        print(f"[Firestore] push all mistakes failed: {e}")
+
+
+def _fs_progress_ref(db, user_id):
+    return (
+        db.collection("users")
+        .document(str(user_id))
+        .collection("progress")
+        .document("summary")
+    )
+
+
+def fs_upsert_progress_summary(user_id, summary):
+    """Mirror durable progress snapshot to Firestore. Soft-fails."""
+    db = get_firestore()
+    if not db or not summary:
+        return
+    try:
+        payload = {
+            "user_id": int(user_id),
+            "total_study_minutes": int(summary.get("total_study_minutes") or 0),
+            "total_quizzes": int(summary.get("total_quizzes") or 0),
+            "total_quiz_questions": int(summary.get("total_quiz_questions") or 0),
+            "correct_quiz_questions": int(summary.get("correct_quiz_questions") or 0),
+            "accuracy": float(summary.get("accuracy") or 0),
+            "study_streak": int(summary.get("study_streak") or 0),
+            "exam_readiness": float(summary.get("exam_readiness") or 0),
+            "preferred_style": summary.get("preferred_style") or "Step-by-Step",
+            "learning_pace": summary.get("learning_pace") or "Steady",
+            "subject_count": int(summary.get("subject_count") or 0),
+            "mistake_count": int(summary.get("mistake_count") or 0),
+            "mistakes_mastered": int(summary.get("mistakes_mastered") or 0),
+            "updated_at": summary.get("updated_at") or "",
+        }
+        _fs_progress_ref(db, user_id).set(payload, merge=True)
+    except Exception as e:
+        print(f"[Firestore] upsert progress failed: {e}")
+
+
+def fs_push_progress_from_sqlite(user_id, extra=None):
+    """Build + push progress summary from Learning DNA / mistakes. Soft-fails."""
+    extra = extra or {}
+    try:
+        with get_db() as conn:
+            profile = get_or_create_learning_dna(conn, user_id)
+            subj_count = conn.execute(
+                "SELECT COUNT(*) AS c FROM subject_analytics WHERE user_id=?",
+                (user_id,),
+            ).fetchone()["c"]
+            mist = conn.execute(
+                """
+                SELECT COUNT(*) AS total,
+                       SUM(CASE WHEN mastered=1 THEN 1 ELSE 0 END) AS mastered
+                FROM student_mistakes WHERE user_id=?
+                """,
+                (user_id,),
+            ).fetchone()
+        tq = int(profile.get("total_quiz_questions") or 0)
+        cq = int(profile.get("correct_quiz_questions") or 0)
+        accuracy = round((cq / tq * 100.0), 1) if tq > 0 else float(extra.get("accuracy") or 0)
+        summary = {
+            "total_study_minutes": profile.get("total_study_minutes") or 0,
+            "total_quizzes": profile.get("total_quizzes") or 0,
+            "total_quiz_questions": tq,
+            "correct_quiz_questions": cq,
+            "accuracy": accuracy,
+            "study_streak": int(extra.get("study_streak") or 0),
+            "exam_readiness": float(extra.get("exam_readiness") or 0),
+            "preferred_style": profile.get("preferred_style") or "Step-by-Step",
+            "learning_pace": profile.get("learning_pace") or "Steady",
+            "subject_count": int(subj_count or 0),
+            "mistake_count": int(mist["total"] or 0) if mist else 0,
+            "mistakes_mastered": int(mist["mastered"] or 0) if mist else 0,
+            "updated_at": profile.get("updated_at") or "",
+        }
+        fs_upsert_progress_summary(user_id, summary)
+    except Exception as e:
+        print(f"[Firestore] push progress failed: {e}")
+
+
 def hash_password(password: str) -> str:
     """SHA-256 hash of the password with a salt prefix."""
     salt = "studybuddy_salt_2025"
@@ -1497,10 +1765,15 @@ def save_mistake_to_vault(user_id: int, subject: str, topic: str, question: str,
     """Helper function to automatically save mistakes to the vault."""
     try:
         with get_db() as conn:
-            conn.execute("""
+            cur = conn.execute("""
                 INSERT INTO student_mistakes (user_id, subject, topic, question, wrong_answer, correct_answer, explanation, source_type)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (user_id, subject, topic, question, wrong_answer, correct_answer, explanation, source_type))
+            row = conn.execute(
+                "SELECT * FROM student_mistakes WHERE id=?", (cur.lastrowid,)
+            ).fetchone()
+        if row:
+            fs_upsert_mistake(user_id, dict(row))
         return True
     except Exception as e:
         print(f"[ERROR] Failed to save mistake to vault: {e}")
@@ -2985,7 +3258,7 @@ def get_learning_dna():
         else:
             buddy_advice = f"Let's boost your learning! " + (recommendations[0] if recommendations else "Take it one step at a time - you've got this!")
 
-    return jsonify({
+    resp = jsonify({
         # Core metrics (existing)
         "totalStudyMinutes": profile.get("total_study_minutes", 0),
         "totalQuizzes": profile.get("total_quizzes", 0),
@@ -3051,6 +3324,15 @@ def get_learning_dna():
             "examReadiness": exam_readiness
         }
     })
+
+    # Mirror computed progress snapshot to Firestore (soft-fail)
+    fs_push_progress_from_sqlite(uid, {
+        "accuracy": overall_accuracy,
+        "study_streak": streak,
+        "exam_readiness": exam_readiness,
+    })
+
+    return resp
 
 
 @app.route("/api/learning_dna/track", methods=["POST"])
@@ -3124,13 +3406,21 @@ def track_learning_dna():
 
         if mistake_text:
             # Use the new enhanced mistakes format
-            conn.execute("""
+            cur = conn.execute("""
                 INSERT INTO student_mistakes (user_id, subject, topic, question, wrong_answer, correct_answer, explanation, source_type)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (uid, subject, 'General', 'Legacy mistake entry', 'Unknown', 'See explanation', mistake_text[:500], 'learning_dna'))
+            mist_row = conn.execute(
+                "SELECT * FROM student_mistakes WHERE id=?", (cur.lastrowid,)
+            ).fetchone()
+        else:
+            mist_row = None
 
     # Mirror updated Learning DNA + subject analytics to Firestore (soft-fail)
     fs_push_all_learning_dna(uid)
+    if mist_row:
+        fs_upsert_mistake(uid, dict(mist_row))
+    fs_push_progress_from_sqlite(uid)
 
     return jsonify({"ok": True})
 
@@ -3143,6 +3433,10 @@ def get_mistakes():
     user, err = require_auth()
     if err:
         return err
+
+    # Pull remote mistakes into SQLite, then mirror local up (soft-fail)
+    fs_pull_mistakes_into_sqlite(user["id"])
+    fs_push_all_mistakes(user["id"])
 
     subject = request.args.get('subject', '').strip()
     search = request.args.get('search', '').strip()
@@ -3207,7 +3501,10 @@ def add_mistake():
         mistake_id = cur.lastrowid
         row = conn.execute("SELECT * FROM student_mistakes WHERE id=?", (mistake_id,)).fetchone()
 
-    return jsonify(dict(row)), 201
+    entry = dict(row)
+    fs_upsert_mistake(user["id"], entry)
+    fs_push_progress_from_sqlite(user["id"])
+    return jsonify(entry), 201
 
 
 @app.route("/api/mistakes/<int:mistake_id>", methods=["PATCH"])
@@ -3268,7 +3565,10 @@ def update_mistake(mistake_id):
 
         updated = conn.execute("SELECT * FROM student_mistakes WHERE id=?", (mistake_id,)).fetchone()
 
-    return jsonify(dict(updated))
+    entry = dict(updated)
+    fs_upsert_mistake(user["id"], entry)
+    fs_push_progress_from_sqlite(user["id"])
+    return jsonify(entry)
 
 
 @app.route("/api/mistakes/<int:mistake_id>", methods=["DELETE"])
@@ -3285,6 +3585,8 @@ def delete_mistake(mistake_id):
         
         conn.execute("DELETE FROM student_mistakes WHERE id=?", (mistake_id,))
 
+    fs_delete_mistake(user["id"], mistake_id)
+    fs_push_progress_from_sqlite(user["id"])
     return jsonify({"ok": True})
 
 
@@ -3294,6 +3596,8 @@ def get_mistake_subjects():
     user, err = require_auth()
     if err:
         return err
+
+    fs_pull_mistakes_into_sqlite(user["id"])
 
     with get_db() as conn:
         rows = conn.execute("""
