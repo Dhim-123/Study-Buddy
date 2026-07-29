@@ -4590,6 +4590,11 @@
       const msg = (message || "").toLowerCase().trim();
       if (!msg) return false;
 
+      // Don't hijack "what is a notebook" / "how do notebooks work"
+      if (/\b(what\s+is|what's|how\s+do|explain)\b[\s\S]{0,20}\bnotebooks?\b/.test(msg)) {
+        return false;
+      }
+
       // "add a note to my living notebook", "save notes to notebook", etc.
       if (/\b(add|save|put|store)\b[\s\S]{0,50}\bnotes?\b[\s\S]{0,40}\b(living\s+)?notebook\b/.test(msg)) {
         return true;
@@ -4604,6 +4609,10 @@
       }
       // "put this in my living notebook"
       if (/\bput\b[\s\S]{0,25}\bin\s+(my\s+)?(living\s+)?notebook\b/.test(msg)) {
+        return true;
+      }
+      // "can u add a short note", "add a note", "save a quick note" (no "notebook" required)
+      if (/\b(add|save|create|write)\b[\s\S]{0,30}\b(a\s+)?(short\s+|quick\s+|brief\s+)?notes?\b/.test(msg)) {
         return true;
       }
       // "note this down", "save this note", "store this information"
@@ -8355,7 +8364,8 @@
       });
     }
 
-    function nbCreateNoteCard(entry, title, bodyText, listEl) {
+    function nbCreateNoteCard(entry, title, bodyText, listEl, options = {}) {
+      const isBulletFragment = !!options.isBulletFragment;
       const entryEl = document.createElement("div");
       entryEl.className = "nb-entry-card";
       entryEl.dataset.id = String(entry.id ?? "");
@@ -8379,7 +8389,11 @@
       delBtn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        nbDeleteEntry(entry.id, entryEl);
+        if (isBulletFragment) {
+          nbDeleteBulletFromEntry(entry.id, bodyText);
+        } else {
+          nbDeleteEntry(entry.id, entryEl);
+        }
       });
       actions.appendChild(delBtn);
 
@@ -8397,7 +8411,12 @@
 
       textarea.addEventListener("input", function() {
         autoResize.call(this);
-        nbHandleInlineEdit(entry.id, this.value, entryEl);
+        if (isBulletFragment) {
+          nbUpdateBulletInEntry(entry.id, bodyText, this.value, entryEl);
+          bodyText = this.value;
+        } else {
+          nbHandleInlineEdit(entry.id, this.value, entryEl);
+        }
       });
 
       const footer = document.createElement("div");
@@ -8481,7 +8500,7 @@
               const title = words.length <= 8
                 ? entry.content.trim().slice(0, 80)
                 : words.slice(0, 6).join(" ") + "…";
-              nbCreateNoteCard(entry, title, entry.content.trim(), list);
+              nbCreateNoteCard(entry, title, entry.content.trim(), list, { isBulletFragment: false });
               return;
             }
 
@@ -8492,7 +8511,7 @@
               const topicTitle = words.length <= 4
                 ? cleanLine
                 : words.slice(0, 4).join(" ") + "…";
-              nbCreateNoteCard(entry, topicTitle, cleanLine, list);
+              nbCreateNoteCard(entry, topicTitle, cleanLine, list, { isBulletFragment: true });
             });
           });
         });
@@ -8676,17 +8695,41 @@
       if (form) form.style.display = "none";
     }
 
-    async function nbDeleteEntry(entryId, elem) {
-      if (!confirm("Delete this notebook entry?")) return;
+    async function nbDeleteEntry(entryId, elem, options = {}) {
+      if (!options.skipConfirm && !confirm("Delete this notebook entry?")) return;
+
+      if (entryId == null || entryId === "") {
+        console.warn("nbDeleteEntry: invalid id", entryId);
+        return;
+      }
 
       const idNum = Number(entryId);
-      nbEntries = nbEntries.filter(e => Number(e.id) !== idNum && e.id !== entryId);
+      const matches = (e) =>
+        e.id === entryId ||
+        (Number.isFinite(idNum) && !Number.isNaN(idNum) && Number(e.id) === idNum);
+
+      const target = nbEntries.find(matches);
+      if (!target) {
+        console.warn("nbDeleteEntry: no matching entry for id", entryId);
+        return;
+      }
+
+      // Remove exactly one entry (first match)
+      let removed = false;
+      nbEntries = nbEntries.filter(e => {
+        if (!removed && matches(e)) {
+          removed = true;
+          return false;
+        }
+        return true;
+      });
+
       nbSaveLocal();
       nbRender();
 
-      if (currentUser?.loggedIn && entryId != null && entryId !== "") {
+      if (currentUser?.loggedIn && Number.isFinite(Number(target.id))) {
         try {
-          await fetch(`/api/notebook/entry/${entryId}`, {
+          await fetch(`/api/notebook/entry/${target.id}`, {
             method: "DELETE",
             credentials: "include",
           });
@@ -8696,9 +8739,107 @@
       }
     }
 
+    function nbFindEntry(entryId) {
+      const idNum = Number(entryId);
+      return nbEntries.find(e =>
+        e.id === entryId ||
+        (Number.isFinite(idNum) && !Number.isNaN(idNum) && Number(e.id) === idNum)
+      );
+    }
+
+    /** Remove one bullet line from a multi-bullet entry (does not delete sibling notes). */
+    async function nbDeleteBulletFromEntry(entryId, bulletText) {
+      if (!confirm("Delete this note?")) return;
+
+      const entry = nbFindEntry(entryId);
+      if (!entry) return;
+
+      const target = (bulletText || "").trim();
+      const lines = (entry.content || "").split("\n");
+      const remaining = lines.filter(line => {
+        const clean = line.replace(/^[•\-\*]\s*/, "").trim();
+        return clean !== target && line.trim() !== target;
+      });
+
+      const newContent = remaining.join("\n").trim();
+      if (!newContent) {
+        await nbDeleteEntry(entry.id, null, { skipConfirm: true });
+        return;
+      }
+
+      entry.content = newContent;
+      entry.updated_at = new Date().toISOString();
+      nbSaveLocal();
+      nbRender();
+
+      if (currentUser?.loggedIn && entry.id != null) {
+        try {
+          await fetch(`/api/notebook/entry/${entry.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ content: newContent })
+          });
+        } catch (err) {
+          console.error("Error updating entry after bullet delete:", err);
+        }
+      }
+    }
+
+    function nbUpdateBulletInEntry(entryId, oldBulletText, newBulletText, entryEl) {
+      const entry = nbFindEntry(entryId);
+      if (!entry) return;
+
+      const oldT = (oldBulletText || "").trim();
+      const newT = (newBulletText || "").trim();
+      const lines = (entry.content || "").split("\n");
+      let replaced = false;
+      const updated = lines.map(line => {
+        const clean = line.replace(/^[•\-\*]\s*/, "").trim();
+        if (!replaced && (clean === oldT || line.trim() === oldT)) {
+          replaced = true;
+          const prefix = line.match(/^[•\-\*]\s*/)?.[0] || "• ";
+          return prefix + newT;
+        }
+        return line;
+      });
+
+      if (!replaced) return;
+      entry.content = updated.join("\n");
+      entry.updated_at = new Date().toISOString();
+      nbSaveLocal();
+
+      const statusEl = entryEl?.querySelector?.(".nb-entry-status");
+      if (statusEl) {
+        statusEl.textContent = "Saving...";
+        statusEl.classList.add("visible");
+      }
+
+      if (nbDebounceTimer) clearTimeout(nbDebounceTimer);
+      nbDebounceTimer = setTimeout(async () => {
+        if (currentUser?.loggedIn && entry.id != null) {
+          try {
+            await fetch(`/api/notebook/entry/${entry.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ content: entry.content })
+            });
+          } catch (err) {
+            console.error("Error patching bullet:", err);
+          }
+        }
+        if (statusEl) {
+          statusEl.textContent = "Saved ✓";
+          setTimeout(() => statusEl.classList.remove("visible"), 1500);
+        }
+      }, 600);
+    }
+
     // Expose for any remaining HTML onclick handlers
     window.nbDeleteEntry = nbDeleteEntry;
     window.nbDeleteSubject = nbDeleteSubject;
+    window.nbDeleteBulletFromEntry = nbDeleteBulletFromEntry;
 
     async function nbMoveEntry(entryId, direction) {
       const idx = nbEntries.findIndex(e => e.id === entryId);
