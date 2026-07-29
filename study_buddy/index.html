@@ -2960,10 +2960,10 @@
     <div class="section-container">
       <div class="feature-header">
         <h2>🎯 Flashcard Generator</h2>
-        <p>Create flashcards from your last chat question. Click a card to flip it.</p>
+        <p>Create flashcards from a topic, or leave blank to use the entire conversation. Click a card to flip it.</p>
       </div>
       <div class="flashcard-input">
-        <textarea id="flashcard-input" placeholder="Leave blank to use your last chat question" rows="2"></textarea>
+        <textarea id="flashcard-input" placeholder="Leave blank to use the entire conversation" rows="2"></textarea>
         <button id="generate-flashcard-btn" class="btn-primary">📇 Generate Flashcards</button>
       </div>
       <div id="flashcards-output" class="flashcards-container"></div>
@@ -2975,10 +2975,10 @@
     <div class="section-container">
       <div class="feature-header">
         <h2>❓ Quiz Generator</h2>
-        <p>Create a quiz from your last chat question and test yourself.</p>
+        <p>Create a quiz from a topic, or leave blank to use the entire conversation.</p>
       </div>
       <div class="quiz-input">
-        <textarea id="quiz-input" placeholder="Leave blank to use your last chat question" rows="2"></textarea>
+        <textarea id="quiz-input" placeholder="Leave blank to use the entire conversation" rows="2"></textarea>
         <button id="generate-quiz-btn" class="btn-primary">✍️ Generate Quiz</button>
       </div>
       <div id="quiz-output" class="quiz-container"></div>
@@ -4757,31 +4757,32 @@
     }
 
     function executeFlashcards(topic) {
-      const source = featureTopicSource(topic);
-      // Generate immediately — do not leave the user on a Generate button
+      const topicText = (!topic || topic === "ENTIRE_CONVERSATION") ? "" : String(topic).trim();
+      const flashcardInput = document.getElementById("flashcard-input");
+      if (flashcardInput) flashcardInput.value = topicText;
+
       if (typeof generateFlashcardsFromAnswer === "function") {
-        generateFlashcardsFromAnswer(source, true);
+        generateFlashcardsFromAnswer(topicText, true, {
+          scope: topicText ? "topic" : "conversation"
+        });
         return;
       }
       showSection("flashcards");
-      const flashcardInput = document.getElementById("flashcard-input");
-      if (flashcardInput) {
-        flashcardInput.value = topic === "ENTIRE_CONVERSATION" ? "" : (topic || "");
-      }
       setTimeout(() => document.getElementById("generate-flashcard-btn")?.click(), 100);
     }
 
     function executeQuiz(topic) {
-      const source = featureTopicSource(topic);
+      const topicText = (!topic || topic === "ENTIRE_CONVERSATION") ? "" : String(topic).trim();
+      const quizInput = document.getElementById("quiz-input");
+      if (quizInput) quizInput.value = topicText;
+
       if (typeof generateQuizFromAnswer === "function") {
-        generateQuizFromAnswer(source, true);
+        generateQuizFromAnswer(topicText, true, {
+          scope: topicText ? "topic" : "conversation"
+        });
         return;
       }
       showSection("quiz");
-      const quizInput = document.getElementById("quiz-input");
-      if (quizInput) {
-        quizInput.value = topic === "ENTIRE_CONVERSATION" ? "" : (topic || "");
-      }
       setTimeout(() => document.getElementById("generate-quiz-btn")?.click(), 100);
     }
 
@@ -5564,7 +5565,7 @@
           quizBtn.textContent = "❓ Quiz";
           quizBtn.onclick = () => {
             if (!currentUser?.loggedIn) return alert("Please log in to use this feature.");
-            generateQuizFromAnswer(text);
+            generateQuizFromAnswer(text, true, { scope: "answer" });
           };
           actions.appendChild(quizBtn);
 
@@ -5967,6 +5968,33 @@
       return cleaned || fallbackText;
     }
 
+    /** Blank / ENTIRE_CONVERSATION → full chat. Otherwise focus only on the topic. */
+    function buildFlashcardsPrompt(topic, scope) {
+      const t = (topic || "").trim();
+      const s = scope || ((!t || t === "ENTIRE_CONVERSATION") ? "conversation" : "topic");
+
+      if (s === "conversation" || !t || t === "ENTIRE_CONVERSATION") {
+        return "Generate 5-10 flashcard Q&A pairs in English covering the ENTIRE conversation above. Use all prior user questions and assistant replies. Do not focus only on the latest message.";
+      }
+      if (s === "answer") {
+        return `Create 5-10 flashcard Q&A pairs in English focused ONLY on the assistant material below. Do not cover unrelated parts of the conversation.\n\n${t}`;
+      }
+      return `Generate 5-10 flashcard Q&A pairs in English focused ONLY on this topic: "${t}". Do not cover unrelated parts of the conversation.`;
+    }
+
+    function buildQuizPrompt(topic, scope) {
+      const t = (topic || "").trim();
+      const s = scope || ((!t || t === "ENTIRE_CONVERSATION") ? "conversation" : "topic");
+
+      if (s === "conversation" || !t || t === "ENTIRE_CONVERSATION") {
+        return "Create a 5-question multiple choice quiz in English covering the ENTIRE conversation above. Use all prior user questions and assistant replies. Do not focus only on the latest message.";
+      }
+      if (s === "answer") {
+        return `Create a 5-question multiple choice quiz in English focused ONLY on the assistant material below. Do not cover unrelated parts of the conversation.\n\n${t}`;
+      }
+      return `Create a 5-question multiple choice quiz in English focused ONLY on this topic: "${t}". Do not cover unrelated parts of the conversation.`;
+    }
+
     function buildMessagesWithPrompt(prompt) {
       const cleaned = prompt.trim();
       const messages = [...history];
@@ -6297,9 +6325,15 @@
       }
     }
 
-    async function generateFlashcardsFromAnswer(text, switchToTab = true) {
-      const prompt = `Using the full chat conversation and the assistant answer below, create 5-10 flashcard Q&A pairs in English. Use the entire conversation as context, covering all prior user questions and the full discussion. Do not focus only on the latest question.\n\n${text}`.trim();
+    async function generateFlashcardsFromAnswer(text, switchToTab = true, options = {}) {
+      const topic = (text || "").trim();
+      const scope = options.scope || (topic ? "topic" : "conversation");
+      const prompt = buildFlashcardsPrompt(topic, scope);
       if (!prompt) return;
+      if (scope === "conversation" && (!history || history.length === 0)) {
+        alert("Ask a question in the chat first or type a topic.");
+        return;
+      }
       if (switchToTab) {
         document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
         const fTab = [...document.querySelectorAll(".tab-btn")].find(b => b.dataset.tab === "flashcards");
@@ -6360,9 +6394,15 @@
       }
     }
 
-    async function generateQuizFromAnswer(text, switchToTab = true) {
-      const prompt = `Using the full chat conversation and the assistant answer below, create a 5-question multiple choice quiz in English. Use the entire conversation as context, covering all prior user questions and earlier assistant replies. Do not focus only on the latest question.\n\n${text}`.trim();
+    async function generateQuizFromAnswer(text, switchToTab = true, options = {}) {
+      const topic = (text || "").trim();
+      const scope = options.scope || (topic ? "topic" : "conversation");
+      const prompt = buildQuizPrompt(topic, scope);
       if (!prompt) return;
+      if (scope === "conversation" && (!history || history.length === 0)) {
+        alert("Ask a question in the chat first or type a topic.");
+        return;
+      }
       if (switchToTab) {
         document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
         const qTab = [...document.querySelectorAll(".tab-btn")].find(b => b.dataset.tab === "quiz");
@@ -6491,12 +6531,12 @@
     // =====================================================================
 
     document.getElementById("generate-flashcard-btn").addEventListener("click", async () => {
-      const rawInput = document.getElementById("flashcard-input").value;
-      const prompt = resolveFeaturePrompt(rawInput, "Generate flashcards covering the entire conversation.");
-      if (!prompt) {
+      const rawInput = (document.getElementById("flashcard-input").value || "").trim();
+      if (!rawInput && (!history || history.length === 0)) {
         alert("Ask a question in the chat first or type a topic.");
         return;
       }
+      const prompt = buildFlashcardsPrompt(rawInput, rawInput ? "topic" : "conversation");
 
       const output = document.getElementById("flashcards-output");
       output.innerHTML = `<div style="grid-column: 1/-1; display: flex; justify-content: center; align-items: center; min-height: 200px;"><div class="loading-spinner" style="margin-right: 12px;"></div> Generating flashcards...</div>`;
@@ -6559,12 +6599,12 @@
     // =====================================================================
 
     document.getElementById("generate-quiz-btn").addEventListener("click", async () => {
-      const rawInput = document.getElementById("quiz-input").value;
-      const prompt = resolveFeaturePrompt(rawInput, "Generate a quiz covering the entire conversation.");
-      if (!prompt) {
+      const rawInput = (document.getElementById("quiz-input").value || "").trim();
+      if (!rawInput && (!history || history.length === 0)) {
         alert("Ask a question in the chat first or type a topic.");
         return;
       }
+      const prompt = buildQuizPrompt(rawInput, rawInput ? "topic" : "conversation");
 
       const output = document.getElementById("quiz-output");
       output.innerHTML = `<div style="display: flex; justify-content: center; align-items: center; min-height: 200px;"><div class="loading-spinner" style="margin-right: 12px;"></div> Generating quiz...</div>`;
