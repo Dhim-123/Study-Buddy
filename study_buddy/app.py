@@ -607,6 +607,7 @@ def init_db():
                 identifier  TEXT    NOT NULL UNIQUE,
                 password_hash TEXT  NOT NULL,
                 buddy_name  TEXT    NOT NULL DEFAULT 'Max',
+                firebase_uid TEXT   UNIQUE,
                 created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
             );
 
@@ -760,10 +761,79 @@ def init_db():
             conn.execute("PRAGMA foreign_keys=ON")
             print("[DB] Mistake Vault migration complete!")
 
+        # Firebase Auth: link Google users to local SQLite rows
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN firebase_uid TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid)"
+            )
+        except Exception:
+            pass
+
 
 # =====================================================================
 #  STEP 5: AUTH HELPERS
 # =====================================================================
+
+_firebase_app = None
+
+
+def init_firebase_admin():
+    """Initialize firebase-admin once from env. Returns app or None if not configured."""
+    global _firebase_app
+    if _firebase_app is not None:
+        return _firebase_app
+    try:
+        import firebase_admin
+        from firebase_admin import credentials
+    except ImportError:
+        print("[Firebase] firebase-admin not installed.")
+        return None
+
+    if firebase_admin._apps:
+        _firebase_app = firebase_admin.get_app()
+        return _firebase_app
+
+    sa_json = (os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON") or "").strip()
+    sa_path = (os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH") or "").strip()
+    try:
+        if sa_json:
+            info = json.loads(sa_json)
+            cred = credentials.Certificate(info)
+        elif sa_path and os.path.exists(sa_path):
+            cred = credentials.Certificate(sa_path)
+        else:
+            return None
+        _firebase_app = firebase_admin.initialize_app(cred)
+        print("[Firebase] Admin SDK initialized.")
+        return _firebase_app
+    except Exception as e:
+        print(f"[Firebase] Failed to initialize Admin SDK: {e}")
+        return None
+
+
+def get_firebase_web_config():
+    """Public Firebase web client config (safe to expose to the browser)."""
+    raw = (os.getenv("FIREBASE_WEB_CONFIG") or "").strip()
+    if not raw:
+        return None
+    try:
+        cfg = json.loads(raw)
+        if not cfg.get("apiKey") or not cfg.get("projectId"):
+            return None
+        return {
+            "apiKey": cfg.get("apiKey"),
+            "authDomain": cfg.get("authDomain"),
+            "projectId": cfg.get("projectId"),
+            "appId": cfg.get("appId"),
+            "messagingSenderId": cfg.get("messagingSenderId"),
+            "storageBucket": cfg.get("storageBucket"),
+        }
+    except Exception:
+        return None
 
 def hash_password(password: str) -> str:
     """SHA-256 hash of the password with a salt prefix."""
@@ -950,6 +1020,89 @@ def auth_logout():
     """Clear the session."""
     session.clear()
     return jsonify({"ok": True})
+
+
+@app.route("/api/config/firebase", methods=["GET"])
+def firebase_config():
+    """Public Firebase web config for the browser SDK (no service account secrets)."""
+    cfg = get_firebase_web_config()
+    if not cfg:
+        return jsonify({"enabled": False})
+    return jsonify({"enabled": True, **cfg})
+
+
+@app.route("/api/auth/firebase", methods=["POST"])
+def auth_firebase():
+    """Verify a Firebase ID token and create/link a local SQLite session user."""
+    if not init_firebase_admin():
+        return jsonify({"error": "Firebase auth is not configured on the server."}), 503
+
+    from firebase_admin import auth as fb_auth
+
+    data = request.get_json(force=True) or {}
+    id_token = (data.get("idToken") or "").strip()
+    if not id_token:
+        return jsonify({"error": "idToken is required."}), 400
+
+    try:
+        decoded = fb_auth.verify_id_token(id_token)
+    except Exception:
+        return jsonify({"error": "Invalid or expired Firebase token."}), 401
+
+    firebase_uid = decoded.get("uid")
+    if not firebase_uid:
+        return jsonify({"error": "Token missing uid."}), 401
+
+    email = (decoded.get("email") or "").strip()
+    name = (decoded.get("name") or "").strip()
+    identifier = email or f"google:{firebase_uid}"
+    buddy_name = (name.split()[0] if name else "Max").strip() or "Max"
+
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE firebase_uid=?", (firebase_uid,)
+            ).fetchone()
+
+            if not row and email:
+                existing = conn.execute(
+                    "SELECT * FROM users WHERE identifier=?", (email,)
+                ).fetchone()
+                if existing:
+                    conn.execute(
+                        "UPDATE users SET firebase_uid=? WHERE id=?",
+                        (firebase_uid, existing["id"]),
+                    )
+                    row = conn.execute(
+                        "SELECT * FROM users WHERE id=?", (existing["id"],)
+                    ).fetchone()
+
+            if not row:
+                unusable = "firebase_only:" + secrets.token_hex(32)
+                # Avoid identifier clashes with a unique fallback
+                try:
+                    conn.execute(
+                        "INSERT INTO users (identifier, password_hash, buddy_name, firebase_uid) VALUES (?,?,?,?)",
+                        (identifier, unusable, buddy_name, firebase_uid),
+                    )
+                except sqlite3.IntegrityError:
+                    identifier = f"google:{firebase_uid}"
+                    conn.execute(
+                        "INSERT INTO users (identifier, password_hash, buddy_name, firebase_uid) VALUES (?,?,?,?)",
+                        (identifier, unusable, buddy_name, firebase_uid),
+                    )
+                row = conn.execute(
+                    "SELECT * FROM users WHERE firebase_uid=?", (firebase_uid,)
+                ).fetchone()
+
+        session.permanent = True
+        session["user_id"] = row["id"]
+        return jsonify({
+            "identifier": row["identifier"],
+            "buddyName": row["buddy_name"],
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ── Conversation Routes ───────────────────────────────────────────────

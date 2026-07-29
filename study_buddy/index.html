@@ -2775,6 +2775,16 @@
                 <button class="btn-primary" id="auth-submit-btn" style="flex:1;">Login</button>
                 <button class="btn-icon" id="auth-toggle-btn" type="button" style="flex:1; justify-content:center;">Register</button>
               </div>
+              <div id="auth-google-wrap" class="logged-out-only" style="margin-top:12px;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; color:var(--muted); font-size:0.78rem;">
+                  <span style="flex:1; height:1px; background:var(--border);"></span>
+                  <span>or</span>
+                  <span style="flex:1; height:1px; background:var(--border);"></span>
+                </div>
+                <button class="btn-icon" id="auth-google-btn" type="button" style="width:100%; justify-content:center; font-weight:700;">
+                  Continue with Google
+                </button>
+              </div>
               <div id="auth-message" class="hint-box" style="display:none; margin-top: 10px;"></div>
               
             </div>
@@ -3377,6 +3387,8 @@
     </div>
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script>
     /*
       ╔══════════════════════════════════════════════════════════════╗
@@ -3554,6 +3566,36 @@
       //  AUTH STATE & UI UPDATES
       // =====================================================================
       let currentUser = null;
+      let firebaseReady = false;
+      let firebaseAuth = null;
+
+      async function initFirebaseClient() {
+        const googleWrap = document.getElementById("auth-google-wrap");
+        try {
+          const res = await fetch("/api/config/firebase", { credentials: "include" });
+          const cfg = await res.json();
+          if (!cfg?.enabled || !cfg.apiKey || typeof firebase === "undefined") {
+            if (googleWrap) googleWrap.style.display = "none";
+            return;
+          }
+          if (!firebase.apps.length) {
+            firebase.initializeApp({
+              apiKey: cfg.apiKey,
+              authDomain: cfg.authDomain,
+              projectId: cfg.projectId,
+              appId: cfg.appId,
+              messagingSenderId: cfg.messagingSenderId,
+              storageBucket: cfg.storageBucket,
+            });
+          }
+          firebaseAuth = firebase.auth();
+          firebaseReady = true;
+          if (googleWrap && !currentUser?.loggedIn) googleWrap.style.display = "block";
+        } catch (err) {
+          console.warn("Firebase client init skipped:", err);
+          if (googleWrap) googleWrap.style.display = "none";
+        }
+      }
 
       function updateAuthUI(options = {}) {
         const clearMessage = options.clearMessage !== false;
@@ -3572,6 +3614,7 @@
         const pwLabel = document.querySelector('.auth-card .field label[for="auth-password"]');
         const usernameInputEl = document.getElementById("username-input");
         const headerAuthBtn = document.getElementById("auth-btn");
+        const googleWrap = document.getElementById("auth-google-wrap");
 
         if (!authCard) return;
         if (!authCard.dataset.mode) authCard.dataset.mode = "login";
@@ -3593,6 +3636,7 @@
           if (pwLabel) pwLabel.style.display = "none";
           if (logoutBtn) logoutBtn.style.display = "block";
           if (buddyNameField) buddyNameField.style.display = "none";
+          if (googleWrap) googleWrap.style.display = "none";
 
           loggedInOnlyElements.forEach(el => el.style.display = "block");
           if (buddyNameEl) buddyNameEl.value = currentUser.buddyName || "Nova";
@@ -3614,6 +3658,7 @@
           if (idLabel) idLabel.style.display = "block";
           if (pwLabel) pwLabel.style.display = "block";
           if (logoutBtn) logoutBtn.style.display = "none";
+          if (googleWrap) googleWrap.style.display = firebaseReady ? "block" : "none";
 
           loggedInOnlyElements.forEach(el => el.style.display = "none");
           if (buddyNameEl) buddyNameEl.value = "";
@@ -3692,6 +3737,7 @@
           autoGrow(userInputEl);
         }
 
+        await initFirebaseClient();
         await checkLoginStatus();
         updateNotesIndicators();
       }
@@ -4123,6 +4169,9 @@
       // Handle Logout
       logoutBtn.addEventListener("click", async () => {
         try {
+          if (firebaseAuth) {
+            try { await firebaseAuth.signOut(); } catch (_) { /* ignore */ }
+          }
           const res = await fetch("/api/auth/logout", {
             method: "POST",
             credentials: "include",
@@ -4148,6 +4197,51 @@
           showAuthMessage(`Network error: ${err.message}`, true);
         }
       });
+
+      const authGoogleBtn = document.getElementById("auth-google-btn");
+      if (authGoogleBtn) {
+        authGoogleBtn.addEventListener("click", async () => {
+          if (!firebaseReady || !firebaseAuth) {
+            showAuthMessage("Google Sign-In is not configured yet. Set FIREBASE_WEB_CONFIG on the server.", true);
+            return;
+          }
+          authGoogleBtn.disabled = true;
+          try {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            const result = await firebaseAuth.signInWithPopup(provider);
+            const idToken = await result.user.getIdToken();
+            const res = await fetch("/api/auth/firebase", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ idToken }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              updateAuthUI({ clearMessage: false });
+              showAuthMessage(data.error || "Google sign-in failed.", true);
+              return;
+            }
+            currentUser = {
+              loggedIn: true,
+              identifier: data.identifier,
+              buddyName: data.buddyName,
+            };
+            localStorage.setItem("sb_auth_identifier", data.identifier || "");
+            updateAuthUI({ clearMessage: false });
+            showAuthMessage(`Login successful. Welcome, ${data.buddyName}!`);
+            await fetchChatHistory();
+          } catch (err) {
+            updateAuthUI({ clearMessage: false });
+            const msg = err?.code === "auth/popup-closed-by-user"
+              ? "Google sign-in cancelled."
+              : (err?.message || "Google sign-in failed.");
+            showAuthMessage(msg, true);
+          } finally {
+            authGoogleBtn.disabled = false;
+          }
+        });
+      }
 
 
       // =====================================================================
