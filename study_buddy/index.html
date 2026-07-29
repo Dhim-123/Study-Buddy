@@ -6006,9 +6006,9 @@
         return "Generate 5-10 flashcard Q&A pairs in English covering the ENTIRE conversation above. Use all prior user questions and assistant replies. Do not focus only on the latest message.";
       }
       if (s === "answer") {
-        return `Create 5-10 flashcard Q&A pairs in English focused ONLY on the assistant material below. Do not cover unrelated parts of the conversation.\n\n${t}`;
+        return `Create 5-10 flashcard Q&A pairs in English focused ONLY on the assistant material below. Ignore any other chat context.\n\n${t}`;
       }
-      return `Generate 5-10 flashcard Q&A pairs in English focused ONLY on this topic: "${t}". Do not cover unrelated parts of the conversation.`;
+      return `Generate 5-10 flashcard Q&A pairs in English about "${t}" only. Do not use or continue any prior chat topics. Ignore anything unrelated to "${t}".`;
     }
 
     function buildQuizPrompt(topic, scope) {
@@ -6019,13 +6019,17 @@
         return "Create a 5-question multiple choice quiz in English covering the ENTIRE conversation above. Use all prior user questions and assistant replies. Do not focus only on the latest message.";
       }
       if (s === "answer") {
-        return `Create a 5-question multiple choice quiz in English focused ONLY on the assistant material below. Do not cover unrelated parts of the conversation.\n\n${t}`;
+        return `Create a 5-question multiple choice quiz in English focused ONLY on the assistant material below. Ignore any other chat context.\n\n${t}`;
       }
-      return `Create a 5-question multiple choice quiz in English focused ONLY on this topic: "${t}". Do not cover unrelated parts of the conversation.`;
+      return `Create a 5-question multiple choice quiz in English about "${t}" only. Do not use or continue any prior chat topics. Ignore anything unrelated to "${t}".`;
     }
 
-    function buildMessagesWithPrompt(prompt) {
-      const cleaned = prompt.trim();
+    function buildMessagesWithPrompt(prompt, options = {}) {
+      const cleaned = (prompt || "").trim();
+      const includeHistory = options.includeHistory !== false;
+      if (!includeHistory) {
+        return cleaned ? [{ role: "user", content: cleaned }] : [];
+      }
       const messages = [...history];
       if (cleaned) {
         messages.push({ role: "user", content: cleaned });
@@ -6217,7 +6221,10 @@
       try {
         let messagesToSend = [];
         if (customTopic) {
-          messagesToSend = [{ role: "user", content: `Please create a podcast about: ${customTopic}` }];
+          messagesToSend = [{
+            role: "user",
+            content: `Create a podcast about "${customTopic}" only. Do not use or continue any prior chat topics. Ignore anything unrelated to "${customTopic}".`
+          }];
         } else {
           if (history.length === 0) {
             output.innerHTML = `<div style="color: var(--accent2);">❌ Chat is empty. Please start a conversation or enter a custom topic.</div>`;
@@ -6378,11 +6385,12 @@
       output.innerHTML = `<div style="grid-column: 1/-1; display: flex; justify-content: center; align-items: center; min-height: 200px;"><div class="loading-spinner" style="margin-right: 12px;"></div> Generating flashcards...</div>`;
 
       try {
+        const includeHistory = scope === "conversation";
         const res = await fetch("/api/flashcards", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: buildMessagesWithPrompt(prompt),
+            messages: buildMessagesWithPrompt(prompt, { includeHistory }),
             model: cfg.model,
             notes: notesContent,
           }),
@@ -6447,11 +6455,12 @@
       output.innerHTML = `<div style="display: flex; justify-content: center; align-items: center; min-height: 200px;"><div class="loading-spinner" style="margin-right: 12px;"></div> Generating quiz...</div>`;
 
       try {
+        const includeHistory = scope === "conversation";
         const res = await fetch("/api/quiz", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: buildMessagesWithPrompt(prompt),
+            messages: buildMessagesWithPrompt(prompt, { includeHistory }),
             model: cfg.model,
             notes: notesContent,
           }),
@@ -6565,7 +6574,8 @@
         alert("Ask a question in the chat first or type a topic.");
         return;
       }
-      const prompt = buildFlashcardsPrompt(rawInput, rawInput ? "topic" : "conversation");
+      const scope = rawInput ? "topic" : "conversation";
+      const prompt = buildFlashcardsPrompt(rawInput, scope);
 
       const output = document.getElementById("flashcards-output");
       output.innerHTML = `<div style="grid-column: 1/-1; display: flex; justify-content: center; align-items: center; min-height: 200px;"><div class="loading-spinner" style="margin-right: 12px;"></div> Generating flashcards...</div>`;
@@ -6575,7 +6585,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: buildMessagesWithPrompt(prompt),
+            messages: buildMessagesWithPrompt(prompt, { includeHistory: scope === "conversation" }),
             model: cfg.model,
             notes: notesContent,
           }),
@@ -6633,7 +6643,8 @@
         alert("Ask a question in the chat first or type a topic.");
         return;
       }
-      const prompt = buildQuizPrompt(rawInput, rawInput ? "topic" : "conversation");
+      const scope = rawInput ? "topic" : "conversation";
+      const prompt = buildQuizPrompt(rawInput, scope);
 
       const output = document.getElementById("quiz-output");
       output.innerHTML = `<div style="display: flex; justify-content: center; align-items: center; min-height: 200px;"><div class="loading-spinner" style="margin-right: 12px;"></div> Generating quiz...</div>`;
@@ -6643,7 +6654,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: buildMessagesWithPrompt(prompt),
+            messages: buildMessagesWithPrompt(prompt, { includeHistory: scope === "conversation" }),
             model: cfg.model,
             notes: notesContent,
           }),
