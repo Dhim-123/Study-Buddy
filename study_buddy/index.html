@@ -2735,6 +2735,9 @@
     <button class="tab-btn" data-tab="quiz">❓ Quiz</button>
     <button class="tab-btn" data-tab="crosscheck">🧪 Crosscheck</button>
     <button class="tab-btn" data-tab="definitions">📖 Definitions</button>
+    <button class="tab-btn" data-tab="papers">📝 Papers</button>
+    <button class="tab-btn" data-tab="diagrams">🖼 Diagrams</button>
+    <button class="tab-btn" data-tab="formulas">📐 Formulas</button>
     <button class="tab-btn" data-tab="learning-dna">🧬 Learning DNA</button>
     <button class="tab-btn" data-tab="mistake-vault">🗃️ Mistake Vault</button>
   </nav>
@@ -2845,10 +2848,13 @@
           <h2 id="welcome-title">Hi! 👋 I'm Max.</h2>
           <p id="welcome-desc">Please set your username in Settings. What would you like to learn today?</p>
           <div class="upload-card">
-            <strong>Upload your study notes</strong>
-            <p>Upload a plain text file (.txt). Once uploaded, the AI will prioritize these notes and answer questions mainly with respect to them.</p>
-            <input type="file" id="upload-input-welcome" accept=".txt" class="input file-input" />
-            <button class="qs-btn" id="upload-welcome-btn">📤 Upload Notes</button>
+            <strong>Upload study notes or a page photo</strong>
+            <p>Upload a .txt file, or a photo of a textbook/notes page (OCR). The AI will prioritize this material.</p>
+            <input type="file" id="upload-input-welcome" accept=".txt,image/*,.jpg,.jpeg,.png,.webp" class="input file-input" />
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+              <button class="qs-btn" id="upload-welcome-btn">📤 Upload Notes / Photo</button>
+              <button class="qs-btn" id="ocr-save-notebook-btn" type="button" style="display:none;">📔 Save OCR to Notebook</button>
+            </div>
             <div id="upload-welcome-status" class="hint-box" style="display:none; margin-top: 4px;"></div>
             <div id="notes-badge-welcome" class="hint-box" style="display:none; margin-top: 8px; border: 1px dashed var(--accent3); background: rgba(82, 232, 160, 0.05); color: var(--accent3);"></div>
           </div>
@@ -2858,7 +2864,11 @@
 
       <!-- Input -->
       <div id="input-bar">
-        <textarea id="user-input" placeholder="Ask me anything…" rows="1"></textarea>
+        <input type="file" id="chat-ocr-input" accept="image/*,.jpg,.jpeg,.png,.webp" style="display:none;" />
+        <button id="attach-ocr-btn" type="button" title="Upload page photo (OCR)" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--text); cursor:pointer; font-size:1.1rem;">📷</button>
+        <button id="mic-btn" type="button" title="Voice message" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--text); cursor:pointer; font-size:1.1rem;">🎤</button>
+        <textarea id="user-input" placeholder="Ask me anything… (or use 📷 / 🎤)" rows="1"></textarea>
+        <button id="voice-reply-toggle" type="button" title="Speak buddy replies" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--muted); cursor:pointer; font-size:0.95rem;">🔇</button>
         <button id="send-btn" title="Send (Enter)">➤</button>
       </div>
 
@@ -2959,6 +2969,16 @@
       </div>
       <div class="podcast-input">
         <textarea id="podcast-input" placeholder="Custom Podcast Topic (Leave blank to use full conversation)" rows="2"></textarea>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:10px 0;">
+          <label for="podcast-voice-preset" style="font-size:0.85rem; font-weight:700; color:var(--muted);">Voices</label>
+          <select id="podcast-voice-preset" class="input" style="min-width:220px; padding:8px 10px; font-size:0.85rem;">
+            <option value="alex_maya_us">Alex & Maya (US)</option>
+            <option value="oliver_sonia_uk">Oliver & Sonia (UK)</option>
+            <option value="prabhat_neerja_in">Prabhat & Neerja (India EN)</option>
+            <option value="guy_aria_us">Guy & Aria (US)</option>
+            <option value="davis_emma_us">Davis & Emma (US)</option>
+          </select>
+        </div>
         <button id="generate-podcast-btn" class="btn-primary">🎙️ Generate Podcast Audio</button>
       </div>
       <div id="podcast-output" class="feature-output"></div>
@@ -3387,6 +3407,60 @@
     </div>
   </div>
 
+  <!-- PAPERS SECTION -->
+  <div id="papers-section" class="feature-section" style="display:none;">
+    <div class="section-container">
+      <div class="feature-header">
+        <h2>📝 Previous-Year Paper Generator</h2>
+        <p>Generate a board-style practice paper for any subject and grade.</p>
+      </div>
+      <div class="podcast-input" style="display:flex; flex-direction:column; gap:10px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <input id="paper-subject" class="input" placeholder="Subject (e.g. Physics)" value="Physics" />
+          <input id="paper-exam" class="input" placeholder="Exam (e.g. CBSE Board)" value="CBSE Board" />
+          <input id="paper-grade" class="input" placeholder="Grade (e.g. Class 10)" value="Class 10" />
+          <input id="paper-year" class="input" placeholder="Style year (e.g. 2024)" value="2024" />
+        </div>
+        <input id="paper-chapters" class="input" placeholder="Optional chapters / topics" />
+        <button id="generate-paper-btn" class="btn-primary">📄 Generate Paper</button>
+      </div>
+      <div id="papers-output" class="feature-output" style="white-space:pre-wrap;"></div>
+    </div>
+  </div>
+
+  <!-- DIAGRAMS SECTION -->
+  <div id="diagrams-section" class="feature-section" style="display:none;">
+    <div class="section-container">
+      <div class="feature-header">
+        <h2>🖼 Educational Diagrams</h2>
+        <p>Generate a labeled SVG diagram for any topic.</p>
+      </div>
+      <div class="podcast-input">
+        <textarea id="diagram-input" placeholder="e.g. Water cycle, Neuron structure, Quadratic formula graph" rows="2"></textarea>
+        <button id="generate-diagram-btn" class="btn-primary">🎨 Generate Diagram</button>
+      </div>
+      <div id="diagrams-output" class="feature-output"></div>
+    </div>
+  </div>
+
+  <!-- FORMULAS SECTION -->
+  <div id="formulas-section" class="feature-section" style="display:none;">
+    <div class="section-container">
+      <div class="feature-header">
+        <h2>📐 Formula Generator</h2>
+        <p>Build a formula sheet, then optionally save it to Living Notebook.</p>
+      </div>
+      <div class="podcast-input">
+        <textarea id="formula-input" placeholder="e.g. Kinematics, Organic chemistry reactions, Trigonometry identities" rows="2"></textarea>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+          <button id="generate-formula-btn" class="btn-primary">📐 Generate Formulas</button>
+          <button id="save-formula-notebook-btn" class="btn-icon" type="button" style="display:none;">📔 Save to Notebook</button>
+        </div>
+      </div>
+      <div id="formulas-output" class="feature-output" style="white-space:pre-wrap;"></div>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script>
@@ -3762,6 +3836,7 @@
     });
 
     function showUploadStatus(el, message, isError = false) {
+      if (!el) return;
       el.textContent = message;
       el.style.display = "block";
       el.style.color = isError ? "#ff7eb6" : "#52e8a0";
@@ -3802,46 +3877,69 @@
     function readTextFile(inputEl, statusEl) {
       const file = inputEl.files[0];
       if (!file) {
-        showUploadStatus(statusEl, "Please choose a .txt file first.", true);
-        return;
-      }
-      if (!file.name.toLowerCase().endsWith(".txt")) {
-        showUploadStatus(statusEl, "Only .txt files are supported.", true);
+        showUploadStatus(statusEl, "Please choose a .txt file or page photo first.", true);
         return;
       }
 
-      // Max size limit: 2MB to prevent crash/DoS
-      const maxSizeBytes = 2 * 1024 * 1024;
+      const maxSizeBytes = 8 * 1024 * 1024;
       if (file.size > maxSizeBytes) {
-        showUploadStatus(statusEl, "File is too large. Maximum size is 2MB.", true);
+        showUploadStatus(statusEl, "File is too large. Maximum size is 8MB.", true);
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        notesContent = reader.result;
-        notesFileName = file.name;
-        
+      const nameLower = file.name.toLowerCase();
+      const isTxt = nameLower.endsWith(".txt");
+      const isImage = (file.type || "").startsWith("image/") || /\.(jpe?g|png|webp|gif)$/i.test(nameLower);
+
+      if (isTxt) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          notesContent = reader.result;
+          notesFileName = file.name;
+          localStorage.setItem("sb_notes_content", notesContent);
+          localStorage.setItem("sb_notes_filename", notesFileName);
+          showUploadStatus(statusEl, `Loaded notes successfully (${(file.size / 1024).toFixed(1)} KB). AI will prioritize your notes.`);
+          updateNotesIndicators();
+          const saveBtn = document.getElementById("ocr-save-notebook-btn");
+          if (saveBtn) saveBtn.style.display = "none";
+        };
+        reader.onerror = () => showUploadStatus(statusEl, "Unable to read the file.", true);
+        reader.readAsText(file, "UTF-8");
+        return;
+      }
+
+      if (isImage) {
+        runOcrOnFile(file, statusEl);
+        return;
+      }
+
+      showUploadStatus(statusEl, "Only .txt or image files (jpg/png/webp) are supported.", true);
+    }
+
+    async function runOcrOnFile(file, statusEl) {
+      showUploadStatus(statusEl, "Reading page with OCR… this may take a few seconds.");
+      const saveBtn = document.getElementById("ocr-save-notebook-btn");
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/ocr", { method: "POST", body: fd });
+        const data = await readJsonResponse(res);
+        if (!res.ok) throw new Error(data?.error || "OCR failed");
+        const text = (data.text || "").trim();
+        if (!text) throw new Error("No text found in image.");
+
+        notesContent = text;
+        notesFileName = file.name + " (OCR)";
         localStorage.setItem("sb_notes_content", notesContent);
         localStorage.setItem("sb_notes_filename", notesFileName);
-        
-        // Show success status
-        showUploadStatus(statusEl, `Loaded notes successfully (${(file.size / 1024).toFixed(1)} KB). AI will prioritize your notes.`);
-        
-        // Update both indicators
+        showUploadStatus(statusEl, `OCR extracted ${text.length} characters from ${file.name}. AI will prioritize this text.`);
         updateNotesIndicators();
-
-        // Sync inputs if applicable
-        const welcomeStatus = document.getElementById("upload-welcome-status");
-        const rightStatus = document.getElementById("upload-right-status");
-        const successMsg = `Loaded notes: ${notesFileName}`;
-        if (welcomeStatus) showUploadStatus(welcomeStatus, successMsg);
-        if (rightStatus) showUploadStatus(rightStatus, successMsg);
-      };
-      reader.onerror = () => {
-        showUploadStatus(statusEl, "Unable to read the file.", true);
-      };
-      reader.readAsText(file, "UTF-8");
+        if (saveBtn) saveBtn.style.display = "inline-flex";
+        window.__lastOcrText = text;
+      } catch (err) {
+        showUploadStatus(statusEl, `OCR failed: ${err.message}`, true);
+        if (saveBtn) saveBtn.style.display = "none";
+      }
     }
 
 
@@ -4525,6 +4623,20 @@
       const statusEl = document.getElementById("upload-welcome-status");
       readTextFile(inputEl, statusEl);
     };
+
+    const ocrSaveNbBtn = document.getElementById("ocr-save-notebook-btn");
+    if (ocrSaveNbBtn) {
+      ocrSaveNbBtn.onclick = async () => {
+        const text = (window.__lastOcrText || notesContent || "").trim();
+        if (!text) return;
+        try {
+          await saveLivingNotebookEntry("General", "My Own Notes", text.slice(0, 4000));
+          showUploadStatus(document.getElementById("upload-welcome-status"), "Saved OCR text to Living Notebook.");
+        } catch (e) {
+          showUploadStatus(document.getElementById("upload-welcome-status"), e.message || "Save failed", true);
+        }
+      };
+    }
 
 
     // =====================================================================
@@ -5227,6 +5339,10 @@
         // Update the Crosscheck list so this new answer is selectable
         try { if (document.getElementById('crosscheck-list')) populateCrosscheckAnswers(); } catch(e) { /* ignore */ }
 
+        if (window.__voiceReplyEnabled && typeof speakBuddyReply === "function") {
+          speakBuddyReply(reply);
+        }
+
       } catch (err) {
         // ── If something went REALLY wrong (like the server is off) ──
         // "catch" runs if fetch() itself failed (network error, server down, etc.)
@@ -5257,15 +5373,7 @@
     // =====================================================================
 
     function showSection(sectionName) {
-      // Hide all sections first
-      chatArea.style.display = "none";
-      podcastsSection.style.display = "none";
-      flashcardsSection.style.display = "none";
-      quizSection.style.display = "none";
-      crosscheckSection.style.display = "none";
-      if (definitionsSection) definitionsSection.style.display = "none";
-      if (learningDnaSection) learningDnaSection.style.display = "none";
-      if (mistakeVaultSection) mistakeVaultSection.style.display = "none";
+      hideAllFeatureSections();
 
       // Update tab buttons
       document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -5291,6 +5399,15 @@
           break;
         case "definitions":
           if (definitionsSection) definitionsSection.style.display = "flex";
+          break;
+        case "papers":
+          if (papersSection) papersSection.style.display = "flex";
+          break;
+        case "diagrams":
+          if (diagramsSection) diagramsSection.style.display = "flex";
+          break;
+        case "formulas":
+          if (formulasSection) formulasSection.style.display = "flex";
           break;
         case "learning-dna":
           if (learningDnaSection) {
@@ -6148,11 +6265,28 @@
     const quizSection = document.getElementById("quiz-section");
     const crosscheckSection = document.getElementById("crosscheck-section");
     const definitionsSection = document.getElementById("definitions-section");
+    const papersSection = document.getElementById("papers-section");
+    const diagramsSection = document.getElementById("diagrams-section");
+    const formulasSection = document.getElementById("formulas-section");
     const learningDnaSection = document.getElementById("learning-dna-section");
     const mistakeVaultSection = document.getElementById("mistake-vault-section");
     const crosscheckOutputEl = document.getElementById("crosscheck-output");
     const crosscheckQuestionEl = document.getElementById("crosscheck-question-input");
     const crosscheckAnswerEl = document.getElementById("crosscheck-answer-input");
+
+    function hideAllFeatureSections() {
+      chatArea.style.display = "none";
+      podcastsSection.style.display = "none";
+      flashcardsSection.style.display = "none";
+      quizSection.style.display = "none";
+      crosscheckSection.style.display = "none";
+      definitionsSection.style.display = "none";
+      if (papersSection) papersSection.style.display = "none";
+      if (diagramsSection) diagramsSection.style.display = "none";
+      if (formulasSection) formulasSection.style.display = "none";
+      if (learningDnaSection) learningDnaSection.style.display = "none";
+      if (mistakeVaultSection) mistakeVaultSection.style.display = "none";
+    }
 
     tabButtons.forEach(btn => {
       btn.addEventListener("click", () => {
@@ -6160,15 +6294,7 @@
         tabButtons.forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
 
-        // Hide all sections
-        chatArea.style.display = "none";
-        podcastsSection.style.display = "none";
-        flashcardsSection.style.display = "none";
-        quizSection.style.display = "none";
-        crosscheckSection.style.display = "none";
-        definitionsSection.style.display = "none";
-        if (learningDnaSection) learningDnaSection.style.display = "none";
-        if (mistakeVaultSection) mistakeVaultSection.style.display = "none";
+        hideAllFeatureSections();
 
         // Show the selected section
         const tab = btn.dataset.tab;
@@ -6181,6 +6307,15 @@
         }
         else if (tab === "definitions") {
           definitionsSection.style.display = "flex";
+        }
+        else if (tab === "papers") {
+          if (papersSection) papersSection.style.display = "flex";
+        }
+        else if (tab === "diagrams") {
+          if (diagramsSection) diagramsSection.style.display = "flex";
+        }
+        else if (tab === "formulas") {
+          if (formulasSection) formulasSection.style.display = "flex";
         }
         else if (tab === "learning-dna") {
           if (learningDnaSection) learningDnaSection.style.display = "flex";
@@ -6196,19 +6331,8 @@
     const sidebarLearningDnaBtn = document.getElementById("sidebar-learning-dna-btn");
     if (sidebarLearningDnaBtn) {
       sidebarLearningDnaBtn.addEventListener("click", () => {
-        // Remove active state from top feature tabs
         tabButtons.forEach(b => b.classList.remove("active"));
-
-        // Hide all sections
-        chatArea.style.display = "none";
-        podcastsSection.style.display = "none";
-        flashcardsSection.style.display = "none";
-        quizSection.style.display = "none";
-        crosscheckSection.style.display = "none";
-        definitionsSection.style.display = "none";
-        if (mistakeVaultSection) mistakeVaultSection.style.display = "none";
-
-        // Show Learning DNA dashboard
+        hideAllFeatureSections();
         if (learningDnaSection) learningDnaSection.style.display = "flex";
         if (typeof renderLearningDnaDashboard === 'function') renderLearningDnaDashboard();
       });
@@ -6501,7 +6625,10 @@
           const ttsRes = await fetch("/api/podcast/tts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ script: rawText }),
+            body: JSON.stringify({
+              script: rawText,
+              voice_preset: (document.getElementById("podcast-voice-preset") || {}).value || "alex_maya_us",
+            }),
           });
           audioData = await readJsonResponse(ttsRes);
           if (!ttsRes.ok) {
@@ -9556,6 +9683,248 @@
         }
       });
     });
+
+    // =====================================================================
+    //  PHASE 3 — OCR attach, voice chat, papers, diagrams, formulas
+    // =====================================================================
+
+    window.__voiceReplyEnabled = localStorage.getItem("sb_voice_reply") === "1";
+    let __micRecorder = null;
+    let __micChunks = [];
+    let __micRecording = false;
+    let __buddyAudio = null;
+
+    function updateVoiceReplyToggleUI() {
+      const btn = document.getElementById("voice-reply-toggle");
+      if (!btn) return;
+      if (window.__voiceReplyEnabled) {
+        btn.textContent = "🔊";
+        btn.style.color = "var(--accent3)";
+        btn.title = "Voice replies ON (click to mute)";
+      } else {
+        btn.textContent = "🔇";
+        btn.style.color = "var(--muted)";
+        btn.title = "Voice replies OFF (click to enable)";
+      }
+    }
+
+    async function speakBuddyReply(text) {
+      const clean = String(text || "")
+        .replace(/[*_`#]/g, "")
+        .replace(/https?:\/\/\S+/g, "")
+        .trim()
+        .slice(0, 900);
+      if (!clean) return;
+      try {
+        if (__buddyAudio) {
+          try { __buddyAudio.pause(); } catch (_) {}
+        }
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: clean, voice: "en-US-JennyNeural" }),
+        });
+        const data = await readJsonResponse(res);
+        if (!res.ok) throw new Error(data?.error || "TTS failed");
+        const src = `data:${data.audio_mime};base64,${data.audio_base64}`;
+        __buddyAudio = new Audio(src);
+        __buddyAudio.play().catch(() => {});
+      } catch (e) {
+        console.warn("speakBuddyReply:", e);
+      }
+    }
+
+    const voiceToggleBtn = document.getElementById("voice-reply-toggle");
+    if (voiceToggleBtn) {
+      updateVoiceReplyToggleUI();
+      voiceToggleBtn.addEventListener("click", () => {
+        window.__voiceReplyEnabled = !window.__voiceReplyEnabled;
+        localStorage.setItem("sb_voice_reply", window.__voiceReplyEnabled ? "1" : "0");
+        updateVoiceReplyToggleUI();
+        if (!window.__voiceReplyEnabled && __buddyAudio) {
+          try { __buddyAudio.pause(); } catch (_) {}
+        }
+      });
+    }
+
+    const attachOcrBtn = document.getElementById("attach-ocr-btn");
+    const chatOcrInput = document.getElementById("chat-ocr-input");
+    if (attachOcrBtn && chatOcrInput) {
+      attachOcrBtn.addEventListener("click", () => chatOcrInput.click());
+      chatOcrInput.addEventListener("change", async () => {
+        const file = chatOcrInput.files && chatOcrInput.files[0];
+        chatOcrInput.value = "";
+        if (!file) return;
+        const statusEl = document.getElementById("upload-welcome-status");
+        await runOcrOnFile(file, statusEl || { style: {}, textContent: "" });
+        const excerpt = (notesContent || "").trim().slice(0, 500);
+        if (excerpt && userInputEl) {
+          userInputEl.value = `I uploaded a page photo. Here is the extracted text:\n\n${excerpt}${(notesContent || "").length > 500 ? "…" : ""}\n\nPlease explain the key points.`;
+          userInputEl.focus();
+        }
+      });
+    }
+
+    const micBtn = document.getElementById("mic-btn");
+    if (micBtn) {
+      micBtn.addEventListener("click", async () => {
+        if (__micRecording) {
+          __micRecording = false;
+          micBtn.textContent = "🎤";
+          micBtn.style.background = "rgba(255,255,255,.04)";
+          if (__micRecorder && __micRecorder.state !== "inactive") {
+            __micRecorder.stop();
+          }
+          return;
+        }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          __micChunks = [];
+          __micRecorder = new MediaRecorder(stream);
+          __micRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) __micChunks.push(e.data);
+          };
+          __micRecorder.onstop = async () => {
+            stream.getTracks().forEach(t => t.stop());
+            const blob = new Blob(__micChunks, { type: __micRecorder.mimeType || "audio/webm" });
+            micBtn.textContent = "…";
+            try {
+              const fd = new FormData();
+              fd.append("file", blob, "speech.webm");
+              const res = await fetch("/api/stt", { method: "POST", body: fd });
+              const data = await readJsonResponse(res);
+              if (!res.ok) throw new Error(data?.error || "STT failed");
+              const spoken = (data.text || "").trim();
+              if (!spoken) throw new Error("No speech detected.");
+              userInputEl.value = spoken;
+              if (!isLoading) triggerSend();
+            } catch (err) {
+              appendBubble("ai", `❌ **Voice input failed:** ${err.message}`);
+            } finally {
+              micBtn.textContent = "🎤";
+              micBtn.style.background = "rgba(255,255,255,.04)";
+            }
+          };
+          __micRecording = true;
+          micBtn.textContent = "⏹";
+          micBtn.style.background = "rgba(244,63,94,0.25)";
+          __micRecorder.start();
+        } catch (err) {
+          appendBubble("ai", `❌ **Microphone blocked:** ${err.message}`);
+        }
+      });
+    }
+
+    // Load podcast voice presets from server (soft-fail keeps HTML defaults)
+    (async () => {
+      try {
+        const res = await fetch("/api/podcast/voices");
+        const data = await res.json();
+        const sel = document.getElementById("podcast-voice-preset");
+        if (!sel || !data.presets) return;
+        const saved = localStorage.getItem("sb_podcast_voice") || "alex_maya_us";
+        sel.innerHTML = data.presets.map(p =>
+          `<option value="${p.id}">${p.label}</option>`
+        ).join("");
+        sel.value = saved;
+        sel.addEventListener("change", () => localStorage.setItem("sb_podcast_voice", sel.value));
+      } catch (_) {}
+    })();
+
+    const generatePaperBtn = document.getElementById("generate-paper-btn");
+    if (generatePaperBtn) {
+      generatePaperBtn.addEventListener("click", async () => {
+        const out = document.getElementById("papers-output");
+        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Writing paper…</div>`;
+        try {
+          const res = await fetch("/api/papers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              subject: document.getElementById("paper-subject")?.value || "Physics",
+              exam: document.getElementById("paper-exam")?.value || "Board exam",
+              grade: document.getElementById("paper-grade")?.value || "Class 10",
+              year: document.getElementById("paper-year")?.value || "2024",
+              chapters: document.getElementById("paper-chapters")?.value || "",
+              model: cfg.model,
+            }),
+          });
+          const data = await readJsonResponse(res);
+          if (!res.ok) throw new Error(data?.error || "Failed");
+          out.textContent = data.paper || "";
+        } catch (e) {
+          out.innerHTML = `<div style="color:var(--accent2);">❌ ${escapeHtml(e.message)}</div>`;
+        }
+      });
+    }
+
+    const generateDiagramBtn = document.getElementById("generate-diagram-btn");
+    if (generateDiagramBtn) {
+      generateDiagramBtn.addEventListener("click", async () => {
+        const topic = (document.getElementById("diagram-input")?.value || "").trim() || getLatestUserPrompt();
+        const out = document.getElementById("diagrams-output");
+        if (!topic) {
+          out.innerHTML = `<div style="color:var(--accent2);">Enter a topic first.</div>`;
+          return;
+        }
+        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Drawing diagram…</div>`;
+        try {
+          const res = await fetch("/api/diagram", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ topic, model: cfg.model }),
+          });
+          const data = await readJsonResponse(res);
+          if (!res.ok) throw new Error(data?.error || "Failed");
+          out.innerHTML = `<div style="background:#fff;border-radius:12px;padding:12px;overflow:auto;">${data.svg}</div>`;
+        } catch (e) {
+          out.innerHTML = `<div style="color:var(--accent2);">❌ ${escapeHtml(e.message)}</div>`;
+        }
+      });
+    }
+
+    let __lastFormulaSheet = "";
+    const generateFormulaBtn = document.getElementById("generate-formula-btn");
+    const saveFormulaNbBtn = document.getElementById("save-formula-notebook-btn");
+    if (generateFormulaBtn) {
+      generateFormulaBtn.addEventListener("click", async () => {
+        const topic = (document.getElementById("formula-input")?.value || "").trim() || getLatestUserPrompt();
+        const out = document.getElementById("formulas-output");
+        if (!topic) {
+          out.innerHTML = `<div style="color:var(--accent2);">Enter a topic first.</div>`;
+          return;
+        }
+        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Building formula sheet…</div>`;
+        if (saveFormulaNbBtn) saveFormulaNbBtn.style.display = "none";
+        try {
+          const res = await fetch("/api/formulas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ topic, model: cfg.model }),
+          });
+          const data = await readJsonResponse(res);
+          if (!res.ok) throw new Error(data?.error || "Failed");
+          __lastFormulaSheet = data.formulas || "";
+          out.textContent = __lastFormulaSheet;
+          if (saveFormulaNbBtn && __lastFormulaSheet) saveFormulaNbBtn.style.display = "inline-flex";
+        } catch (e) {
+          out.innerHTML = `<div style="color:var(--accent2);">❌ ${escapeHtml(e.message)}</div>`;
+        }
+      });
+    }
+    if (saveFormulaNbBtn) {
+      saveFormulaNbBtn.addEventListener("click", async () => {
+        if (!__lastFormulaSheet) return;
+        const topic = (document.getElementById("formula-input")?.value || "Formulas").trim() || "Formulas";
+        try {
+          await saveLivingNotebookEntry(topic, "Formulas", __lastFormulaSheet);
+          saveFormulaNbBtn.textContent = "✅ Saved";
+          setTimeout(() => { saveFormulaNbBtn.textContent = "📔 Save to Notebook"; }, 1500);
+        } catch (e) {
+          alert(e.message || "Save failed");
+        }
+      });
+    }
 
     initAll();
 

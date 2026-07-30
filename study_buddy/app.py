@@ -24,7 +24,7 @@ That's it! 🎉
 import os
 import re
 import sqlite3
-
+import base64
 import hashlib
 import secrets
 import json
@@ -73,6 +73,18 @@ def get_groq_client():
     return Groq(api_key=GROQ_API_KEY)
 
 DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_VISION_MODEL = os.getenv(
+    "GROQ_VISION_MODEL",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+).strip()
+GROQ_VISION_FALLBACKS = [
+    m for m in [
+        GROQ_VISION_MODEL,
+        "llama-3.2-11b-vision-preview",
+        "llama-3.2-90b-vision-preview",
+    ]
+    if m
+]
 
 def resolve_groq_model(model_name: str) -> str:
     return model_name if model_name else DEFAULT_GROQ_MODEL
@@ -95,6 +107,39 @@ HOST_B_PLAYAI = "Arista-PlayAI"
 # Edge conversation voices (avoid News/Authority — those sound robotic)
 HOST_A_EDGE = "en-US-BrianNeural"   # Approachable, Casual → energetic host
 HOST_B_EDGE = "en-US-JennyNeural"   # Friendly, Considerate, Comfort → calm explainer
+
+PODCAST_VOICE_PRESETS = [
+    {
+        "id": "alex_maya_us",
+        "label": "Alex & Maya (US)",
+        "host_a": "en-US-BrianNeural",
+        "host_b": "en-US-JennyNeural",
+    },
+    {
+        "id": "oliver_sonia_uk",
+        "label": "Oliver & Sonia (UK)",
+        "host_a": "en-GB-RyanNeural",
+        "host_b": "en-GB-SoniaNeural",
+    },
+    {
+        "id": "prabhat_neerja_in",
+        "label": "Prabhat & Neerja (India EN)",
+        "host_a": "en-IN-PrabhatNeural",
+        "host_b": "en-IN-NeerjaNeural",
+    },
+    {
+        "id": "guy_aria_us",
+        "label": "Guy & Aria (US)",
+        "host_a": "en-US-GuyNeural",
+        "host_b": "en-US-AriaNeural",
+    },
+    {
+        "id": "davis_emma_us",
+        "label": "Davis & Emma (US)",
+        "host_a": "en-US-DavisNeural",
+        "host_b": "en-US-EmmaNeural",
+    },
+]
 
 # Per-host baseline prosody (personality, before emotion overlays)
 _HOST_PROSODY = {
@@ -485,14 +530,16 @@ def _tts_edge_line(text: str, voice: str, speaker: str, tag: str) -> bytes:
     )
 
 
-def synthesize_podcast_audio(script: str) -> dict:
+def synthesize_podcast_audio(script: str, host_a_voice: str = None, host_b_voice: str = None) -> dict:
     """
     Fast two-host podcast TTS via parallel edge-tts (skips slow Orpheus/PlayAI cascade).
 
     Returns dict: { audio_base64, audio_mime, engine, turns }
     """
-    import base64
     from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    voice_a = (host_a_voice or HOST_A_EDGE).strip() or HOST_A_EDGE
+    voice_b = (host_b_voice or HOST_B_EDGE).strip() or HOST_B_EDGE
 
     turns = _parse_podcast_turns(script)
     if not turns:
@@ -504,7 +551,7 @@ def synthesize_podcast_audio(script: str) -> dict:
     def _synth_one(index_speaker_line):
         i, speaker, line = index_speaker_line
         tag = _infer_vocal_tag(line, speaker)
-        voice_e = HOST_A_EDGE if speaker == "A" else HOST_B_EDGE
+        voice_e = voice_a if speaker == "A" else voice_b
         audio = _tts_edge_line(line, voice_e, speaker, tag)
         pause_ms = _resolve_prosody(speaker, tag)["pause_ms"]
         # Keep pauses short for snappy playback + smaller payload
@@ -542,6 +589,8 @@ def synthesize_podcast_audio(script: str) -> dict:
             "audio_mime": "audio/mpeg",
             "engine": "edge-tts",
             "turns": len(turns),
+            "host_a_voice": voice_a,
+            "host_b_voice": voice_b,
         }
 
     riff_parts = [p for p in wav_parts if p.startswith(b"RIFF")]
@@ -552,6 +601,8 @@ def synthesize_podcast_audio(script: str) -> dict:
         "audio_mime": "audio/wav",
         "engine": "edge-tts",
         "turns": len(turns),
+        "host_a_voice": voice_a,
+        "host_b_voice": voice_b,
     }
 
 
@@ -2524,17 +2575,361 @@ def podcast_tts():
     script = (data.get("script") or data.get("reply") or "").strip()
     if not script:
         return jsonify({"error": "No podcast script provided."}), 400
+    host_a = (data.get("host_a_voice") or data.get("voice_a") or "").strip() or None
+    host_b = (data.get("host_b_voice") or data.get("voice_b") or "").strip() or None
+    preset_id = (data.get("voice_preset") or "").strip()
+    if preset_id and (not host_a or not host_b):
+        for p in PODCAST_VOICE_PRESETS:
+            if p["id"] == preset_id:
+                host_a = host_a or p["host_a"]
+                host_b = host_b or p["host_b"]
+                break
     try:
-        audio_payload = synthesize_podcast_audio(script)
+        audio_payload = synthesize_podcast_audio(script, host_a, host_b)
         return jsonify({
             "audio_base64": audio_payload["audio_base64"],
             "audio_mime": audio_payload["audio_mime"],
             "tts_engine": audio_payload["engine"],
             "tts_turns": audio_payload["turns"],
+            "host_a_voice": audio_payload.get("host_a_voice"),
+            "host_b_voice": audio_payload.get("host_b_voice"),
         })
     except Exception as tts_err:
         print(f"[ERROR] Podcast TTS: {tts_err}")
         return jsonify({"error": str(tts_err), "tts_error": str(tts_err)}), 500
+
+
+@app.route("/api/podcast/voices", methods=["GET"])
+def podcast_voices():
+    """List available two-host podcast voice presets."""
+    return jsonify({"presets": PODCAST_VOICE_PRESETS})
+
+
+def _guess_image_mime(filename: str, fallback: str = "image/jpeg") -> str:
+    name = (filename or "").lower()
+    if name.endswith(".png"):
+        return "image/png"
+    if name.endswith(".webp"):
+        return "image/webp"
+    if name.endswith(".gif"):
+        return "image/gif"
+    if name.endswith(".jpg") or name.endswith(".jpeg"):
+        return "image/jpeg"
+    return fallback or "image/jpeg"
+
+
+def _ocr_with_groq_vision(image_bytes: bytes, mime: str, extra_prompt: str = "") -> str:
+    """Extract study text from an image using Groq vision models."""
+    client = get_groq_client()
+    b64 = base64.b64encode(image_bytes).decode("ascii")
+    data_url = f"data:{mime};base64,{b64}"
+    prompt = (
+        "You are an OCR engine for students. Extract ALL readable text from this study material image. "
+        "Preserve structure: headings, bullet points, numbered lists, equations, and labels. "
+        "Return plain text only — no commentary, no markdown fences."
+    )
+    if extra_prompt:
+        prompt += f"\n\nExtra instruction: {extra_prompt.strip()}"
+
+    last_err = None
+    for model in GROQ_VISION_FALLBACKS:
+        try:
+            completion = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": data_url}},
+                        ],
+                    }
+                ],
+                temperature=0.1,
+                max_tokens=4096,
+            )
+            text = (completion.choices[0].message.content or "").strip()
+            if text:
+                return text
+        except Exception as e:
+            last_err = e
+            print(f"[OCR] vision model {model} failed: {e}")
+            continue
+    raise RuntimeError(str(last_err) if last_err else "OCR failed with all vision models.")
+
+
+@app.route("/api/ocr", methods=["POST"])
+def api_ocr():
+    """OCR: upload image (or base64) → extracted study text."""
+    image_bytes = None
+    mime = "image/jpeg"
+    filename = "upload.jpg"
+    extra = ""
+
+    if request.files.get("file"):
+        f = request.files["file"]
+        filename = f.filename or filename
+        mime = (f.mimetype or _guess_image_mime(filename)).split(";")[0].strip()
+        image_bytes = f.read()
+        extra = (request.form.get("prompt") or "").strip()
+    else:
+        data = request.get_json(silent=True) or {}
+        b64 = (data.get("image_base64") or data.get("image") or "").strip()
+        if "," in b64 and b64.startswith("data:"):
+            header, b64 = b64.split(",", 1)
+            if "image/" in header:
+                mime = header.split(";")[0].replace("data:", "")
+        if b64:
+            try:
+                image_bytes = base64.b64decode(b64)
+            except Exception:
+                return jsonify({"error": "Invalid base64 image data."}), 400
+        mime = (data.get("mime") or mime).strip() or mime
+        filename = data.get("filename") or filename
+        extra = (data.get("prompt") or "").strip()
+
+    if not image_bytes:
+        return jsonify({"error": "No image provided. Upload a photo of your notes/textbook page."}), 400
+
+    max_bytes = 8 * 1024 * 1024
+    if len(image_bytes) > max_bytes:
+        return jsonify({"error": "Image too large. Maximum size is 8MB."}), 400
+
+    if not mime.startswith("image/"):
+        return jsonify({"error": "Only image files are supported for OCR (jpg, png, webp)."}), 400
+
+    try:
+        text = _ocr_with_groq_vision(image_bytes, mime, extra)
+        if not text:
+            return jsonify({"error": "No text could be extracted from this image."}), 422
+        return jsonify({
+            "text": text,
+            "filename": filename,
+            "chars": len(text),
+        })
+    except Exception as e:
+        print(f"[ERROR] OCR: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/stt", methods=["POST"])
+def api_stt():
+    """Speech-to-text via Groq Whisper (audio upload from mic)."""
+    if not request.files.get("file") and not request.files.get("audio"):
+        data = request.get_json(silent=True) or {}
+        b64 = (data.get("audio_base64") or "").strip()
+        if not b64:
+            return jsonify({"error": "No audio provided."}), 400
+        if "," in b64:
+            b64 = b64.split(",", 1)[1]
+        try:
+            audio_bytes = base64.b64decode(b64)
+        except Exception:
+            return jsonify({"error": "Invalid audio base64."}), 400
+        mime = (data.get("mime") or "audio/webm").strip()
+        ext = "webm" if "webm" in mime else "wav" if "wav" in mime else "mp3"
+        import tempfile
+        path = os.path.join(tempfile.gettempdir(), f"sb_stt_{os.getpid()}.{ext}")
+        with open(path, "wb") as out:
+            out.write(audio_bytes)
+        try:
+            client = get_groq_client()
+            with open(path, "rb") as af:
+                tr = client.audio.transcriptions.create(
+                    file=(f"speech.{ext}", af.read()),
+                    model="whisper-large-v3",
+                    language=data.get("language") or "en",
+                )
+            text = (getattr(tr, "text", None) or str(tr) or "").strip()
+            return jsonify({"text": text})
+        except Exception as e:
+            print(f"[ERROR] STT: {e}")
+            return jsonify({"error": str(e)}), 500
+        finally:
+            try:
+                os.remove(path)
+            except Exception:
+                pass
+
+    f = request.files.get("file") or request.files.get("audio")
+    try:
+        client = get_groq_client()
+        raw = f.read()
+        name = f.filename or "speech.webm"
+        tr = client.audio.transcriptions.create(
+            file=(name, raw),
+            model="whisper-large-v3",
+            language=request.form.get("language") or "en",
+        )
+        text = (getattr(tr, "text", None) or str(tr) or "").strip()
+        return jsonify({"text": text})
+    except Exception as e:
+        print(f"[ERROR] STT: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tts", methods=["POST"])
+def api_tts():
+    """Single-voice TTS for buddy voice replies (edge-tts)."""
+    data = request.get_json(force=True) or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"error": "No text provided."}), 400
+    # Keep replies short for latency
+    text = text[:1200]
+    voice = (data.get("voice") or "en-US-JennyNeural").strip() or "en-US-JennyNeural"
+    rate = (data.get("rate") or "+0%").strip() or "+0%"
+    pitch = (data.get("pitch") or "+0Hz").strip() or "+0Hz"
+    try:
+        audio = _tts_edge_utterance(text, voice, rate, pitch)
+        mime = "audio/mpeg" if not audio.startswith(b"RIFF") else "audio/wav"
+        return jsonify({
+            "audio_base64": base64.b64encode(audio).decode("ascii"),
+            "audio_mime": mime,
+            "voice": voice,
+        })
+    except Exception as e:
+        print(f"[ERROR] TTS: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/papers", methods=["POST"])
+def api_papers():
+    """Generate a previous-year style exam paper for a subject/exam board."""
+    data = request.get_json(force=True) or {}
+    subject = (data.get("subject") or "Physics").strip()[:80]
+    exam = (data.get("exam") or "Board exam").strip()[:80]
+    year = (data.get("year") or "recent").strip()[:20]
+    grade = (data.get("grade") or "Class 10").strip()[:40]
+    chapters = (data.get("chapters") or data.get("topics") or "").strip()[:400]
+    marks = int(data.get("total_marks") or 80)
+    duration = (data.get("duration") or "3 hours").strip()[:40]
+
+    chapter_line = f"Focus chapters/topics: {chapters}." if chapters else "Cover a representative syllabus mix."
+    prompt = (
+        f"Create a previous-year style {exam} question paper for {grade} {subject} "
+        f"(style year: {year}). Total marks: {marks}. Duration: {duration}. {chapter_line}\n\n"
+        "Output plain text with clear sections:\n"
+        "1) Header (exam name, subject, marks, time)\n"
+        "2) General instructions (5 bullets)\n"
+        "3) Section A — Very short answers (1 mark each, 8 questions)\n"
+        "4) Section B — Short answers (3 marks each, 6 questions)\n"
+        "5) Section C — Long answers (5 marks each, 4 questions)\n"
+        "6) Optional Section D — Case / assertion-reason (2 questions)\n"
+        "Include mark allocation next to each question. Do NOT include an answer key."
+    )
+
+    try:
+        client = get_groq_client()
+        completion = client.chat.completions.create(
+            model=resolve_groq_model(data.get("model")),
+            messages=[
+                {"role": "system", "content": "You write realistic school/board exam papers for students. Clear numbering. No fluff."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.5,
+            max_tokens=3500,
+        )
+        paper = (completion.choices[0].message.content or "").strip()
+        if not paper:
+            return jsonify({"error": "Empty paper returned."}), 500
+        return jsonify({
+            "paper": paper,
+            "subject": subject,
+            "exam": exam,
+            "year": year,
+            "grade": grade,
+            "total_marks": marks,
+        })
+    except Exception as e:
+        print(f"[ERROR] Papers: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/diagram", methods=["POST"])
+def api_diagram():
+    """Generate an educational SVG diagram from a topic (no external image API)."""
+    data = request.get_json(force=True) or {}
+    topic = (data.get("topic") or data.get("prompt") or "").strip()
+    if not topic:
+        return jsonify({"error": "Provide a topic for the diagram."}), 400
+    topic = topic[:300]
+    style = (data.get("style") or "clean educational textbook").strip()[:80]
+
+    prompt = (
+        f"Create ONE educational diagram as a complete SVG for: {topic}.\n"
+        f"Style: {style}. Audience: school/college students.\n"
+        "Requirements:\n"
+        "- Return ONLY valid SVG markup starting with <svg and ending with </svg>.\n"
+        "- Width 720 viewBox, readable labels, high contrast on a light background.\n"
+        "- Include a title text element. Label key parts. No external images or scripts.\n"
+        "- Keep under 250 SVG elements. Prefer simple shapes, arrows, and text."
+    )
+
+    try:
+        client = get_groq_client()
+        completion = client.chat.completions.create(
+            model=resolve_groq_model(data.get("model")),
+            messages=[
+                {"role": "system", "content": "You output only SVG code for educational diagrams. No markdown."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=3500,
+        )
+        raw = (completion.choices[0].message.content or "").strip()
+        # Strip fences if model wraps them
+        raw = re.sub(r"^```(?:svg|xml)?\s*", "", raw, flags=re.I)
+        raw = re.sub(r"\s*```$", "", raw)
+        start = raw.lower().find("<svg")
+        end = raw.lower().rfind("</svg>")
+        if start < 0 or end < 0:
+            return jsonify({"error": "Model did not return valid SVG.", "raw": raw[:500]}), 422
+        svg = raw[start:end + len("</svg>")]
+        return jsonify({"svg": svg, "topic": topic})
+    except Exception as e:
+        print(f"[ERROR] Diagram: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/formulas", methods=["POST"])
+def api_formulas():
+    """Generate a formula sheet for a topic/subject."""
+    data = request.get_json(force=True) or {}
+    topic = (data.get("topic") or data.get("subject") or "").strip()
+    if not topic:
+        return jsonify({"error": "Provide a topic or subject."}), 400
+    topic = topic[:200]
+    level = (data.get("level") or "high school").strip()[:60]
+
+    prompt = (
+        f"Create a concise formula sheet for: {topic} (level: {level}).\n"
+        "Format as plain text with sections:\n"
+        "- Title\n"
+        "- Core formulas (one per line: Name — Formula — Variables explained briefly)\n"
+        "- Useful identities / conversions\n"
+        "- Common pitfalls (2-4 bullets)\n"
+        "Use ASCII/Unicode math (e.g. F = ma, Δx, √, π). No markdown code fences."
+    )
+
+    try:
+        client = get_groq_client()
+        completion = client.chat.completions.create(
+            model=resolve_groq_model(data.get("model")),
+            messages=[
+                {"role": "system", "content": "You write clear student formula sheets. Accurate and compact."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=2500,
+        )
+        sheet = (completion.choices[0].message.content or "").strip()
+        if not sheet:
+            return jsonify({"error": "Empty formula sheet."}), 500
+        return jsonify({"formulas": sheet, "topic": topic, "level": level})
+    except Exception as e:
+        print(f"[ERROR] Formulas: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 # Feature routing is now handled in frontend JavaScript
