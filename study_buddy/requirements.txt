@@ -4,4 +4,3 @@ python-dotenv
 groq
 edge-tts
 firebase-admin
-google-genai

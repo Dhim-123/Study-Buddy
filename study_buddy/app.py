@@ -56,19 +56,11 @@ else:
 
 # Store API key in module variable to avoid environment access issues during runtime
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_IMAGE_MODEL = os.getenv(
-    "GEMINI_IMAGE_MODEL",
-    "gemini-2.5-flash-image",
-).strip() or "gemini-2.5-flash-image"
 
 if not GROQ_API_KEY:
     print("\n[WARNING] No GROQ_API_KEY found!")
     print("   Create a file called  .env  in this folder and add:")
     print("   GROQ_API_KEY=your-key-here\n")
-
-if not GEMINI_API_KEY:
-    print("[WARNING] No GEMINI_API_KEY found — Educational Diagrams 2.0 (image gen) will be unavailable.")
 
 # Centralized Groq Client
 _groq_client_instance = None
@@ -79,14 +71,6 @@ def get_groq_client():
     if not GROQ_API_KEY:
         raise ValueError("Server has no GROQ API key configured. Please set GROQ_API_KEY in .env.")
     return Groq(api_key=GROQ_API_KEY)
-
-
-def get_gemini_client():
-    """Gemini client for Nano Banana educational image diagrams."""
-    if not GEMINI_API_KEY:
-        raise ValueError("Set GEMINI_API_KEY for diagram images.")
-    from google import genai
-    return genai.Client(api_key=GEMINI_API_KEY)
 
 DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
 GROQ_VISION_MODEL = os.getenv(
@@ -2862,111 +2846,108 @@ def api_papers():
         return jsonify({"error": str(e)}), 500
 
 
-def _bytes_to_b64(data) -> str:
-    """Normalize Gemini image payload (bytes or base64 str) to base64 ascii."""
-    if data is None:
-        return ""
-    if isinstance(data, str):
-        return data
-    if isinstance(data, (bytes, bytearray)):
-        return base64.b64encode(bytes(data)).decode("ascii")
-    return base64.b64encode(bytes(data)).decode("ascii")
-
-
-def _extract_image_from_gemini_response(response) -> tuple:
-    """
-    Return (mime, base64_str) from a generate_content response, or (None, None).
-    """
-    try:
-        candidates = getattr(response, "candidates", None) or []
-        for cand in candidates:
-            content = getattr(cand, "content", None)
-            parts = getattr(content, "parts", None) or []
-            for part in parts:
-                inline = getattr(part, "inline_data", None)
-                if inline and getattr(inline, "data", None):
-                    mime = getattr(inline, "mime_type", None) or "image/png"
-                    return mime, _bytes_to_b64(inline.data)
-    except Exception as e:
-        print(f"[Diagram] parse generate_content failed: {e}")
-    return None, None
-
-
-def generate_educational_diagram_image(topic: str, style: str = "") -> dict:
-    """
-    Generate a real textbook-quality diagram image via Gemini Nano Banana.
-    Returns { image_base64, mime, model }.
-    """
-    client = get_gemini_client()
-    model = GEMINI_IMAGE_MODEL
-    prompt = (
-        f"Create a textbook-quality educational diagram for school/ICSE students about: {topic}.\n"
-        f"Visual style: {(style or 'clean educational textbook illustration').strip()}.\n"
-        "Requirements:\n"
-        "- Accurate scientific / geographic diagram suitable for a printed textbook\n"
-        "- White or light background, high contrast, clear readable labels on every key part\n"
-        "- Subject-appropriate style (Biology anatomy, Chemistry apparatus/structures, "
-        "Physics circuits/forces, Geography maps/cycles as needed)\n"
-        "- No cartoon mascots, no watermarks, no decorative clutter, no UI chrome\n"
-        "- Single centered diagram with a short title at the top\n"
-        "- Output an image only (do not return SVG or code)"
+def _diagram_prompt_image(topic: str, style: str = "") -> str:
+    style_bit = (style or "clean educational textbook").strip()
+    return (
+        f"Educational textbook diagram of {topic}, {style_bit}, "
+        "clear readable labels on all key parts, white background, "
+        "high-contrast scientific illustration for school students, "
+        "accurate Biology Chemistry Physics or Geography style as appropriate, "
+        "no cartoon mascot, no watermark, no UI chrome"
     )
 
-    # Preferred: Interactions API (Nano Banana image models)
-    try:
-        interaction = client.interactions.create(model=model, input=prompt)
-        out_img = getattr(interaction, "output_image", None)
-        if out_img is not None:
-            data = getattr(out_img, "data", None)
-            mime = getattr(out_img, "mime_type", None) or "image/png"
-            if data:
-                return {
-                    "image_base64": _bytes_to_b64(data),
-                    "mime": mime,
-                    "model": model,
-                }
-        # Walk steps/outputs if convenience property empty
-        outputs = getattr(interaction, "outputs", None) or getattr(interaction, "output", None) or []
-        if not isinstance(outputs, (list, tuple)):
-            outputs = [outputs]
-        for item in outputs:
-            if item is None:
-                continue
-            data = getattr(item, "data", None)
-            mime = getattr(item, "mime_type", None) or "image/png"
-            typ = getattr(item, "type", None) or ""
-            if data and ("image" in str(typ).lower() or mime.startswith("image/")):
-                return {
-                    "image_base64": _bytes_to_b64(data),
-                    "mime": mime if str(mime).startswith("image/") else "image/png",
-                    "model": model,
-                }
-    except Exception as e:
-        print(f"[Diagram] interactions.create failed ({model}): {e}")
 
-    # Fallback: models.generate_content with IMAGE modality
-    try:
-        from google.genai import types
-        response = client.models.generate_content(
-            model=model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["TEXT", "IMAGE"],
-            ),
-        )
-        mime, b64 = _extract_image_from_gemini_response(response)
-        if b64:
-            return {"image_base64": b64, "mime": mime or "image/png", "model": model}
-    except Exception as e:
-        print(f"[Diagram] generate_content failed ({model}): {e}")
-        raise
+def generate_diagram_pollinations(topic: str, style: str = "") -> dict:
+    """
+    Free real-image diagram via Pollinations (no API key / no billing).
+    Returns { image_base64, mime, model, engine }.
+    """
+    import urllib.parse
+    import urllib.request
 
-    raise RuntimeError("Gemini returned no image. Check GEMINI_API_KEY and model access.")
+    prompt = _diagram_prompt_image(topic, style)
+    encoded = urllib.parse.quote(prompt, safe="")
+    urls = [
+        (
+            f"https://image.pollinations.ai/prompt/{encoded}"
+            f"?width=1024&height=1024&nologo=true&model=flux&enhance=true"
+        ),
+        (
+            f"https://gen.pollinations.ai/image/{encoded}"
+            f"?width=1024&height=1024&model=flux&nologo=true"
+        ),
+    ]
+    last_err = None
+    for url in urls:
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": "StudyBuddy/1.0 (educational diagrams)",
+                    "Accept": "image/*,*/*",
+                },
+                method="GET",
+            )
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                data = resp.read()
+                ctype = (resp.headers.get("Content-Type") or "image/jpeg").split(";")[0].strip()
+            if not data or len(data) < 500:
+                raise RuntimeError("Empty or tiny image response")
+            if not ctype.startswith("image/"):
+                if data[:20].lstrip().startswith(b"<") or data[:1] == b"{":
+                    raise RuntimeError("Non-image response from Pollinations")
+                ctype = "image/jpeg"
+            return {
+                "image_base64": base64.b64encode(data).decode("ascii"),
+                "mime": ctype,
+                "model": "pollinations-flux",
+                "engine": "pollinations",
+            }
+        except Exception as e:
+            last_err = e
+            print(f"[Diagram] Pollinations failed: {e}")
+            continue
+    raise RuntimeError(str(last_err) if last_err else "Pollinations image generation failed")
+
+
+def generate_diagram_svg_groq(topic: str, style: str = "") -> dict:
+    """Fallback: labeled educational SVG via Groq (uses GROQ_API_KEY)."""
+    client = get_groq_client()
+    prompt = (
+        f"Create ONE educational diagram as complete SVG for: {topic}.\n"
+        f"Style: {(style or 'clean educational textbook').strip()}. Audience: ICSE/school students.\n"
+        "Requirements:\n"
+        "- Return ONLY valid SVG starting with <svg and ending with </svg>.\n"
+        "- viewBox=\"0 0 720 540\", white background, readable labels, title at top.\n"
+        "- Label every key part. High contrast. No scripts, no external images.\n"
+        "- Prefer clear shapes, arrows, and text — textbook quality, not a stick figure."
+    )
+    completion = client.chat.completions.create(
+        model=DEFAULT_GROQ_MODEL,
+        messages=[
+            {"role": "system", "content": "You output only SVG markup for educational diagrams. No markdown."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.25,
+        max_tokens=3500,
+    )
+    raw = (completion.choices[0].message.content or "").strip()
+    raw = re.sub(r"^```(?:svg|xml)?\s*", "", raw, flags=re.I)
+    raw = re.sub(r"\s*```$", "", raw)
+    start = raw.lower().find("<svg")
+    end = raw.lower().rfind("</svg>")
+    if start < 0 or end < 0:
+        raise RuntimeError("Groq did not return valid SVG.")
+    return {
+        "svg": raw[start:end + len("</svg>")],
+        "model": DEFAULT_GROQ_MODEL,
+        "engine": "groq-svg",
+    }
 
 
 @app.route("/api/diagram", methods=["POST"])
 def api_diagram():
-    """Generate a real educational diagram image (Gemini Nano Banana)."""
+    """Educational diagram: free Pollinations image, Groq SVG fallback."""
     data = request.get_json(force=True) or {}
     topic = (data.get("topic") or data.get("prompt") or "").strip()
     if not topic:
@@ -2974,29 +2955,39 @@ def api_diagram():
     topic = topic[:300]
     style = (data.get("style") or "clean educational textbook").strip()[:80]
 
-    if not GEMINI_API_KEY:
-        return jsonify({
-            "error": "Set GEMINI_API_KEY for diagram images.",
-            "hint": (
-                "Render → Environment → Add GEMINI_API_KEY "
-                "(from https://aistudio.google.com/apikey) → Save / Redeploy. "
-                "Do not enable Flask debug mode."
-            ),
-        }), 503
-
+    # 1) Free real image
     try:
-        result = generate_educational_diagram_image(topic, style)
+        result = generate_diagram_pollinations(topic, style)
         return jsonify({
             "image_base64": result["image_base64"],
             "mime": result["mime"],
-            "model": result.get("model") or GEMINI_IMAGE_MODEL,
+            "model": result.get("model"),
+            "engine": result.get("engine"),
             "topic": topic,
         })
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 503
     except Exception as e:
-        print(f"[ERROR] Diagram: {e}")
-        return jsonify({"error": str(e)}), 500
+        print(f"[Diagram] Pollinations primary failed: {e}")
+
+    # 2) Groq SVG fallback
+    if not GROQ_API_KEY:
+        return jsonify({
+            "error": "Free image service was unavailable, and GROQ_API_KEY is not set for SVG fallback.",
+        }), 503
+    try:
+        result = generate_diagram_svg_groq(topic, style)
+        return jsonify({
+            "svg": result["svg"],
+            "model": result.get("model"),
+            "engine": result.get("engine"),
+            "topic": topic,
+            "fallback": True,
+        })
+    except Exception as e:
+        print(f"[ERROR] Diagram SVG fallback: {e}")
+        return jsonify({
+            "error": "Could not generate a diagram right now. Please try again in a minute.",
+            "detail": str(e)[:200],
+        }), 500
 
 
 @app.route("/api/formulas", methods=["POST"])

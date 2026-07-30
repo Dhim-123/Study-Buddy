@@ -3433,7 +3433,7 @@
     <div class="section-container">
       <div class="feature-header">
         <h2>🖼 Educational Diagrams</h2>
-        <p>Generate a textbook-quality labeled diagram image (Gemini Nano Banana).</p>
+        <p>Free textbook-style diagrams (Pollinations image, Groq SVG if needed). No paid API.</p>
       </div>
       <div class="podcast-input">
         <textarea id="diagram-input" placeholder="e.g. Water cycle, Neuron structure, Electrolysis of water" rows="2"></textarea>
@@ -9867,7 +9867,7 @@
           out.innerHTML = `<div style="color:var(--accent2);">Enter a topic first.</div>`;
           return;
         }
-        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Generating textbook diagram image…</div>`;
+        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Generating free diagram (may take up to ~1 min)…</div>`;
         try {
           const res = await fetch("/api/diagram", {
             method: "POST",
@@ -9879,21 +9879,40 @@
             const detail = [data?.error, data?.hint].filter(Boolean).join(" — ");
             throw new Error(detail || "Failed");
           }
-          if (!data.image_base64) throw new Error("No image returned from server.");
-          const mime = data.mime || "image/png";
-          const src = `data:${mime};base64,${data.image_base64}`;
-          const modelLabel = data.model ? escapeHtml(data.model) : "Gemini";
-          out.innerHTML = `
-            <div style="margin-bottom:10px;color:var(--muted);font-size:0.82rem;font-weight:700;">
-              ${escapeHtml(topic)} · ${modelLabel}
-            </div>
-            <div style="background:#fff;border-radius:12px;padding:12px;overflow:auto;text-align:center;">
-              <img src="${src}" alt="${escapeHtml(topic)} diagram"
-                   style="max-width:100%;height:auto;border-radius:8px;" />
-            </div>
-            <div style="margin-top:10px;">
-              <a class="btn-icon" href="${src}" download="study-buddy-diagram.png" style="display:inline-flex;">⬇️ Download</a>
-            </div>`;
+          const modelLabel = escapeHtml(data.engine || data.model || "diagram");
+          const note = data.fallback
+            ? `<div style="margin-bottom:8px;color:var(--muted);font-size:0.8rem;">Image service busy — showing Groq SVG fallback.</div>`
+            : "";
+
+          if (data.image_base64) {
+            const mime = data.mime || "image/jpeg";
+            const src = `data:${mime};base64,${data.image_base64}`;
+            out.innerHTML = `
+              ${note}
+              <div style="margin-bottom:10px;color:var(--muted);font-size:0.82rem;font-weight:700;">
+                ${escapeHtml(topic)} · ${modelLabel}
+              </div>
+              <div style="background:#fff;border-radius:12px;padding:12px;overflow:auto;text-align:center;">
+                <img src="${src}" alt="${escapeHtml(topic)} diagram"
+                     style="max-width:100%;height:auto;border-radius:8px;" />
+              </div>
+              <div style="margin-top:10px;">
+                <a class="btn-icon" href="${src}" download="study-buddy-diagram.jpg" style="display:inline-flex;">⬇️ Download</a>
+              </div>`;
+            return;
+          }
+
+          if (data.svg) {
+            out.innerHTML = `
+              ${note}
+              <div style="margin-bottom:10px;color:var(--muted);font-size:0.82rem;font-weight:700;">
+                ${escapeHtml(topic)} · ${modelLabel}
+              </div>
+              <div style="background:#fff;border-radius:12px;padding:12px;overflow:auto;">${data.svg}</div>`;
+            return;
+          }
+
+          throw new Error("No diagram returned from server.");
         } catch (e) {
           out.innerHTML = `<div style="color:var(--accent2);">❌ ${escapeHtml(e.message)}</div>`;
         }
