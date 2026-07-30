@@ -2977,7 +2977,11 @@ def api_diagram():
     if not GEMINI_API_KEY:
         return jsonify({
             "error": "Set GEMINI_API_KEY for diagram images.",
-            "hint": "Add GEMINI_API_KEY in Render Environment (Google AI Studio key).",
+            "hint": (
+                "Render → Environment → Add GEMINI_API_KEY "
+                "(from https://aistudio.google.com/apikey) → Save / Redeploy. "
+                "Do not enable Flask debug mode."
+            ),
         }), 503
 
     try:

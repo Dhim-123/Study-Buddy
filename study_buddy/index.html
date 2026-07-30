@@ -9875,7 +9875,10 @@
             body: JSON.stringify({ topic }),
           });
           const data = await readJsonResponse(res);
-          if (!res.ok) throw new Error(data?.error || data?.hint || "Failed");
+          if (!res.ok) {
+            const detail = [data?.error, data?.hint].filter(Boolean).join(" — ");
+            throw new Error(detail || "Failed");
+          }
           if (!data.image_base64) throw new Error("No image returned from server.");
           const mime = data.mime || "image/png";
           const src = `data:${mime};base64,${data.image_base64}`;
