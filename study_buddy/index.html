@@ -2812,7 +2812,7 @@
     <button class="tab-btn" data-tab="quiz">❓ Quiz</button>
     <button class="tab-btn" data-tab="crosscheck">🧪 Crosscheck</button>
     <button class="tab-btn" data-tab="definitions">📖 Definitions</button>
-    <button class="tab-btn" data-tab="papers">📝 Papers</button>
+    <button class="tab-btn" data-tab="mock-test">📝 Mock Test</button>
     <button class="tab-btn" data-tab="diagrams">🖼 Diagrams</button>
     <button class="tab-btn" data-tab="formulas">📐 Formulas</button>
     <button class="tab-btn" data-tab="learning-dna">🧬 Learning DNA</button>
@@ -3405,24 +3405,39 @@
     </div>
   </div>
 
-  <!-- PAPERS SECTION -->
-  <div id="papers-section" class="feature-section" style="display:none;">
+  <!-- MOCK TEST SECTION -->
+  <div id="mock-test-section" class="feature-section" style="display:none;">
     <div class="section-container">
       <div class="feature-header">
-        <h2>📝 Previous-Year Paper Generator</h2>
-        <p>Generate a board-style practice paper for any subject and grade.</p>
+        <h2>📝 Mock Test Generator</h2>
+        <p>Generate a takeable board-style mock test, answer in-app, and review your score.</p>
       </div>
       <div class="podcast-input" style="display:flex; flex-direction:column; gap:10px;">
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-          <input id="paper-subject" class="input" placeholder="Subject (e.g. Physics)" value="Physics" />
-          <input id="paper-exam" class="input" placeholder="Exam (e.g. CBSE Board)" value="CBSE Board" />
-          <input id="paper-grade" class="input" placeholder="Grade (e.g. Class 10)" value="Class 10" />
-          <input id="paper-year" class="input" placeholder="Style year (e.g. 2024)" value="2024" />
+          <input id="mock-subject" class="input" placeholder="Subject (e.g. Physics)" value="Physics" />
+          <input id="mock-exam" class="input" placeholder="Exam / Board (e.g. ICSE)" value="ICSE" />
+          <input id="mock-grade" class="input" placeholder="Grade (e.g. Class 10)" value="Class 10" />
+          <select id="mock-difficulty" class="input" style="padding:10px 12px;">
+            <option value="Easy">Easy</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="Hard">Hard</option>
+          </select>
         </div>
-        <input id="paper-chapters" class="input" placeholder="Optional chapters / topics" />
-        <button id="generate-paper-btn" class="btn-primary">📄 Generate Paper</button>
+        <input id="mock-chapters" class="input" placeholder="Optional chapters / topics" />
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <label for="mock-size" style="font-size:0.85rem; font-weight:700; color:var(--muted);">Size</label>
+          <select id="mock-size" class="input" style="min-width:180px; padding:8px 10px;">
+            <option value="quick" selected>Quick (10 MCQs)</option>
+            <option value="standard">Standard (16 MCQ + 4 short)</option>
+          </select>
+          <button id="generate-mock-test-btn" class="btn-primary">📝 Generate Mock Test</button>
+        </div>
       </div>
-      <div id="papers-output" class="feature-output" style="white-space:pre-wrap;"></div>
+      <div id="mock-test-meta" style="display:none; color:var(--muted); font-size:0.85rem; font-weight:700;"></div>
+      <div id="mock-test-output" class="quiz-container"></div>
+      <div id="mock-test-actions" style="display:none; margin-top:12px;">
+        <button id="submit-mock-test-btn" class="btn-primary">✅ Submit answers</button>
+      </div>
     </div>
   </div>
 
@@ -5485,8 +5500,8 @@
         case "definitions":
           if (definitionsSection) definitionsSection.style.display = "flex";
           break;
-        case "papers":
-          if (papersSection) papersSection.style.display = "flex";
+        case "mock-test":
+          if (mockTestSection) mockTestSection.style.display = "flex";
           break;
         case "diagrams":
           if (diagramsSection) diagramsSection.style.display = "flex";
@@ -6350,7 +6365,7 @@
     const quizSection = document.getElementById("quiz-section");
     const crosscheckSection = document.getElementById("crosscheck-section");
     const definitionsSection = document.getElementById("definitions-section");
-    const papersSection = document.getElementById("papers-section");
+    const mockTestSection = document.getElementById("mock-test-section");
     const diagramsSection = document.getElementById("diagrams-section");
     const formulasSection = document.getElementById("formulas-section");
     const learningDnaSection = document.getElementById("learning-dna-section");
@@ -6366,7 +6381,7 @@
       quizSection.style.display = "none";
       crosscheckSection.style.display = "none";
       definitionsSection.style.display = "none";
-      if (papersSection) papersSection.style.display = "none";
+      if (mockTestSection) mockTestSection.style.display = "none";
       if (diagramsSection) diagramsSection.style.display = "none";
       if (formulasSection) formulasSection.style.display = "none";
       if (learningDnaSection) learningDnaSection.style.display = "none";
@@ -6393,8 +6408,8 @@
         else if (tab === "definitions") {
           definitionsSection.style.display = "flex";
         }
-        else if (tab === "papers") {
-          if (papersSection) papersSection.style.display = "flex";
+        else if (tab === "mock-test") {
+          if (mockTestSection) mockTestSection.style.display = "flex";
         }
         else if (tab === "diagrams") {
           if (diagramsSection) diagramsSection.style.display = "flex";
@@ -9770,7 +9785,7 @@
     });
 
     // =====================================================================
-    //  PHASE 3 — OCR attach, voice chat, papers, diagrams, formulas
+    //  PHASE 3 — OCR attach, voice chat, mock test, diagrams, formulas
     // =====================================================================
 
     window.__voiceReplyEnabled = localStorage.getItem("sb_voice_reply") === "1";
@@ -9916,32 +9931,204 @@
       } catch (_) {}
     })();
 
-    const generatePaperBtn = document.getElementById("generate-paper-btn");
-    if (generatePaperBtn) {
-      generatePaperBtn.addEventListener("click", async () => {
-        const out = document.getElementById("papers-output");
-        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Writing paper…</div>`;
+    // ── Mock Test Generator ──
+    let mockTestState = null; // { meta, questions, answers: {}, submitted }
+
+    function renderMockTest(data) {
+      const out = document.getElementById("mock-test-output");
+      const meta = document.getElementById("mock-test-meta");
+      const actions = document.getElementById("mock-test-actions");
+      const questions = data.questions || [];
+      mockTestState = {
+        meta: {
+          title: data.title || "Mock Test",
+          subject: data.subject || "General",
+          exam: data.exam || "",
+          grade: data.grade || "",
+          difficulty: data.difficulty || "Medium",
+          total_marks: data.total_marks || questions.length,
+          duration_minutes: data.duration_minutes || 20,
+        },
+        questions,
+        answers: {},
+        submitted: false,
+      };
+      if (meta) {
+        meta.style.display = "block";
+        meta.textContent = `${mockTestState.meta.title} · ${mockTestState.meta.total_marks} marks · ~${mockTestState.meta.duration_minutes} min · ${mockTestState.meta.difficulty}`;
+      }
+      out.innerHTML = questions.map((q, idx) => {
+        if (q.type === "short") {
+          return `
+            <div class="quiz-question" data-qid="${escapeHtml(q.id)}" data-qtype="short">
+              <div class="quiz-question-text">Q${idx + 1}. (${q.marks || 2} mark) ${escapeHtml(q.question)}</div>
+              <textarea class="input mock-short-answer" data-qid="${escapeHtml(q.id)}" rows="3"
+                placeholder="Type your answer…" style="width:100%; margin-top:10px; resize:vertical;"></textarea>
+              <div class="mock-review" style="display:none; margin-top:10px;"></div>
+            </div>`;
+        }
+        const opts = (q.options || []).map((opt, oi) => `
+          <div class="quiz-option" data-qid="${escapeHtml(q.id)}" data-oi="${oi}" role="button" tabindex="0">
+            ${String.fromCharCode(65 + oi)}. ${escapeHtml(opt)}
+          </div>`).join("");
+        return `
+          <div class="quiz-question" data-qid="${escapeHtml(q.id)}" data-qtype="mcq">
+            <div class="quiz-question-text">Q${idx + 1}. (${q.marks || 1} mark) ${escapeHtml(q.question)}</div>
+            <div class="quiz-options">${opts}</div>
+            <div class="mock-review" style="display:none; margin-top:10px;"></div>
+          </div>`;
+      }).join("");
+
+      out.querySelectorAll(".quiz-option").forEach(el => {
+        el.addEventListener("click", () => {
+          if (!mockTestState || mockTestState.submitted) return;
+          const qid = el.dataset.qid;
+          const oi = Number(el.dataset.oi);
+          mockTestState.answers[qid] = oi;
+          out.querySelectorAll(`.quiz-option[data-qid="${qid}"]`).forEach(o => o.classList.remove("selected"));
+          el.classList.add("selected");
+        });
+      });
+      out.querySelectorAll(".mock-short-answer").forEach(el => {
+        el.addEventListener("input", () => {
+          if (!mockTestState || mockTestState.submitted) return;
+          mockTestState.answers[el.dataset.qid] = el.value;
+        });
+      });
+      if (actions) actions.style.display = "block";
+      const submitBtn = document.getElementById("submit-mock-test-btn");
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "✅ Submit answers";
+      }
+    }
+
+    async function logMockMistakesToVault(wrongItems, subject) {
+      if (!currentUser?.loggedIn || !wrongItems.length) return;
+      for (const item of wrongItems) {
         try {
-          const res = await fetch("/api/papers", {
+          await fetch("/api/mistakes", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              subject: document.getElementById("paper-subject")?.value || "Physics",
-              exam: document.getElementById("paper-exam")?.value || "Board exam",
-              grade: document.getElementById("paper-grade")?.value || "Class 10",
-              year: document.getElementById("paper-year")?.value || "2024",
-              chapters: document.getElementById("paper-chapters")?.value || "",
+              subject: subject || "General",
+              topic: "Mock Test",
+              question: item.question,
+              wrong_answer: item.wrong_answer,
+              correct_answer: item.correct_answer,
+              explanation: item.explanation || "Review the correct answer.",
+              source_type: "mock-test",
+            }),
+          });
+        } catch (_) { /* soft-fail */ }
+      }
+    }
+
+    function submitMockTest() {
+      if (!mockTestState || mockTestState.submitted) return;
+      mockTestState.submitted = true;
+      const out = document.getElementById("mock-test-output");
+      let earned = 0;
+      let possible = 0;
+      const wrongForVault = [];
+
+      mockTestState.questions.forEach((q, idx) => {
+        const marks = Number(q.marks) || (q.type === "short" ? 2 : 1);
+        possible += marks;
+        const block = out.querySelector(`.quiz-question[data-qid="${String(q.id).replace(/"/g, "")}"]`);
+        const review = block?.querySelector(".mock-review");
+        if (q.type === "mcq") {
+          const chosen = mockTestState.answers[q.id];
+          const correct = Number(q.answer_index);
+          const ok = chosen === correct;
+          if (ok) earned += marks;
+          block?.querySelectorAll(".quiz-option").forEach(o => {
+            o.style.pointerEvents = "none";
+            const oi = Number(o.dataset.oi);
+            if (oi === correct) o.classList.add("correct");
+            if (oi === chosen && oi !== correct) o.classList.add("incorrect");
+          });
+          if (review) {
+            review.style.display = "block";
+            review.innerHTML = ok
+              ? `<div style="color:var(--accent3);font-weight:700;">Correct</div><div style="color:var(--muted);margin-top:4px;">${escapeHtml(q.explanation || "")}</div>`
+              : `<div style="color:var(--accent2);font-weight:700;">Incorrect</div>
+                 <div style="margin-top:4px;">Correct: <strong>${escapeHtml((q.options || [])[correct] || "")}</strong></div>
+                 <div style="color:var(--muted);margin-top:4px;">${escapeHtml(q.explanation || "")}</div>`;
+          }
+          if (!ok) {
+            wrongForVault.push({
+              question: q.question,
+              wrong_answer: chosen == null ? "(blank)" : (q.options || [])[chosen] || String(chosen),
+              correct_answer: (q.options || [])[correct] || "",
+              explanation: q.explanation || "See correct option.",
+            });
+          }
+        } else {
+          const ta = block?.querySelector(".mock-short-answer");
+          if (ta) ta.disabled = true;
+          const student = String(mockTestState.answers[q.id] || "").trim();
+          if (review) {
+            review.style.display = "block";
+            review.innerHTML = `
+              <div style="color:var(--muted);font-weight:700;margin-bottom:6px;">Short answer — review (not auto-scored)</div>
+              <div style="margin-bottom:6px;"><strong>Your answer:</strong> ${escapeHtml(student || "(blank)")}</div>
+              <div style="margin-bottom:6px;"><strong>Model answer:</strong> ${escapeHtml(q.answer || "")}</div>
+              <div style="color:var(--muted);">${escapeHtml(q.explanation || "")}</div>`;
+          }
+        }
+      });
+
+      const scoreHtml = `
+        <div class="quiz-score" style="margin-bottom:16px;">
+          <strong>MCQ score: ${earned} / ${possible}</strong>
+          <div style="font-size:0.85rem;color:var(--muted);margin-top:4px;">Short answers are shown for self-review (not auto-marked).</div>
+        </div>`;
+      out.insertAdjacentHTML("afterbegin", scoreHtml);
+
+      const submitBtn = document.getElementById("submit-mock-test-btn");
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Submitted";
+      }
+      logMockMistakesToVault(wrongForVault, mockTestState.meta.subject);
+    }
+
+    const generateMockBtn = document.getElementById("generate-mock-test-btn");
+    if (generateMockBtn) {
+      generateMockBtn.addEventListener("click", async () => {
+        const out = document.getElementById("mock-test-output");
+        const actions = document.getElementById("mock-test-actions");
+        const meta = document.getElementById("mock-test-meta");
+        if (actions) actions.style.display = "none";
+        if (meta) meta.style.display = "none";
+        mockTestState = null;
+        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Generating mock test…</div>`;
+        try {
+          const res = await fetch("/api/mock-test", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              subject: document.getElementById("mock-subject")?.value || "Physics",
+              exam: document.getElementById("mock-exam")?.value || "Board exam",
+              grade: document.getElementById("mock-grade")?.value || "Class 10",
+              chapters: document.getElementById("mock-chapters")?.value || "",
+              difficulty: document.getElementById("mock-difficulty")?.value || "Medium",
+              size: document.getElementById("mock-size")?.value || "quick",
               model: cfg.model,
             }),
           });
           const data = await readJsonResponse(res);
           if (!res.ok) throw new Error(data?.error || "Failed");
-          out.textContent = data.paper || "";
+          if (!data.questions?.length) throw new Error("No questions returned");
+          renderMockTest(data);
         } catch (e) {
           out.innerHTML = `<div style="color:var(--accent2);">❌ ${escapeHtml(e.message)}</div>`;
         }
       });
     }
+
+    document.getElementById("submit-mock-test-btn")?.addEventListener("click", submitMockTest);
 
     const generateDiagramBtn = document.getElementById("generate-diagram-btn");
     if (generateDiagramBtn) {

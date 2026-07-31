@@ -2818,30 +2818,69 @@ def api_tts():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/papers", methods=["POST"])
-def api_papers():
-    """Generate a previous-year style exam paper for a subject/exam board."""
+def _parse_mock_test_json(raw: str) -> dict:
+    """Extract mock-test JSON object from model output."""
+    text = (raw or "").strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.I)
+    text = re.sub(r"\s*```$", "", text)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end <= start:
+        raise ValueError("No JSON object found in model output")
+    data = json.loads(text[start:end + 1])
+    if not isinstance(data, dict) or not isinstance(data.get("questions"), list):
+        raise ValueError("JSON must include a questions array")
+    return data
+
+
+@app.route("/api/mock-test", methods=["POST"])
+def api_mock_test():
+    """Generate a structured takeable mock test (JSON) via Groq."""
     data = request.get_json(force=True) or {}
     subject = (data.get("subject") or "Physics").strip()[:80]
     exam = (data.get("exam") or "Board exam").strip()[:80]
-    year = (data.get("year") or "recent").strip()[:20]
     grade = (data.get("grade") or "Class 10").strip()[:40]
     chapters = (data.get("chapters") or data.get("topics") or "").strip()[:400]
-    marks = int(data.get("total_marks") or 80)
-    duration = (data.get("duration") or "3 hours").strip()[:40]
+    difficulty = (data.get("difficulty") or "Medium").strip()[:20]
+    size = (data.get("size") or "quick").strip().lower()
+    if size not in ("quick", "standard"):
+        size = "quick"
+
+    if size == "standard":
+        count_line = "Exactly 20 questions: 16 type=mcq and 4 type=short."
+        duration = 45
+        total_marks = 24  # 16*1 + 4*2
+    else:
+        count_line = "Exactly 10 questions: all type=mcq."
+        duration = 20
+        total_marks = 10
 
     chapter_line = f"Focus chapters/topics: {chapters}." if chapters else "Cover a representative syllabus mix."
     prompt = (
-        f"Create a previous-year style {exam} question paper for {grade} {subject} "
-        f"(style year: {year}). Total marks: {marks}. Duration: {duration}. {chapter_line}\n\n"
-        "Output plain text with clear sections:\n"
-        "1) Header (exam name, subject, marks, time)\n"
-        "2) General instructions (5 bullets)\n"
-        "3) Section A — Very short answers (1 mark each, 8 questions)\n"
-        "4) Section B — Short answers (3 marks each, 6 questions)\n"
-        "5) Section C — Long answers (5 marks each, 4 questions)\n"
-        "6) Optional Section D — Case / assertion-reason (2 questions)\n"
-        "Include mark allocation next to each question. Do NOT include an answer key."
+        f"Create a {difficulty} mock test for {grade} {subject} ({exam}). {chapter_line}\n"
+        f"{count_line}\n"
+        f"Suggested duration_minutes={duration}, total_marks={total_marks}.\n\n"
+        "Return ONLY valid JSON (no markdown) with this shape:\n"
+        "{\n"
+        '  "title": string,\n'
+        '  "total_marks": number,\n'
+        '  "duration_minutes": number,\n'
+        '  "questions": [\n'
+        "    {\n"
+        '      "id": "q1",\n'
+        '      "type": "mcq" | "short",\n'
+        '      "question": string,\n'
+        '      "options": ["A","B","C","D"],   // required for mcq, omit or [] for short\n'
+        '      "answer_index": 0,              // 0-3 for mcq\n'
+        '      "answer": "model answer",       // required for short\n'
+        '      "marks": number,\n'
+        '      "explanation": string\n'
+        "    }\n"
+        "  ]\n"
+        "}\n"
+        "Rules: MCQ must have exactly 4 options and a valid answer_index. "
+        "Short questions need a clear model answer string. "
+        "Explanations must help a student learn. Age-appropriate school level."
     )
 
     try:
@@ -2849,25 +2888,88 @@ def api_papers():
         completion = client.chat.completions.create(
             model=resolve_groq_model(data.get("model")),
             messages=[
-                {"role": "system", "content": "You write realistic school/board exam papers for students. Clear numbering. No fluff."},
+                {
+                    "role": "system",
+                    "content": (
+                        "You generate school mock tests as strict JSON only. "
+                        "No markdown fences, no commentary before or after the JSON."
+                    ),
+                },
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.5,
-            max_tokens=3500,
+            temperature=0.4,
+            max_tokens=4500,
         )
-        paper = (completion.choices[0].message.content or "").strip()
-        if not paper:
-            return jsonify({"error": "Empty paper returned."}), 500
+        raw = (completion.choices[0].message.content or "").strip()
+        if not raw:
+            return jsonify({"error": "Empty mock test returned."}), 500
+        try:
+            payload = _parse_mock_test_json(raw)
+        except Exception as pe:
+            print(f"[ERROR] Mock test JSON parse: {pe}\nRaw: {raw[:400]}")
+            return jsonify({"error": "Could not parse mock test JSON. Please try again."}), 500
+
+        questions = []
+        for i, q in enumerate(payload.get("questions") or []):
+            if not isinstance(q, dict):
+                continue
+            qtype = (q.get("type") or "mcq").strip().lower()
+            if qtype not in ("mcq", "short"):
+                qtype = "mcq"
+            item = {
+                "id": str(q.get("id") or f"q{i + 1}")[:40],
+                "type": qtype,
+                "question": str(q.get("question") or "").strip()[:800],
+                "marks": int(q.get("marks") or (2 if qtype == "short" else 1)),
+                "explanation": str(q.get("explanation") or "").strip()[:600],
+            }
+            if not item["question"]:
+                continue
+            if qtype == "mcq":
+                opts = q.get("options") or []
+                if not isinstance(opts, list):
+                    opts = []
+                opts = [str(o).strip()[:200] for o in opts][:4]
+                while len(opts) < 4:
+                    opts.append(f"Option {len(opts) + 1}")
+                try:
+                    ans_i = int(q.get("answer_index"))
+                except Exception:
+                    ans_i = 0
+                if ans_i < 0 or ans_i > 3:
+                    ans_i = 0
+                item["options"] = opts
+                item["answer_index"] = ans_i
+            else:
+                item["answer"] = str(q.get("answer") or q.get("model_answer") or "").strip()[:600]
+                if not item["answer"]:
+                    item["answer"] = item["explanation"] or "(See explanation)"
+            questions.append(item)
+
+        if size == "quick":
+            questions = [q for q in questions if q["type"] == "mcq"][:10]
+        else:
+            mcqs = [q for q in questions if q["type"] == "mcq"][:16]
+            shorts = [q for q in questions if q["type"] == "short"][:4]
+            questions = mcqs + shorts
+
+        if len(questions) < 5:
+            return jsonify({"error": "Mock test too short — try generating again."}), 500
+
+        title = str(payload.get("title") or f"{subject} Mock Test").strip()[:120]
         return jsonify({
-            "paper": paper,
+            "title": title,
             "subject": subject,
             "exam": exam,
-            "year": year,
             "grade": grade,
-            "total_marks": marks,
+            "difficulty": difficulty,
+            "size": size,
+            "total_marks": int(payload.get("total_marks") or sum(q["marks"] for q in questions)),
+            "duration_minutes": int(payload.get("duration_minutes") or duration),
+            "questions": questions,
         })
     except Exception as e:
-        print(f"[ERROR] Papers: {e}")
+        print(f"[ERROR] Mock test: {e}")
         return jsonify({"error": str(e)}), 500
 
 
