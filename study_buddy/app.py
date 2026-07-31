@@ -56,11 +56,24 @@ else:
 
 # Store API key in module variable to avoid environment access issues during runtime
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
+HF_TOKEN = (
+    os.getenv("HF_TOKEN", "").strip()
+    or os.getenv("HUGGINGFACE_API_TOKEN", "").strip()
+    or os.getenv("HUGGING_FACE_HUB_TOKEN", "").strip()
+)
+HF_FLUX_MODEL = os.getenv(
+    "HF_FLUX_MODEL",
+    "black-forest-labs/FLUX.1-schnell",
+).strip()
 
 if not GROQ_API_KEY:
     print("\n[WARNING] No GROQ_API_KEY found!")
     print("   Create a file called  .env  in this folder and add:")
     print("   GROQ_API_KEY=your-key-here\n")
+
+if not HF_TOKEN:
+    print("\n[WARNING] No HF_TOKEN found — diagrams will use Pollinations fallback.")
+    print("   Free token: https://huggingface.co/settings/tokens → set HF_TOKEN on Render\n")
 
 # Centralized Groq Client
 _groq_client_instance = None
@@ -2855,16 +2868,24 @@ def _normalize_diagram_topic(topic: str) -> str:
 
 
 def _diagram_prompt_image(topic: str, style: str = "") -> str:
-    """Strict handcrafted prompt so Pollinations does not return unrelated photos."""
-    style_bit = (style or "clean educational textbook").strip()
+    """Strict handcrafted prompt for real AI image generators."""
+    style_bit = (style or "clean educational textbook illustration").strip()
     topic = _normalize_diagram_topic(topic)
+    t = topic.lower()
+    extra = ""
+    if "water cycle" in t or "hydrologic" in t:
+        extra = (
+            "Show a cross-section landscape: sun, ocean or lake, land with trees, clouds and rain. "
+            "Clear curved arrows labeled Evaporation, Condensation, Precipitation, and Collection. "
+        )
     return (
-        f"scientific educational process diagram of {topic}, {style_bit}, "
-        f"schematic labeled diagram showing how {topic} works with clear arrows and stage labels, "
-        "white background, high-contrast textbook illustration for school students, "
-        "readable text labels on every key part, "
+        f"high quality educational textbook illustration of {topic}, {style_bit}, "
+        f"{extra}"
+        f"detailed labeled scientific diagram showing how {topic} works with clear arrows and readable stage labels, "
+        "white or soft paper background, muted academic colors, neat school science book style for ICSE students, "
         "NOT a photo of planet Earth, NOT a globe, NOT a world map, NOT space, "
-        "no cartoon mascot, no watermark, no UI chrome, no photorealistic landscape alone"
+        "NOT abstract art, NOT a flowchart of gray boxes, NOT childish cartoon clip-art, "
+        "no watermark, no UI chrome"
     )
 
 
@@ -2881,38 +2902,125 @@ def _groq_rewrite_diagram_prompt(topic: str, style: str = "") -> str:
                 {
                     "role": "system",
                     "content": (
-                        "You write ONE English image-generation prompt for an educational textbook diagram. "
+                        "You write ONE English text-to-image prompt for a realistic educational textbook illustration. "
                         "Return only the prompt line, no quotes or markdown. "
-                        "Require a labeled scientific schematic/process diagram, white background, clear arrows. "
-                        "Explicitly forbid photos of Earth/globes/maps/space unless the topic is literally Earth layers or world geography maps."
+                        "Require a labeled scientific process diagram with arrows and readable labels on a white background. "
+                        "Forbid Earth/globe photos, abstract blobs, gray box flowcharts, and childish cartoon mascots "
+                        "unless the topic is literally Earth layers or world maps."
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"Topic: {topic}\nStyle: {(style or 'clean educational textbook').strip()}\n"
+                        f"Topic: {topic}\nStyle: {(style or 'clean educational textbook illustration').strip()}\n"
                         "Write the prompt now."
                     ),
                 },
             ],
             temperature=0.2,
-            max_tokens=180,
+            max_tokens=220,
         )
         line = (completion.choices[0].message.content or "").strip()
         line = re.sub(r'^["`\']+|["`\']+$', "", line)
         line = re.sub(r"\s+", " ", line).strip()
         if len(line) < 20:
             return _diagram_prompt_image(topic, style)
-        # Reinforce negatives even if the model omitted them
-        if "earth" not in topic.lower() and "globe" not in line.lower():
+        if "earth" not in topic.lower():
             line += (
-                ", NOT a photo of planet Earth, NOT a globe, NOT a world map, "
-                "labeled educational diagram only"
+                ", NOT a photo of planet Earth, NOT a globe, NOT abstract art, "
+                "labeled educational textbook illustration only"
             )
         return line[:700]
     except Exception as e:
         print(f"[Diagram] Groq prompt rewrite failed: {e}")
         return _diagram_prompt_image(topic, style)
+
+
+def generate_diagram_hf_flux(topic: str, style: str = "") -> dict:
+    """
+    Real AI image via Hugging Face Inference (FLUX.1-schnell).
+    Requires HF_TOKEN. Returns { image_base64, mime, model, engine }.
+    """
+    import json
+    import time
+    import urllib.error
+    import urllib.request
+
+    if not HF_TOKEN:
+        raise RuntimeError("HF_TOKEN is not set")
+
+    topic = _normalize_diagram_topic(topic)
+    prompt = _groq_rewrite_diagram_prompt(topic, style)
+    payload = json.dumps({
+        "inputs": prompt,
+        "parameters": {
+            "guidance_scale": 3.5,
+            "num_inference_steps": 4,
+        },
+    }).encode("utf-8")
+    endpoints = [
+        f"https://router.huggingface.co/hf-inference/models/{HF_FLUX_MODEL}",
+        f"https://api-inference.huggingface.co/models/{HF_FLUX_MODEL}",
+    ]
+    last_err = None
+    for attempt in range(3):
+        for url in endpoints:
+            try:
+                req = urllib.request.Request(
+                    url,
+                    data=payload,
+                    headers={
+                        "Authorization": f"Bearer {HF_TOKEN}",
+                        "Content-Type": "application/json",
+                        "Accept": "image/png",
+                        "User-Agent": "StudyBuddy/1.0 (educational diagrams)",
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    data = resp.read()
+                    ctype = (resp.headers.get("Content-Type") or "image/png").split(";")[0].strip()
+                if data[:1] == b"{":
+                    try:
+                        err_obj = json.loads(data.decode("utf-8", errors="replace"))
+                    except Exception:
+                        err_obj = {}
+                    msg = str(err_obj.get("error") or err_obj.get("message") or data[:200])
+                    if "loading" in msg.lower() or err_obj.get("estimated_time"):
+                        wait = min(float(err_obj.get("estimated_time") or 15), 40)
+                        print(f"[Diagram] HF model loading, wait {wait}s…")
+                        time.sleep(wait)
+                        last_err = RuntimeError(msg)
+                        continue
+                    raise RuntimeError(msg)
+                if not data or len(data) < 500:
+                    raise RuntimeError("Empty or tiny image from Hugging Face")
+                if not ctype.startswith("image/"):
+                    if data[:8] == b"\x89PNG\r\n\x1a\n":
+                        ctype = "image/png"
+                    elif data[:2] == b"\xff\xd8":
+                        ctype = "image/jpeg"
+                    else:
+                        raise RuntimeError(f"Non-image response from HF ({ctype})")
+                return {
+                    "image_base64": base64.b64encode(data).decode("ascii"),
+                    "mime": ctype,
+                    "model": HF_FLUX_MODEL,
+                    "engine": "hf-flux",
+                }
+            except urllib.error.HTTPError as e:
+                body = e.read()[:300] if hasattr(e, "read") else b""
+                last_err = RuntimeError(f"HF HTTP {e.code}: {body.decode('utf-8', errors='replace')}")
+                print(f"[Diagram] HF failed: {last_err}")
+                if e.code == 503:
+                    time.sleep(12)
+                    continue
+            except Exception as e:
+                last_err = e
+                print(f"[Diagram] HF failed: {e}")
+                continue
+        time.sleep(2)
+    raise RuntimeError(str(last_err) if last_err else "Hugging Face image generation failed")
 
 
 def generate_diagram_pollinations(topic: str, style: str = "") -> dict:
@@ -2926,14 +3034,15 @@ def generate_diagram_pollinations(topic: str, style: str = "") -> dict:
     topic = _normalize_diagram_topic(topic)
     prompt = _groq_rewrite_diagram_prompt(topic, style)
     encoded = urllib.parse.quote(prompt, safe="")
+    seed = abs(hash(topic)) % 999999
     urls = [
         (
             f"https://image.pollinations.ai/prompt/{encoded}"
-            f"?width=1024&height=1024&nologo=true&model=flux"
+            f"?width=1024&height=1024&nologo=true&model=flux&seed={seed}"
         ),
         (
             f"https://gen.pollinations.ai/image/{encoded}"
-            f"?width=1024&height=1024&model=flux&nologo=true"
+            f"?width=1024&height=1024&model=flux&nologo=true&seed={seed}"
         ),
     ]
     last_err = None
@@ -2969,83 +3078,32 @@ def generate_diagram_pollinations(topic: str, style: str = "") -> dict:
     raise RuntimeError(str(last_err) if last_err else "Pollinations image generation failed")
 
 
-def generate_diagram_svg_groq(topic: str, style: str = "") -> dict:
-    """Primary: labeled ICSE textbook SVG via Groq (uses GROQ_API_KEY)."""
-    topic = _normalize_diagram_topic(topic)
-    if not GROQ_API_KEY:
-        raise RuntimeError("GROQ_API_KEY is not set.")
-    client = get_groq_client()
-    style_bit = (style or "ICSE science textbook schematic").strip()
-    prompt = (
-        f"Create ONE educational diagram as complete SVG for: {topic}.\n"
-        f"Style: {style_bit}. Audience: ICSE Class 6–10 science students.\n"
-        "Visual rules (strict):\n"
-        "- Flat vector schematic, muted academic colors (slate, steel blue, soft green, warm gray).\n"
-        "- Thin geometric arrows (2–3px strokes), clear sans-serif labels (Arial or similar).\n"
-        "- White background, title at top, high contrast, neat layout — NOT childish cartoon.\n"
-        "- Label every key part. No scripts, no external images, no filters/blur.\n"
-        "- viewBox=\"0 0 720 540\". Return ONLY valid SVG from <svg> to </svg>.\n"
-        "Process diagrams (e.g. water cycle, photosynthesis, carbon cycle):\n"
-        "- Show a clear landscape/process scene with labeled stages and directional arrows.\n"
-        "- For water cycle specifically, MUST label: Evaporation, Condensation, Precipitation, Collection.\n"
-        "- Include simple sun, clouds, rain, water body, and land — schematic, not clip-art mascots.\n"
-        "Forbidden: cartoon/clip-art/kindergarten look, cute characters, Earth globe photo, "
-        "abstract art, photorealistic blobs, missing labels, stick-figure mess."
-    )
-    completion = client.chat.completions.create(
-        model=DEFAULT_GROQ_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You output only valid SVG markup for serious school textbook diagrams. "
-                    "No markdown, no explanation. Prefer clarity and labeled stages over decoration."
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.2,
-        max_tokens=4500,
-    )
-    raw = (completion.choices[0].message.content or "").strip()
-    raw = re.sub(r"^```(?:svg|xml)?\s*", "", raw, flags=re.I)
-    raw = re.sub(r"\s*```$", "", raw)
-    start = raw.lower().find("<svg")
-    end = raw.lower().rfind("</svg>")
-    if start < 0 or end < 0:
-        raise RuntimeError("Groq did not return valid SVG.")
-    return {
-        "svg": raw[start:end + len("</svg>")],
-        "model": DEFAULT_GROQ_MODEL,
-        "engine": "groq-svg",
-    }
-
-
 @app.route("/api/diagram", methods=["POST"])
 def api_diagram():
-    """Educational diagram: Groq textbook SVG primary; Pollinations photo last resort."""
+    """Educational diagram: HF Flux real image primary; Pollinations fallback. No SVG."""
     data = request.get_json(force=True) or {}
     topic = _normalize_diagram_topic(data.get("topic") or data.get("prompt") or "")
     if not topic:
         return jsonify({"error": "Provide a topic for the diagram."}), 400
-    style = (data.get("style") or "ICSE science textbook schematic").strip()[:80]
+    style = (data.get("style") or "clean educational textbook illustration").strip()[:80]
 
-    # 1) Groq SVG (labeled textbook schematic)
-    if GROQ_API_KEY:
+    # 1) Hugging Face Flux (real AI image)
+    if HF_TOKEN:
         try:
-            result = generate_diagram_svg_groq(topic, style)
+            result = generate_diagram_hf_flux(topic, style)
             return jsonify({
-                "svg": result["svg"],
+                "image_base64": result["image_base64"],
+                "mime": result["mime"],
                 "model": result.get("model"),
                 "engine": result.get("engine"),
                 "topic": topic,
             })
         except Exception as e:
-            print(f"[Diagram] Groq SVG primary failed: {e}")
+            print(f"[Diagram] HF Flux primary failed: {e}")
     else:
-        print("[Diagram] GROQ_API_KEY missing; trying Pollinations fallback")
+        print("[Diagram] HF_TOKEN missing; trying Pollinations fallback")
 
-    # 2) Pollinations photo last resort
+    # 2) Pollinations (still a real generated image)
     try:
         result = generate_diagram_pollinations(topic, style)
         return jsonify({
@@ -3060,9 +3118,9 @@ def api_diagram():
     except Exception as e:
         print(f"[ERROR] Diagram Pollinations fallback: {e}")
         return jsonify({
-            "error": "Could not generate a diagram right now. Please try again in a minute.",
+            "error": "Could not generate a diagram image right now. Please try again in a minute.",
             "detail": str(e)[:200],
-            "hint": "Set GROQ_API_KEY on the server for reliable textbook SVG diagrams.",
+            "hint": "Add HF_TOKEN (Hugging Face free token) on Render for better Flux images.",
         }), 500
 
 

@@ -157,7 +157,7 @@
       position: relative;
     }
 
-    /* ── SIDEBAR HANDLE BASE STYLES ── */
+    /* ── SIDEBAR HANDLES (siblings of sidebars; always clickable) ── */
     .sidebar-handle {
       position: absolute;
       top: 50%;
@@ -171,10 +171,10 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      z-index: 1100;
+      z-index: 1200;
       pointer-events: auto;
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
-      transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+      transition: left 220ms cubic-bezier(0.4, 0, 0.2, 1), right 220ms cubic-bezier(0.4, 0, 0.2, 1), background 150ms ease, color 150ms ease, border-color 150ms ease;
       outline: none;
       user-select: none;
       padding: 0;
@@ -194,12 +194,32 @@
       transition: transform 220ms ease;
     }
 
+    #left-sidebar-handle {
+      left: 290px;
+      border-radius: 0 14px 14px 0;
+      border-left: none;
+    }
+
+    main.left-collapsed #left-sidebar-handle {
+      left: 0;
+    }
+
+    #right-sidebar-handle {
+      right: 300px;
+      border-radius: 14px 0 0 14px;
+      border-right: none;
+    }
+
+    main.right-collapsed #right-sidebar-handle {
+      right: 0;
+    }
+
     /* ── SIDEBAR (own scroll; does not drive page scroll) ── */
     #sidebar {
       width: 290px;
       min-width: 290px;
       max-width: 290px;
-      flex-shrink: 0;
+      flex: 0 0 290px;
       background: var(--surface);
       border-right: 1px solid var(--border);
       display: flex;
@@ -208,7 +228,7 @@
       align-self: stretch;
       min-height: 0;
       position: relative;
-      transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1), min-width 220ms cubic-bezier(0.4, 0, 0.2, 1), max-width 220ms cubic-bezier(0.4, 0, 0.2, 1), border-right-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
+      transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1), min-width 220ms cubic-bezier(0.4, 0, 0.2, 1), max-width 220ms cubic-bezier(0.4, 0, 0.2, 1), flex-basis 220ms cubic-bezier(0.4, 0, 0.2, 1), border-right-width 220ms cubic-bezier(0.4, 0, 0.2, 1), transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
       overflow: hidden;
       z-index: 200;
     }
@@ -239,20 +259,21 @@
     }
 
     #sidebar.hidden {
-      width: 0;
-      min-width: 0;
-      max-width: 0;
-      border-right-width: 0;
-      padding: 0;
-      overflow: visible !important;
+      width: 0 !important;
+      min-width: 0 !important;
+      max-width: 0 !important;
+      flex: 0 0 0 !important;
+      flex-basis: 0 !important;
+      border-right-width: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      overflow: hidden !important;
+      transform: translateX(-100%);
+      pointer-events: none;
     }
 
     #sidebar.hidden .sidebar-content {
-      opacity: 0;
-      pointer-events: none;
-      visibility: hidden;
-      width: 0;
-      transition: opacity 150ms ease;
+      display: none !important;
     }
 
     .sb-header {
@@ -437,18 +458,12 @@
       margin-top: 0;
     }
 
-    #left-sidebar-handle {
-      right: -24px;
-      border-radius: 0 14px 14px 0;
-      border-left: none;
-    }
-
     /* ── RIGHT SIDEBAR: DICTIONARY & LIVING NOTEBOOK (own scroll) ── */
     #dict-sidebar {
       width: 300px;
       min-width: 300px;
       max-width: 300px;
-      flex-shrink: 0;
+      flex: 0 0 300px;
       height: 100%;
       max-height: 100%;
       min-height: 0;
@@ -458,27 +473,28 @@
       display: flex;
       flex-direction: column;
       position: relative;
-      transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1), min-width 220ms cubic-bezier(0.4, 0, 0.2, 1), max-width 220ms cubic-bezier(0.4, 0, 0.2, 1), border-left-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
+      transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1), min-width 220ms cubic-bezier(0.4, 0, 0.2, 1), max-width 220ms cubic-bezier(0.4, 0, 0.2, 1), flex-basis 220ms cubic-bezier(0.4, 0, 0.2, 1), border-left-width 220ms cubic-bezier(0.4, 0, 0.2, 1), transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
       overflow: hidden;
       box-sizing: border-box;
       z-index: 200;
     }
 
     #dict-sidebar.hidden {
-      width: 0;
-      min-width: 0;
-      max-width: 0;
-      border-left-width: 0;
-      padding: 0;
-      overflow: visible !important;
+      width: 0 !important;
+      min-width: 0 !important;
+      max-width: 0 !important;
+      flex: 0 0 0 !important;
+      flex-basis: 0 !important;
+      border-left-width: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      overflow: hidden !important;
+      transform: translateX(100%);
+      pointer-events: none;
     }
 
     #dict-sidebar.hidden .sidebar-content {
-      opacity: 0;
-      pointer-events: none;
-      visibility: hidden;
-      width: 0;
-      transition: opacity 150ms ease;
+      display: none !important;
     }
 
     /* Notebook lives inside a scrollable sidebar — never expand the page */
@@ -508,12 +524,6 @@
       max-height: 100px;
       min-height: 64px;
       resize: vertical;
-    }
-
-    #right-sidebar-handle {
-      left: -24px;
-      border-radius: 14px 0 0 14px;
-      border-right: none;
     }
 
     .sidebar-section-container {
@@ -1436,13 +1446,30 @@
     @media (max-width: 640px) {
       #sidebar {
         position: absolute;
-        z-index: 10;
+        left: 0;
+        z-index: 210;
         height: 100%;
-        width: 300px;
-        min-width: 300px;
+        width: 290px;
+        min-width: 290px;
+        max-width: 290px;
+        flex: none;
       }
       #sidebar.hidden {
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
         transform: translateX(-100%);
+      }
+      #left-sidebar-handle {
+        left: 290px;
+      }
+      main.left-collapsed #left-sidebar-handle {
+        left: 0;
+      }
+      #dict-sidebar {
+        position: absolute;
+        right: 0;
+        z-index: 210;
       }
     }
 
@@ -2794,11 +2821,15 @@
 
   <main>
 
+    <button id="left-sidebar-handle" class="sidebar-handle" type="button" title="Collapse left sidebar" aria-label="Toggle left sidebar">
+      <span class="handle-arrow">‹</span>
+    </button>
+    <button id="right-sidebar-handle" class="sidebar-handle" type="button" title="Collapse Right Sidebar" aria-label="Toggle right sidebar">
+      <span class="handle-arrow">›</span>
+    </button>
+
     <!-- SETTINGS SIDEBAR -->
       <div id="sidebar">
-        <button id="left-sidebar-handle" class="sidebar-handle" title="Collapse left sidebar" aria-label="Toggle left sidebar">
-          <span class="handle-arrow">‹</span>
-        </button>
         <div class="sidebar-content">
           <div class="sb-header">
             <button id="new-chat-btn" class="sb-new-chat-btn" type="button">
@@ -3400,7 +3431,7 @@
     <div class="section-container">
       <div class="feature-header">
         <h2>🖼 Educational Diagrams</h2>
-        <p>Free textbook-style diagrams (Pollinations image, Groq SVG if needed). No paid API.</p>
+        <p>AI-generated textbook illustration images (Hugging Face Flux; Pollinations if no HF_TOKEN).</p>
       </div>
       <div class="podcast-input">
         <textarea id="diagram-input" placeholder="e.g. Water cycle, Neuron structure, Electrolysis of water" rows="2"></textarea>
@@ -3432,10 +3463,6 @@
 
       <!-- RIGHT SIDEBAR: DICTIONARY & LIVING NOTEBOOK -->
       <div id="dict-sidebar">
-        <button id="right-sidebar-handle" class="sidebar-handle" title="Collapse Right Sidebar" aria-label="Toggle right sidebar">
-          <span class="handle-arrow">›</span>
-        </button>
-
         <div class="sidebar-content">
           <!-- 1. DICTIONARY SECTION (TOP) -->
           <div class="sidebar-section-container" id="dict-section-container">
@@ -4123,8 +4150,11 @@
     const leftSidebarHandle = document.getElementById("left-sidebar-handle");
     const rightSidebarHandle = document.getElementById("right-sidebar-handle");
 
+    const mainLayoutEl = document.querySelector("main");
+
     function updateLeftSidebarState() {
       const isHidden = sidebarEl.classList.contains("hidden");
+      if (mainLayoutEl) mainLayoutEl.classList.toggle("left-collapsed", isHidden);
       if (toggleSidebarBtn) {
         if (isHidden) toggleSidebarBtn.classList.remove("active");
         else toggleSidebarBtn.classList.add("active");
@@ -4138,6 +4168,7 @@
 
     function updateRightSidebarState() {
       const isHidden = dictSidebarEl.classList.contains("hidden");
+      if (mainLayoutEl) mainLayoutEl.classList.toggle("right-collapsed", isHidden);
       if (toggleDictBtn) {
         if (isHidden) toggleDictBtn.classList.remove("active");
         else toggleDictBtn.classList.add("active");
@@ -9921,7 +9952,7 @@
           out.innerHTML = `<div style="color:var(--accent2);">Enter a topic first.</div>`;
           return;
         }
-        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Generating textbook diagram…</div>`;
+        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Generating diagram image…</div>`;
         try {
           const res = await fetch("/api/diagram", {
             method: "POST",
@@ -9933,40 +9964,28 @@
             const detail = [data?.error, data?.hint].filter(Boolean).join(" — ");
             throw new Error(detail || "Failed");
           }
+          if (!data.image_base64) {
+            throw new Error("No diagram image returned. Set HF_TOKEN on the server for Flux images.");
+          }
           const modelLabel = escapeHtml(data.engine || data.model || "diagram");
-          const note = (data.fallback || data.fallback_kind === "photo")
-            ? `<div style="margin-bottom:8px;color:var(--muted);font-size:0.8rem;">Textbook SVG unavailable — showing photo fallback (quality varies).</div>`
+          const note = (data.fallback || data.engine === "pollinations")
+            ? `<div style="margin-bottom:8px;color:var(--muted);font-size:0.8rem;">Using free photo fallback — add HF_TOKEN on Render for better Flux images.</div>`
             : "";
-
-          if (data.svg) {
-            out.innerHTML = `
-              ${note}
-              <div style="margin-bottom:10px;color:var(--muted);font-size:0.82rem;font-weight:700;">
-                ${escapeHtml(topic)} · ${modelLabel}
-              </div>
-              <div style="background:#fff;border-radius:12px;padding:12px;overflow:visible;">${data.svg}</div>`;
-            return;
-          }
-
-          if (data.image_base64) {
-            const mime = data.mime || "image/jpeg";
-            const src = `data:${mime};base64,${data.image_base64}`;
-            out.innerHTML = `
-              ${note}
-              <div style="margin-bottom:10px;color:var(--muted);font-size:0.82rem;font-weight:700;">
-                ${escapeHtml(topic)} · ${modelLabel}
-              </div>
-              <div style="background:#fff;border-radius:12px;padding:12px;text-align:center;">
-                <img src="${src}" alt="${escapeHtml(topic)} diagram"
-                     style="width:100%;max-width:100%;height:auto;border-radius:8px;display:block;" />
-              </div>
-              <div style="margin-top:10px;">
-                <a class="btn-icon" href="${src}" download="study-buddy-diagram.jpg" style="display:inline-flex;">⬇️ Download</a>
-              </div>`;
-            return;
-          }
-
-          throw new Error("No diagram returned from server.");
+          const mime = data.mime || "image/png";
+          const src = `data:${mime};base64,${data.image_base64}`;
+          const ext = mime.includes("png") ? "png" : "jpg";
+          out.innerHTML = `
+            ${note}
+            <div style="margin-bottom:10px;color:var(--muted);font-size:0.82rem;font-weight:700;">
+              ${escapeHtml(topic)} · ${modelLabel}
+            </div>
+            <div style="background:#fff;border-radius:12px;padding:12px;text-align:center;">
+              <img src="${src}" alt="${escapeHtml(topic)} diagram"
+                   style="width:100%;max-width:100%;height:auto;border-radius:8px;display:block;" />
+            </div>
+            <div style="margin-top:10px;">
+              <a class="btn-icon" href="${src}" download="study-buddy-diagram.${ext}" style="display:inline-flex;">⬇️ Download</a>
+            </div>`;
         } catch (e) {
           out.innerHTML = `<div style="color:var(--accent2);">❌ ${escapeHtml(e.message)}</div>`;
         }
