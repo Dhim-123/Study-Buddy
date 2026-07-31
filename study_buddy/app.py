@@ -2846,15 +2846,73 @@ def api_papers():
         return jsonify({"error": str(e)}), 500
 
 
+def _normalize_diagram_topic(topic: str) -> str:
+    """water-cycle / water_cycle → water cycle."""
+    t = (topic or "").strip()
+    t = re.sub(r"[-_]+", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t[:300]
+
+
 def _diagram_prompt_image(topic: str, style: str = "") -> str:
+    """Strict handcrafted prompt so Pollinations does not return unrelated photos."""
     style_bit = (style or "clean educational textbook").strip()
+    topic = _normalize_diagram_topic(topic)
     return (
-        f"Educational textbook diagram of {topic}, {style_bit}, "
-        "clear readable labels on all key parts, white background, "
-        "high-contrast scientific illustration for school students, "
-        "accurate Biology Chemistry Physics or Geography style as appropriate, "
-        "no cartoon mascot, no watermark, no UI chrome"
+        f"scientific educational process diagram of {topic}, {style_bit}, "
+        f"schematic labeled diagram showing how {topic} works with clear arrows and stage labels, "
+        "white background, high-contrast textbook illustration for school students, "
+        "readable text labels on every key part, "
+        "NOT a photo of planet Earth, NOT a globe, NOT a world map, NOT space, "
+        "no cartoon mascot, no watermark, no UI chrome, no photorealistic landscape alone"
     )
+
+
+def _groq_rewrite_diagram_prompt(topic: str, style: str = "") -> str:
+    """Use Groq to expand a short topic into a precise one-line image prompt."""
+    if not GROQ_API_KEY:
+        return _diagram_prompt_image(topic, style)
+    topic = _normalize_diagram_topic(topic)
+    try:
+        client = get_groq_client()
+        completion = client.chat.completions.create(
+            model=DEFAULT_GROQ_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You write ONE English image-generation prompt for an educational textbook diagram. "
+                        "Return only the prompt line, no quotes or markdown. "
+                        "Require a labeled scientific schematic/process diagram, white background, clear arrows. "
+                        "Explicitly forbid photos of Earth/globes/maps/space unless the topic is literally Earth layers or world geography maps."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Topic: {topic}\nStyle: {(style or 'clean educational textbook').strip()}\n"
+                        "Write the prompt now."
+                    ),
+                },
+            ],
+            temperature=0.2,
+            max_tokens=180,
+        )
+        line = (completion.choices[0].message.content or "").strip()
+        line = re.sub(r'^["`\']+|["`\']+$', "", line)
+        line = re.sub(r"\s+", " ", line).strip()
+        if len(line) < 20:
+            return _diagram_prompt_image(topic, style)
+        # Reinforce negatives even if the model omitted them
+        if "earth" not in topic.lower() and "globe" not in line.lower():
+            line += (
+                ", NOT a photo of planet Earth, NOT a globe, NOT a world map, "
+                "labeled educational diagram only"
+            )
+        return line[:700]
+    except Exception as e:
+        print(f"[Diagram] Groq prompt rewrite failed: {e}")
+        return _diagram_prompt_image(topic, style)
 
 
 def generate_diagram_pollinations(topic: str, style: str = "") -> dict:
@@ -2865,12 +2923,13 @@ def generate_diagram_pollinations(topic: str, style: str = "") -> dict:
     import urllib.parse
     import urllib.request
 
-    prompt = _diagram_prompt_image(topic, style)
+    topic = _normalize_diagram_topic(topic)
+    prompt = _groq_rewrite_diagram_prompt(topic, style)
     encoded = urllib.parse.quote(prompt, safe="")
     urls = [
         (
             f"https://image.pollinations.ai/prompt/{encoded}"
-            f"?width=1024&height=1024&nologo=true&model=flux&enhance=true"
+            f"?width=1024&height=1024&nologo=true&model=flux"
         ),
         (
             f"https://gen.pollinations.ai/image/{encoded}"
@@ -2912,6 +2971,7 @@ def generate_diagram_pollinations(topic: str, style: str = "") -> dict:
 
 def generate_diagram_svg_groq(topic: str, style: str = "") -> dict:
     """Fallback: labeled educational SVG via Groq (uses GROQ_API_KEY)."""
+    topic = _normalize_diagram_topic(topic)
     client = get_groq_client()
     prompt = (
         f"Create ONE educational diagram as complete SVG for: {topic}.\n"
@@ -2920,7 +2980,9 @@ def generate_diagram_svg_groq(topic: str, style: str = "") -> dict:
         "- Return ONLY valid SVG starting with <svg and ending with </svg>.\n"
         "- viewBox=\"0 0 720 540\", white background, readable labels, title at top.\n"
         "- Label every key part. High contrast. No scripts, no external images.\n"
-        "- Prefer clear shapes, arrows, and text — textbook quality, not a stick figure."
+        "- Prefer clear shapes, arrows, and text — textbook quality, not a stick figure.\n"
+        "- If the topic is a process (e.g. water cycle), show the process stages with arrows — "
+        "do NOT draw planet Earth or a globe."
     )
     completion = client.chat.completions.create(
         model=DEFAULT_GROQ_MODEL,
@@ -2949,10 +3011,9 @@ def generate_diagram_svg_groq(topic: str, style: str = "") -> dict:
 def api_diagram():
     """Educational diagram: free Pollinations image, Groq SVG fallback."""
     data = request.get_json(force=True) or {}
-    topic = (data.get("topic") or data.get("prompt") or "").strip()
+    topic = _normalize_diagram_topic(data.get("topic") or data.get("prompt") or "")
     if not topic:
         return jsonify({"error": "Provide a topic for the diagram."}), 400
-    topic = topic[:300]
     style = (data.get("style") or "clean educational textbook").strip()[:80]
 
     # 1) Free real image
