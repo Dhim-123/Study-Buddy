@@ -3017,7 +3017,7 @@ def api_mock_test():
         f"{structure_line}\n{board_hint}\n\n"
         "Return ONLY valid JSON (no markdown):\n"
         "{\n"
-        '  "title": "Pre-Board Examination — Subject",\n'
+        '  "title": "Mock Test — Subject",\n'
         '  "total_marks": number,\n'
         '  "duration_minutes": number,\n'
         '  "instructions": ["...", "...", "...", "...", "...", "..."],\n'
@@ -3172,7 +3172,7 @@ def api_mock_test():
         instructions = [str(x).strip()[:220] for x in instructions if str(x).strip()][:8]
         if len(instructions) < 4:
             instructions = [
-                "This is a PRE-BOARD style paper. Read every section carefully.",
+                "This is a mock test. Read every section carefully.",
                 "Section A & B: write only the option letter (A, B, C or D).",
                 "For Assertion–Reason, use the standard codes given with the options.",
                 "Case Study: read the passage fully before attempting sub-parts.",
@@ -3181,7 +3181,7 @@ def api_mock_test():
             ]
 
         title = str(
-            payload.get("title") or f"Pre-Board Examination — {subject}"
+            payload.get("title") or f"Mock Test — {subject}"
         ).strip()[:160]
 
         return jsonify({

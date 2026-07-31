@@ -3610,12 +3610,12 @@
     <div class="section-container">
       <div class="feature-header">
         <h2>📝 Mock Test Generator</h2>
-        <p>Generates a full pre-board paper (MCQ, Assertion–Reason, Short/Long, Case Study). Enter a subject; chapters are optional.</p>
+        <p>Generates a full mock test (MCQ, Assertion–Reason, Short/Long, Case Study). Enter a subject; chapters are optional.</p>
       </div>
       <div class="podcast-input" style="display:flex; flex-direction:column; gap:10px;">
         <input id="mock-subject" class="input" placeholder="Subject (e.g. Physics)" value="Physics" />
         <input id="mock-chapters" class="input" placeholder="Optional chapters / topics (e.g. Light, Electricity)" />
-        <button id="generate-mock-test-btn" class="btn-primary">📄 Generate Pre-Board Paper</button>
+        <button id="generate-mock-test-btn" class="btn-primary">📄 Generate Mock Test</button>
       </div>
       <div id="mock-test-output"></div>
       <div id="mock-test-actions" style="display:none; margin-top:12px;">
@@ -10264,7 +10264,7 @@
       out.innerHTML = `
         <div class="mock-exam-paper" id="mock-exam-paper">
           <div class="mock-exam-header">
-            <h3>Pre-Board Examination</h3>
+            <h3>Mock Test</h3>
             <div class="mock-exam-sub">${escapeHtml(mockTestState.meta.title)}</div>
             <div class="mock-exam-sub">${escapeHtml(mockTestState.meta.subject)}</div>
             <div class="mock-exam-meta-row">
