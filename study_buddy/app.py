@@ -56,6 +56,11 @@ else:
 
 # Store API key in module variable to avoid environment access issues during runtime
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+GEMINI_IMAGE_MODEL = os.getenv(
+    "GEMINI_IMAGE_MODEL",
+    "gemini-2.5-flash-image",
+).strip() or "gemini-2.5-flash-image"
 HF_TOKEN = (
     os.getenv("HF_TOKEN", "").strip()
     or os.getenv("HUGGINGFACE_API_TOKEN", "").strip()
@@ -71,9 +76,8 @@ if not GROQ_API_KEY:
     print("   Create a file called  .env  in this folder and add:")
     print("   GROQ_API_KEY=your-key-here\n")
 
-if not HF_TOKEN:
-    print("\n[WARNING] No HF_TOKEN found — diagrams will use Pollinations fallback.")
-    print("   Free token: https://huggingface.co/settings/tokens → set HF_TOKEN on Render\n")
+if not GEMINI_API_KEY:
+    print("[WARNING] No GEMINI_API_KEY — diagrams need a billed Google AI Studio key.")
 
 # Centralized Groq Client
 _groq_client_instance = None
@@ -84,6 +88,14 @@ def get_groq_client():
     if not GROQ_API_KEY:
         raise ValueError("Server has no GROQ API key configured. Please set GROQ_API_KEY in .env.")
     return Groq(api_key=GROQ_API_KEY)
+
+
+def get_gemini_client():
+    """Gemini client for Nano Banana educational image diagrams."""
+    if not GEMINI_API_KEY:
+        raise ValueError("Set GEMINI_API_KEY for diagram images.")
+    from google import genai
+    return genai.Client(api_key=GEMINI_API_KEY)
 
 DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
 GROQ_VISION_MODEL = os.getenv(
@@ -3155,49 +3167,160 @@ def generate_diagram_pollinations(topic: str, style: str = "") -> dict:
     raise RuntimeError(str(last_err) if last_err else "Pollinations image generation failed")
 
 
+def _bytes_to_b64(data) -> str:
+    """Normalize Gemini image payload (bytes or base64 str) to base64 ascii."""
+    if data is None:
+        return ""
+    if isinstance(data, str):
+        return data
+    if isinstance(data, (bytes, bytearray)):
+        return base64.b64encode(bytes(data)).decode("ascii")
+    return base64.b64encode(bytes(data)).decode("ascii")
+
+
+def _extract_image_from_gemini_response(response):
+    """Return (mime, base64_str) from a generate_content response, or (None, None)."""
+    try:
+        candidates = getattr(response, "candidates", None) or []
+        for cand in candidates:
+            content = getattr(cand, "content", None)
+            parts = getattr(content, "parts", None) or []
+            for part in parts:
+                inline = getattr(part, "inline_data", None)
+                if inline and getattr(inline, "data", None):
+                    mime = getattr(inline, "mime_type", None) or "image/png"
+                    return mime, _bytes_to_b64(inline.data)
+    except Exception as e:
+        print(f"[Diagram] parse generate_content failed: {e}")
+    return None, None
+
+
+def generate_diagram_gemini(topic: str, style: str = "") -> dict:
+    """
+    Textbook-quality diagram via Gemini image model (Nano Banana / flash-image).
+    Requires billed GEMINI_API_KEY. Returns { image_base64, mime, model, engine }.
+    """
+    topic = _normalize_diagram_topic(topic)
+    client = get_gemini_client()
+    model = GEMINI_IMAGE_MODEL
+    detail = _groq_rewrite_diagram_prompt(topic, style)
+    prompt = (
+        f"Create ONE textbook-quality educational diagram image for ICSE/school students.\n"
+        f"Topic: {topic}\n"
+        f"Visual brief: {detail}\n"
+        f"Style: {(style or 'clean educational textbook illustration').strip()}.\n"
+        "Hard requirements:\n"
+        "- Accurate labeled scientific diagram (e.g. Bohr atomic structure with nucleus and shells)\n"
+        "- White or light paper background, high contrast, sharp readable labels on every key part\n"
+        "- Title at top; neat school science book figure — not abstract art, not blurry, not surreal\n"
+        "- No cartoon mascots, watermarks, or UI chrome\n"
+        "- Output an IMAGE only (not SVG, not code, not text description)"
+    )
+
+    # Preferred: Interactions API
+    try:
+        interaction = client.interactions.create(model=model, input=prompt)
+        out_img = getattr(interaction, "output_image", None)
+        if out_img is not None:
+            data = getattr(out_img, "data", None)
+            mime = getattr(out_img, "mime_type", None) or "image/png"
+            if data:
+                return {
+                    "image_base64": _bytes_to_b64(data),
+                    "mime": mime,
+                    "model": model,
+                    "engine": "gemini",
+                }
+        outputs = getattr(interaction, "outputs", None) or getattr(interaction, "output", None) or []
+        if not isinstance(outputs, (list, tuple)):
+            outputs = [outputs]
+        for item in outputs:
+            if item is None:
+                continue
+            data = getattr(item, "data", None)
+            mime = getattr(item, "mime_type", None) or "image/png"
+            typ = getattr(item, "type", None) or ""
+            if data and ("image" in str(typ).lower() or str(mime).startswith("image/")):
+                return {
+                    "image_base64": _bytes_to_b64(data),
+                    "mime": mime if str(mime).startswith("image/") else "image/png",
+                    "model": model,
+                    "engine": "gemini",
+                }
+    except Exception as e:
+        print(f"[Diagram] interactions.create failed ({model}): {e}")
+
+    # Fallback: generate_content with IMAGE modality
+    try:
+        from google.genai import types
+        response = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["TEXT", "IMAGE"],
+            ),
+        )
+        mime, b64 = _extract_image_from_gemini_response(response)
+        if b64:
+            return {
+                "image_base64": b64,
+                "mime": mime or "image/png",
+                "model": model,
+                "engine": "gemini",
+            }
+    except Exception as e:
+        print(f"[Diagram] generate_content failed ({model}): {e}")
+        raise
+
+    raise RuntimeError(
+        "Gemini returned no image. Enable billing on Google AI Studio / Cloud for "
+        f"model {model}, and confirm GEMINI_API_KEY is correct."
+    )
+
+
 @app.route("/api/diagram", methods=["POST"])
 def api_diagram():
-    """Educational diagram: HF Flux real image primary; Pollinations fallback. No SVG."""
+    """Educational diagram: Gemini Nano Banana (paid) primary — textbook images."""
     data = request.get_json(force=True) or {}
     topic = _normalize_diagram_topic(data.get("topic") or data.get("prompt") or "")
     if not topic:
         return jsonify({"error": "Provide a topic for the diagram."}), 400
     style = (data.get("style") or "clean educational textbook illustration").strip()[:80]
 
-    # 1) Hugging Face Flux (real AI image)
-    if HF_TOKEN:
-        try:
-            result = generate_diagram_hf_flux(topic, style)
-            return jsonify({
-                "image_base64": result["image_base64"],
-                "mime": result["mime"],
-                "model": result.get("model"),
-                "engine": result.get("engine"),
-                "topic": topic,
-            })
-        except Exception as e:
-            print(f"[Diagram] HF Flux primary failed: {e}")
-    else:
-        print("[Diagram] HF_TOKEN missing; trying Pollinations fallback")
+    if not GEMINI_API_KEY:
+        return jsonify({
+            "error": "Diagrams need GEMINI_API_KEY (Google AI Studio) with billing enabled.",
+            "hint": (
+                "1) https://aistudio.google.com/apikey — create key. "
+                "2) Enable billing on the Google Cloud project linked to that key "
+                "(free tier image quota is often 0). "
+                "3) Set GEMINI_API_KEY on Render and redeploy."
+            ),
+        }), 503
 
-    # 2) Pollinations (still a real generated image)
     try:
-        result = generate_diagram_pollinations(topic, style)
+        result = generate_diagram_gemini(topic, style)
         return jsonify({
             "image_base64": result["image_base64"],
             "mime": result["mime"],
             "model": result.get("model"),
-            "engine": result.get("engine"),
+            "engine": result.get("engine") or "gemini",
             "topic": topic,
-            "fallback": True,
-            "fallback_kind": "photo",
         })
     except Exception as e:
-        print(f"[ERROR] Diagram Pollinations fallback: {e}")
+        err = str(e)
+        print(f"[ERROR] Diagram Gemini: {err}")
+        hint = "Check GEMINI_API_KEY and that billing is enabled for image generation."
+        low = err.lower()
+        if "resource_exhausted" in low or "limit: 0" in low or "quota" in low:
+            hint = (
+                "Image quota is 0 on the free tier. Enable billing for your Google Cloud "
+                "project (AI Studio → linked project → Billing), then retry."
+            )
         return jsonify({
-            "error": "Could not generate a diagram image right now. Please try again in a minute.",
-            "detail": str(e)[:200],
-            "hint": "Add HF_TOKEN (Hugging Face free token) on Render for better Flux images.",
+            "error": "Could not generate diagram with Gemini.",
+            "detail": err[:300],
+            "hint": hint,
         }), 500
 
 

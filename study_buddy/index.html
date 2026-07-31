@@ -3431,7 +3431,7 @@
     <div class="section-container">
       <div class="feature-header">
         <h2>🖼 Educational Diagrams</h2>
-        <p>AI-generated textbook illustration images (Hugging Face Flux; Pollinations if no HF_TOKEN).</p>
+        <p>Textbook-quality images via Gemini (requires GEMINI_API_KEY with billing).</p>
       </div>
       <div class="podcast-input">
         <textarea id="diagram-input" placeholder="e.g. Water cycle, Neuron structure, Electrolysis of water" rows="2"></textarea>
@@ -9952,7 +9952,7 @@
           out.innerHTML = `<div style="color:var(--accent2);">Enter a topic first.</div>`;
           return;
         }
-        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Generating diagram image…</div>`;
+        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Generating Gemini textbook diagram…</div>`;
         try {
           const res = await fetch("/api/diagram", {
             method: "POST",
@@ -9961,16 +9961,14 @@
           });
           const data = await readJsonResponse(res);
           if (!res.ok) {
-            const detail = [data?.error, data?.hint].filter(Boolean).join(" — ");
+            const detail = [data?.error, data?.hint, data?.detail].filter(Boolean).join(" — ");
             throw new Error(detail || "Failed");
           }
           if (!data.image_base64) {
-            throw new Error("No diagram image returned. Set HF_TOKEN on the server for Flux images.");
+            throw new Error("No diagram image returned. Set GEMINI_API_KEY with billing enabled.");
           }
-          const modelLabel = escapeHtml(data.engine || data.model || "diagram");
-          const note = (data.fallback || data.engine === "pollinations")
-            ? `<div style="margin-bottom:8px;color:var(--muted);font-size:0.8rem;">Using free photo fallback — add HF_TOKEN on Render for better Flux images.</div>`
-            : "";
+          const modelLabel = escapeHtml(data.engine || data.model || "gemini");
+          const note = "";
           const mime = data.mime || "image/png";
           const src = `data:${mime};base64,${data.image_base64}`;
           const ext = mime.includes("png") ? "png" : "jpg";
