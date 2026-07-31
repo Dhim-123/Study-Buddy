@@ -2860,40 +2860,119 @@ def api_papers():
 
 
 def _normalize_diagram_topic(topic: str) -> str:
-    """water-cycle / water_cycle → water cycle."""
+    """water-cycle / water_cycle → water cycle; fix common typos."""
     t = (topic or "").strip()
     t = re.sub(r"[-_]+", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
+    # Common student typos
+    fixes = (
+        (r"\bstucture\b", "structure"),
+        (r"\batommic\b", "atomic"),
+        (r"\bphotosyntesis\b", "photosynthesis"),
+        (r"\bphotosythesis\b", "photosynthesis"),
+    )
+    for pat, repl in fixes:
+        t = re.sub(pat, repl, t, flags=re.I)
     return t[:300]
+
+
+_DIAGRAM_NEGATIVES = (
+    "NOT abstract art, NOT blurry, NOT out of focus, NOT dreamlike, NOT crystalline flower, "
+    "NOT surreal, NOT photo of planet Earth, NOT globe, NOT world map, NOT space nebula, "
+    "NOT gray box flowchart, NOT childish cartoon clip-art, NOT watermark, NOT UI chrome"
+)
+
+
+def _diagram_topic_template(topic: str):
+    """Curated prompts for common school topics (beats vague Groq rewrites)."""
+    t = _normalize_diagram_topic(topic).lower()
+
+    is_atomic = (
+        t in (
+            "atom",
+            "atoms",
+            "atomic structure",
+            "bohr model",
+            "structure of atom",
+            "structure of an atom",
+            "structure of the atom",
+        )
+        or ("atomic" in t and "structure" in t)
+        or ("bohr" in t and "model" in t)
+        or (re.search(r"\batoms?\b", t) and "structure" in t)
+    )
+    if is_atomic:
+        return (
+            "sharp clear Bohr model diagram of an atom for ICSE school science textbook, "
+            "white background, black outlines, central nucleus circle labeled Nucleus with "
+            "protons (+) and neutrons (n) inside, three concentric electron orbits labeled "
+            "K shell, L shell, M shell, small electron dots on the orbits labeled e-, "
+            "title Atomic Structure at top, readable sans-serif text labels, "
+            "flat educational vector illustration style, high detail, crisp lines, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
+    if "water cycle" in t or "hydrologic" in t:
+        return (
+            "sharp educational textbook illustration of the water cycle, white background, "
+            "landscape with sun, ocean, land, trees, clouds and rain, curved arrows labeled "
+            "Evaporation, Condensation, Precipitation, Collection, readable labels, "
+            "muted academic colors, ICSE science book figure, crisp lines, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
+    if "photosynthesis" in t:
+        return (
+            "sharp labeled textbook diagram of photosynthesis in a green leaf cross-section, "
+            "sunlight, CO2, H2O arrows in, O2 and glucose arrows out, chloroplast labeled, "
+            "white background, ICSE science figure, crisp readable labels, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
+    if "neuron" in t or "nerve cell" in t:
+        return (
+            "sharp labeled textbook diagram of a neuron / nerve cell, dendrites, cell body, "
+            "axon, myelin sheath, axon terminals, white background, clear labels with lines, "
+            "ICSE biology figure, crisp lines, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
+    if "electrolysis" in t:
+        return (
+            "sharp labeled textbook diagram of electrolysis of water, beaker, electrodes anode "
+            "cathode, battery, bubbles of hydrogen and oxygen labeled, white background, "
+            "ICSE chemistry figure, crisp lines, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
+    return None
 
 
 def _diagram_prompt_image(topic: str, style: str = "") -> str:
     """Strict handcrafted prompt for real AI image generators."""
-    style_bit = (style or "clean educational textbook illustration").strip()
     topic = _normalize_diagram_topic(topic)
-    t = topic.lower()
-    extra = ""
-    if "water cycle" in t or "hydrologic" in t:
-        extra = (
-            "Show a cross-section landscape: sun, ocean or lake, land with trees, clouds and rain. "
-            "Clear curved arrows labeled Evaporation, Condensation, Precipitation, and Collection. "
-        )
+    templated = _diagram_topic_template(topic)
+    if templated:
+        return templated
+
+    style_bit = (style or "clean educational textbook illustration").strip()
     return (
-        f"high quality educational textbook illustration of {topic}, {style_bit}, "
-        f"{extra}"
-        f"detailed labeled scientific diagram showing how {topic} works with clear arrows and readable stage labels, "
-        "white or soft paper background, muted academic colors, neat school science book style for ICSE students, "
-        "NOT a photo of planet Earth, NOT a globe, NOT a world map, NOT space, "
-        "NOT abstract art, NOT a flowchart of gray boxes, NOT childish cartoon clip-art, "
-        "no watermark, no UI chrome"
+        f"sharp clear educational science textbook diagram of {topic}, {style_bit}, "
+        f"labeled schematic with readable text labels and leader lines, white background, "
+        "flat vector textbook figure for ICSE students, crisp sharp lines, high detail, "
+        f"{_DIAGRAM_NEGATIVES}"
     )
 
 
 def _groq_rewrite_diagram_prompt(topic: str, style: str = "") -> str:
-    """Use Groq to expand a short topic into a precise one-line image prompt."""
+    """Build image prompt: curated template first, else Groq, else generic."""
+    topic = _normalize_diagram_topic(topic)
+    templated = _diagram_topic_template(topic)
+    if templated:
+        return templated[:700]
+
     if not GROQ_API_KEY:
         return _diagram_prompt_image(topic, style)
-    topic = _normalize_diagram_topic(topic)
     try:
         client = get_groq_client()
         completion = client.chat.completions.create(
@@ -2902,11 +2981,11 @@ def _groq_rewrite_diagram_prompt(topic: str, style: str = "") -> str:
                 {
                     "role": "system",
                     "content": (
-                        "You write ONE English text-to-image prompt for a realistic educational textbook illustration. "
+                        "You write ONE English text-to-image prompt for a sharp school textbook diagram. "
                         "Return only the prompt line, no quotes or markdown. "
-                        "Require a labeled scientific process diagram with arrows and readable labels on a white background. "
-                        "Forbid Earth/globe photos, abstract blobs, gray box flowcharts, and childish cartoon mascots "
-                        "unless the topic is literally Earth layers or world maps."
+                        "Describe concrete labeled parts (nucleus, shells, arrows, organs, etc.), "
+                        "white background, crisp lines, readable labels. "
+                        "Never describe abstract art, blur, flowers, crystals, or dreamlike imagery."
                     ),
                 },
                 {
@@ -2917,19 +2996,15 @@ def _groq_rewrite_diagram_prompt(topic: str, style: str = "") -> str:
                     ),
                 },
             ],
-            temperature=0.2,
-            max_tokens=220,
+            temperature=0.15,
+            max_tokens=260,
         )
         line = (completion.choices[0].message.content or "").strip()
         line = re.sub(r'^["`\']+|["`\']+$', "", line)
         line = re.sub(r"\s+", " ", line).strip()
         if len(line) < 20:
             return _diagram_prompt_image(topic, style)
-        if "earth" not in topic.lower():
-            line += (
-                ", NOT a photo of planet Earth, NOT a globe, NOT abstract art, "
-                "labeled educational textbook illustration only"
-            )
+        line += f", {_DIAGRAM_NEGATIVES}"
         return line[:700]
     except Exception as e:
         print(f"[Diagram] Groq prompt rewrite failed: {e}")
@@ -2951,11 +3026,13 @@ def generate_diagram_hf_flux(topic: str, style: str = "") -> dict:
 
     topic = _normalize_diagram_topic(topic)
     prompt = _groq_rewrite_diagram_prompt(topic, style)
+    print(f"[Diagram] HF prompt ({len(prompt)} chars): {prompt[:160]}…")
+    # Schnell is fast; a few more steps + stronger guidance reduces abstract mush
     payload = json.dumps({
         "inputs": prompt,
         "parameters": {
-            "guidance_scale": 3.5,
-            "num_inference_steps": 4,
+            "guidance_scale": 7.5,
+            "num_inference_steps": 10,
         },
     }).encode("utf-8")
     endpoints = [
