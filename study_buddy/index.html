@@ -2053,6 +2053,35 @@
     .mock-exam-options div {
       margin: 3px 0;
     }
+    .mock-ar-block {
+      margin: 8px 0 10px;
+      padding: 10px 12px;
+      border: 1px solid #ccc;
+      background: #fffef8;
+      font-size: 0.95rem;
+    }
+    .mock-ar-block .mock-ar-label {
+      font-family: var(--font-ui);
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #555;
+      margin-bottom: 2px;
+    }
+    .mock-case-passage {
+      margin: 8px 0 12px;
+      padding: 12px 14px;
+      border: 1px solid #bbb;
+      background: #fff;
+      font-size: 0.94rem;
+      white-space: pre-wrap;
+    }
+    .mock-case-sub {
+      margin: 12px 0 12px 0.5rem;
+      padding-left: 10px;
+      border-left: 2px solid #888;
+    }
     .mock-exam-answer-row {
       display: flex;
       align-items: center;
@@ -3581,27 +3610,28 @@
     <div class="section-container">
       <div class="feature-header">
         <h2>📝 Mock Test Generator</h2>
-        <p>Generate a board-style exam paper — write answers on the paper, then reveal the marking scheme.</p>
+        <p>Pre-board style paper (MCQ, Assertion–Reason, Short/Long, Case Study) — generated in CBSE/ICSE format. Not a stored past paper bank.</p>
       </div>
       <div class="podcast-input" style="display:flex; flex-direction:column; gap:10px;">
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
           <input id="mock-subject" class="input" placeholder="Subject (e.g. Physics)" value="Physics" />
-          <input id="mock-exam" class="input" placeholder="Exam / Board (e.g. ICSE)" value="ICSE" />
+          <input id="mock-exam" class="input" placeholder="Exam / Board (e.g. CBSE / ICSE)" value="CBSE" />
           <input id="mock-grade" class="input" placeholder="Grade (e.g. Class 10)" value="Class 10" />
           <select id="mock-difficulty" class="input" style="padding:10px 12px;">
             <option value="Easy">Easy</option>
-            <option value="Medium" selected>Medium</option>
+            <option value="Medium">Medium</option>
             <option value="Hard">Hard</option>
+            <option value="Pre-boards" selected>Pre-boards (harder)</option>
           </select>
         </div>
-        <input id="mock-chapters" class="input" placeholder="Optional chapters / topics" />
+        <input id="mock-chapters" class="input" placeholder="Optional chapters / topics (e.g. Light, Electricity)" />
         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
           <label for="mock-size" style="font-size:0.85rem; font-weight:700; color:var(--muted);">Paper size</label>
-          <select id="mock-size" class="input" style="min-width:220px; padding:8px 10px;">
-            <option value="quick" selected>Quick — Section A only (10 marks)</option>
-            <option value="standard">Standard — A + B + C (30 marks)</option>
+          <select id="mock-size" class="input" style="min-width:260px; padding:8px 10px;">
+            <option value="quick">Quick drill — MCQ + A&amp;R + Case (~35 min)</option>
+            <option value="standard" selected>Full pre-board — A–E (~90 min)</option>
           </select>
-          <button id="generate-mock-test-btn" class="btn-primary">📄 Generate Exam Paper</button>
+          <button id="generate-mock-test-btn" class="btn-primary">📄 Generate Pre-Board Paper</button>
         </div>
       </div>
       <div id="mock-test-output"></div>
@@ -10107,36 +10137,105 @@
     function mockFlatQuestions(sections) {
       const list = [];
       (sections || []).forEach(sec => {
-        (sec.questions || []).forEach(q => list.push({ ...q, sectionId: sec.id }));
+        (sec.questions || []).forEach(q => {
+          list.push({ ...q, sectionId: sec.id });
+          if (q.type === "case_study" && Array.isArray(q.subquestions)) {
+            q.subquestions.forEach(sq => {
+              list.push({ ...sq, sectionId: sec.id, parentId: q.id, parentType: "case_study" });
+            });
+          }
+        });
       });
       return list;
+    }
+
+    function renderLetterChoiceBlock(qid, options, marksLabel) {
+      const letters = ["a", "b", "c", "d"];
+      const opts = (options || []).map((opt, oi) =>
+        `<div>(${letters[oi] || oi}) ${escapeHtml(opt)}</div>`
+      ).join("");
+      return `
+        <div class="mock-exam-options">${opts}</div>
+        <div class="mock-exam-answer-row">
+          <label for="mock-ans-${qid}">Answer:</label>
+          <input id="mock-ans-${qid}" class="mock-letter-input" data-qid="${qid}"
+                 type="text" maxlength="1" placeholder="A" autocomplete="off" />
+          ${marksLabel || ""}
+        </div>`;
     }
 
     function renderMockExamQuestion(q) {
       const n = q.number || "";
       const marks = q.marks || 1;
       const qid = escapeHtml(q.id);
+
+      if (q.type === "assertion_reason") {
+        return `
+          <div class="mock-exam-q" data-qid="${qid}" data-qtype="assertion_reason">
+            <div class="mock-exam-q-text">
+              <strong>${n}.</strong> Assertion–Reason
+              <span class="mock-marks">[${marks}]</span>
+            </div>
+            <div class="mock-ar-block">
+              <div class="mock-ar-label">Assertion (A)</div>
+              <div>${escapeHtml(q.assertion || "")}</div>
+              <div class="mock-ar-label" style="margin-top:8px;">Reason (R)</div>
+              <div>${escapeHtml(q.reason || "")}</div>
+            </div>
+            ${renderLetterChoiceBlock(qid, q.options)}
+            <div class="mock-markscheme" data-qid="${qid}"></div>
+          </div>`;
+      }
+
       if (q.type === "mcq") {
-        const letters = ["a", "b", "c", "d"];
-        const opts = (q.options || []).map((opt, oi) =>
-          `<div>(${letters[oi] || oi}) ${escapeHtml(opt)}</div>`
-        ).join("");
         return `
           <div class="mock-exam-q" data-qid="${qid}" data-qtype="mcq">
             <div class="mock-exam-q-text">
               <strong>${n}.</strong> ${escapeHtml(q.question)}
               <span class="mock-marks">[${marks}]</span>
             </div>
-            <div class="mock-exam-options">${opts}</div>
-            <div class="mock-exam-answer-row">
-              <label for="mock-ans-${qid}">Answer:</label>
-              <input id="mock-ans-${qid}" class="mock-letter-input" data-qid="${qid}"
-                     type="text" maxlength="1" placeholder="A" autocomplete="off" />
-            </div>
+            ${renderLetterChoiceBlock(qid, q.options)}
             <div class="mock-markscheme" data-qid="${qid}"></div>
           </div>`;
       }
-      const rows = q.type === "long" ? 6 : 3;
+
+      if (q.type === "case_study") {
+        const subs = (q.subquestions || []).map(sq => {
+          const sqid = escapeHtml(sq.id);
+          if (sq.type === "mcq") {
+            return `
+              <div class="mock-case-sub mock-exam-q" data-qid="${sqid}" data-qtype="mcq">
+                <div class="mock-exam-q-text">
+                  <strong>(${escapeHtml(String(sq.number))})</strong> ${escapeHtml(sq.question)}
+                  <span class="mock-marks">[${sq.marks || 1}]</span>
+                </div>
+                ${renderLetterChoiceBlock(sqid, sq.options)}
+                <div class="mock-markscheme" data-qid="${sqid}"></div>
+              </div>`;
+          }
+          return `
+            <div class="mock-case-sub mock-exam-q" data-qid="${sqid}" data-qtype="short">
+              <div class="mock-exam-q-text">
+                <strong>(${escapeHtml(String(sq.number))})</strong> ${escapeHtml(sq.question)}
+                <span class="mock-marks">[${sq.marks || 1}]</span>
+              </div>
+              <textarea class="mock-exam-textarea mock-written-answer" data-qid="${sqid}" rows="2"
+                placeholder="Write your answer…"></textarea>
+              <div class="mock-markscheme" data-qid="${sqid}"></div>
+            </div>`;
+        }).join("");
+        return `
+          <div class="mock-exam-q" data-qid="${qid}" data-qtype="case_study">
+            <div class="mock-exam-q-text">
+              <strong>${n}.</strong> Case Study Based Questions
+              <span class="mock-marks">[${marks}]</span>
+            </div>
+            <div class="mock-case-passage">${escapeHtml(q.passage || "")}</div>
+            ${subs}
+          </div>`;
+      }
+
+      const rows = q.type === "long" ? 7 : 3;
       return `
         <div class="mock-exam-q" data-qid="${qid}" data-qtype="${escapeHtml(q.type || "short")}">
           <div class="mock-exam-q-text">
@@ -10188,7 +10287,7 @@
             <div class="mock-exam-meta-row">
               <span>Maximum Marks: ${escapeHtml(String(mockTestState.meta.total_marks))}</span>
               <span>Time Allowed: ${escapeHtml(String(mockTestState.meta.duration_minutes))} minutes</span>
-              <span>Difficulty: ${escapeHtml(mockTestState.meta.difficulty)}</span>
+              <span>${escapeHtml(mockTestState.meta.difficulty)} · Pre-Board Pattern</span>
             </div>
           </div>
           <div class="mock-exam-instructions">
@@ -10196,7 +10295,8 @@
             <ol>${instr}</ol>
           </div>
           ${sectionsHtml}
-        </div>`;
+        </div>
+        ${data.note ? `<div style="margin-top:10px;font-size:0.78rem;color:var(--muted);">${escapeHtml(data.note)}</div>` : ""}`;
 
       out.querySelectorAll(".mock-letter-input").forEach(el => {
         el.addEventListener("input", () => {
@@ -10260,16 +10360,18 @@
       let possible = 0;
       const wrongForVault = [];
 
+      // Disable all inputs
+      out.querySelectorAll(".mock-letter-input, .mock-written-answer").forEach(el => { el.disabled = true; });
+
       mockTestState.questions.forEach(q => {
+        if (q.type === "case_study") return; // scored via subquestions already flattened
         const qid = String(q.id).replace(/"/g, "");
         const block = out.querySelector(`.mock-exam-q[data-qid="${qid}"]`);
-        const scheme = block?.querySelector(".mock-markscheme");
+        const scheme = block?.querySelector(`.mock-markscheme[data-qid="${qid}"]`) || block?.querySelector(".mock-markscheme");
         const letterInput = block?.querySelector(".mock-letter-input");
         const written = block?.querySelector(".mock-written-answer");
-        if (letterInput) letterInput.disabled = true;
-        if (written) written.disabled = true;
 
-        if (q.type === "mcq") {
+        if (q.type === "mcq" || q.type === "assertion_reason") {
           const marks = Number(q.marks) || 1;
           possible += marks;
           const chosenLetter = mockTestState.answers[q.id] || (letterInput?.value || "");
@@ -10278,6 +10380,9 @@
           const correctLetter = String.fromCharCode(65 + correct);
           const ok = chosenIdx === correct;
           if (ok) earned += marks;
+          const stem = q.type === "assertion_reason"
+            ? `A: ${q.assertion || ""}\nR: ${q.reason || ""}`
+            : q.question;
           if (scheme) {
             scheme.classList.add("show");
             scheme.innerHTML = ok
@@ -10286,13 +10391,13 @@
           }
           if (!ok) {
             wrongForVault.push({
-              question: q.question,
+              question: stem,
               wrong_answer: chosenLetter ? `${chosenLetter}. ${(q.options || [])[chosenIdx] || ""}` : "(blank)",
               correct_answer: `${correctLetter}. ${(q.options || [])[correct] || ""}`,
               explanation: q.explanation || "See marking scheme.",
             });
           }
-        } else {
+        } else if (q.type === "short" || q.type === "long") {
           const student = String(mockTestState.answers[q.id] || written?.value || "").trim();
           if (scheme) {
             scheme.classList.add("show");
@@ -10307,8 +10412,8 @@
 
       const banner = `
         <div class="mock-score-banner">
-          Section A (auto-marked): ${earned} / ${possible}
-          <span>Written sections are for self-marking against the model answers below.</span>
+          Objective score (MCQ + Assertion–Reason + case MCQs): ${earned} / ${possible}
+          <span>Short, long, and case written parts are for self-marking using the scheme below.</span>
         </div>`;
       if (paper) paper.insertAdjacentHTML("beforebegin", banner);
       else out.insertAdjacentHTML("afterbegin", banner);
@@ -10338,8 +10443,8 @@
               exam: document.getElementById("mock-exam")?.value || "Board exam",
               grade: document.getElementById("mock-grade")?.value || "Class 10",
               chapters: document.getElementById("mock-chapters")?.value || "",
-              difficulty: document.getElementById("mock-difficulty")?.value || "Medium",
-              size: document.getElementById("mock-size")?.value || "quick",
+              difficulty: document.getElementById("mock-difficulty")?.value || "Pre-boards",
+              size: document.getElementById("mock-size")?.value || "standard",
               model: cfg.model,
             }),
           });
