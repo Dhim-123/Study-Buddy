@@ -2970,28 +2970,42 @@ def generate_diagram_pollinations(topic: str, style: str = "") -> dict:
 
 
 def generate_diagram_svg_groq(topic: str, style: str = "") -> dict:
-    """Fallback: labeled educational SVG via Groq (uses GROQ_API_KEY)."""
+    """Primary: labeled ICSE textbook SVG via Groq (uses GROQ_API_KEY)."""
     topic = _normalize_diagram_topic(topic)
+    if not GROQ_API_KEY:
+        raise RuntimeError("GROQ_API_KEY is not set.")
     client = get_groq_client()
+    style_bit = (style or "ICSE science textbook schematic").strip()
     prompt = (
         f"Create ONE educational diagram as complete SVG for: {topic}.\n"
-        f"Style: {(style or 'clean educational textbook').strip()}. Audience: ICSE/school students.\n"
-        "Requirements:\n"
-        "- Return ONLY valid SVG starting with <svg and ending with </svg>.\n"
-        "- viewBox=\"0 0 720 540\", white background, readable labels, title at top.\n"
-        "- Label every key part. High contrast. No scripts, no external images.\n"
-        "- Prefer clear shapes, arrows, and text — textbook quality, not a stick figure.\n"
-        "- If the topic is a process (e.g. water cycle), show the process stages with arrows — "
-        "do NOT draw planet Earth or a globe."
+        f"Style: {style_bit}. Audience: ICSE Class 6–10 science students.\n"
+        "Visual rules (strict):\n"
+        "- Flat vector schematic, muted academic colors (slate, steel blue, soft green, warm gray).\n"
+        "- Thin geometric arrows (2–3px strokes), clear sans-serif labels (Arial or similar).\n"
+        "- White background, title at top, high contrast, neat layout — NOT childish cartoon.\n"
+        "- Label every key part. No scripts, no external images, no filters/blur.\n"
+        "- viewBox=\"0 0 720 540\". Return ONLY valid SVG from <svg> to </svg>.\n"
+        "Process diagrams (e.g. water cycle, photosynthesis, carbon cycle):\n"
+        "- Show a clear landscape/process scene with labeled stages and directional arrows.\n"
+        "- For water cycle specifically, MUST label: Evaporation, Condensation, Precipitation, Collection.\n"
+        "- Include simple sun, clouds, rain, water body, and land — schematic, not clip-art mascots.\n"
+        "Forbidden: cartoon/clip-art/kindergarten look, cute characters, Earth globe photo, "
+        "abstract art, photorealistic blobs, missing labels, stick-figure mess."
     )
     completion = client.chat.completions.create(
         model=DEFAULT_GROQ_MODEL,
         messages=[
-            {"role": "system", "content": "You output only SVG markup for educational diagrams. No markdown."},
+            {
+                "role": "system",
+                "content": (
+                    "You output only valid SVG markup for serious school textbook diagrams. "
+                    "No markdown, no explanation. Prefer clarity and labeled stages over decoration."
+                ),
+            },
             {"role": "user", "content": prompt},
         ],
-        temperature=0.25,
-        max_tokens=3500,
+        temperature=0.2,
+        max_tokens=4500,
     )
     raw = (completion.choices[0].message.content or "").strip()
     raw = re.sub(r"^```(?:svg|xml)?\s*", "", raw, flags=re.I)
@@ -3009,14 +3023,29 @@ def generate_diagram_svg_groq(topic: str, style: str = "") -> dict:
 
 @app.route("/api/diagram", methods=["POST"])
 def api_diagram():
-    """Educational diagram: free Pollinations image, Groq SVG fallback."""
+    """Educational diagram: Groq textbook SVG primary; Pollinations photo last resort."""
     data = request.get_json(force=True) or {}
     topic = _normalize_diagram_topic(data.get("topic") or data.get("prompt") or "")
     if not topic:
         return jsonify({"error": "Provide a topic for the diagram."}), 400
-    style = (data.get("style") or "clean educational textbook").strip()[:80]
+    style = (data.get("style") or "ICSE science textbook schematic").strip()[:80]
 
-    # 1) Free real image
+    # 1) Groq SVG (labeled textbook schematic)
+    if GROQ_API_KEY:
+        try:
+            result = generate_diagram_svg_groq(topic, style)
+            return jsonify({
+                "svg": result["svg"],
+                "model": result.get("model"),
+                "engine": result.get("engine"),
+                "topic": topic,
+            })
+        except Exception as e:
+            print(f"[Diagram] Groq SVG primary failed: {e}")
+    else:
+        print("[Diagram] GROQ_API_KEY missing; trying Pollinations fallback")
+
+    # 2) Pollinations photo last resort
     try:
         result = generate_diagram_pollinations(topic, style)
         return jsonify({
@@ -3025,29 +3054,15 @@ def api_diagram():
             "model": result.get("model"),
             "engine": result.get("engine"),
             "topic": topic,
-        })
-    except Exception as e:
-        print(f"[Diagram] Pollinations primary failed: {e}")
-
-    # 2) Groq SVG fallback
-    if not GROQ_API_KEY:
-        return jsonify({
-            "error": "Free image service was unavailable, and GROQ_API_KEY is not set for SVG fallback.",
-        }), 503
-    try:
-        result = generate_diagram_svg_groq(topic, style)
-        return jsonify({
-            "svg": result["svg"],
-            "model": result.get("model"),
-            "engine": result.get("engine"),
-            "topic": topic,
             "fallback": True,
+            "fallback_kind": "photo",
         })
     except Exception as e:
-        print(f"[ERROR] Diagram SVG fallback: {e}")
+        print(f"[ERROR] Diagram Pollinations fallback: {e}")
         return jsonify({
             "error": "Could not generate a diagram right now. Please try again in a minute.",
             "detail": str(e)[:200],
+            "hint": "Set GROQ_API_KEY on the server for reliable textbook SVG diagrams.",
         }), 500
 
 
