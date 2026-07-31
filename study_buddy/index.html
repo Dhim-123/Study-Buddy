@@ -3610,29 +3610,12 @@
     <div class="section-container">
       <div class="feature-header">
         <h2>📝 Mock Test Generator</h2>
-        <p>Pre-board style paper (MCQ, Assertion–Reason, Short/Long, Case Study) — generated in CBSE/ICSE format. Not a stored past paper bank.</p>
+        <p>Generates a full pre-board paper (MCQ, Assertion–Reason, Short/Long, Case Study). Enter a subject; chapters are optional.</p>
       </div>
       <div class="podcast-input" style="display:flex; flex-direction:column; gap:10px;">
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-          <input id="mock-subject" class="input" placeholder="Subject (e.g. Physics)" value="Physics" />
-          <input id="mock-exam" class="input" placeholder="Exam / Board (e.g. CBSE / ICSE)" value="CBSE" />
-          <input id="mock-grade" class="input" placeholder="Grade (e.g. Class 10)" value="Class 10" />
-          <select id="mock-difficulty" class="input" style="padding:10px 12px;">
-            <option value="Easy">Easy</option>
-            <option value="Medium">Medium</option>
-            <option value="Hard">Hard</option>
-            <option value="Pre-boards" selected>Pre-boards (harder)</option>
-          </select>
-        </div>
+        <input id="mock-subject" class="input" placeholder="Subject (e.g. Physics)" value="Physics" />
         <input id="mock-chapters" class="input" placeholder="Optional chapters / topics (e.g. Light, Electricity)" />
-        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-          <label for="mock-size" style="font-size:0.85rem; font-weight:700; color:var(--muted);">Paper size</label>
-          <select id="mock-size" class="input" style="min-width:260px; padding:8px 10px;">
-            <option value="quick">Quick drill — MCQ + A&amp;R + Case (~35 min)</option>
-            <option value="standard" selected>Full pre-board — A–E (~90 min)</option>
-          </select>
-          <button id="generate-mock-test-btn" class="btn-primary">📄 Generate Pre-Board Paper</button>
-        </div>
+        <button id="generate-mock-test-btn" class="btn-primary">📄 Generate Pre-Board Paper</button>
       </div>
       <div id="mock-test-output"></div>
       <div id="mock-test-actions" style="display:none; margin-top:12px;">
@@ -10281,13 +10264,12 @@
       out.innerHTML = `
         <div class="mock-exam-paper" id="mock-exam-paper">
           <div class="mock-exam-header">
-            <h3>${escapeHtml(mockTestState.meta.exam || "Board Examination")}</h3>
+            <h3>Pre-Board Examination</h3>
             <div class="mock-exam-sub">${escapeHtml(mockTestState.meta.title)}</div>
-            <div class="mock-exam-sub">${escapeHtml(mockTestState.meta.subject)} · ${escapeHtml(mockTestState.meta.grade)}</div>
+            <div class="mock-exam-sub">${escapeHtml(mockTestState.meta.subject)}</div>
             <div class="mock-exam-meta-row">
               <span>Maximum Marks: ${escapeHtml(String(mockTestState.meta.total_marks))}</span>
               <span>Time Allowed: ${escapeHtml(String(mockTestState.meta.duration_minutes))} minutes</span>
-              <span>${escapeHtml(mockTestState.meta.difficulty)} · Pre-Board Pattern</span>
             </div>
           </div>
           <div class="mock-exam-instructions">
@@ -10435,16 +10417,17 @@
         mockTestState = null;
         out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Preparing exam paper…</div>`;
         try {
+          const subject = (document.getElementById("mock-subject")?.value || "Physics").trim() || "Physics";
           const res = await fetch("/api/mock-test", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              subject: document.getElementById("mock-subject")?.value || "Physics",
-              exam: document.getElementById("mock-exam")?.value || "Board exam",
-              grade: document.getElementById("mock-grade")?.value || "Class 10",
+              subject,
               chapters: document.getElementById("mock-chapters")?.value || "",
-              difficulty: document.getElementById("mock-difficulty")?.value || "Pre-boards",
-              size: document.getElementById("mock-size")?.value || "standard",
+              exam: "Board",
+              grade: "Class 10",
+              difficulty: "Pre-boards",
+              size: "standard",
               model: cfg.model,
             }),
           });
