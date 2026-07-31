@@ -2819,7 +2819,7 @@ def api_tts():
 
 
 def _parse_mock_test_json(raw: str) -> dict:
-    """Extract mock-test JSON object from model output."""
+    """Extract board-paper mock-test JSON from model output."""
     text = (raw or "").strip()
     text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.I)
     text = re.sub(r"\s*```$", "", text)
@@ -2828,14 +2828,56 @@ def _parse_mock_test_json(raw: str) -> dict:
     if start < 0 or end <= start:
         raise ValueError("No JSON object found in model output")
     data = json.loads(text[start:end + 1])
-    if not isinstance(data, dict) or not isinstance(data.get("questions"), list):
-        raise ValueError("JSON must include a questions array")
+    if not isinstance(data, dict):
+        raise ValueError("JSON root must be an object")
+    if not isinstance(data.get("sections"), list):
+        raise ValueError("JSON must include a sections array")
     return data
+
+
+def _normalize_mock_question(q: dict, default_type: str, prefix: str, number: int) -> dict:
+    """Normalize one board-paper question."""
+    qtype = (q.get("type") or default_type).strip().lower()
+    if qtype not in ("mcq", "short", "long"):
+        qtype = default_type
+    item = {
+        "id": str(q.get("id") or f"{prefix}{number}")[:40],
+        "number": int(q.get("number") or number),
+        "type": qtype,
+        "question": str(q.get("question") or "").strip()[:900],
+        "marks": int(q.get("marks") or (1 if qtype == "mcq" else (3 if qtype == "short" else 5))),
+        "explanation": str(q.get("explanation") or "").strip()[:700],
+    }
+    if qtype == "mcq":
+        opts = q.get("options") or []
+        if not isinstance(opts, list):
+            opts = []
+        opts = [str(o).strip()[:220] for o in opts][:4]
+        while len(opts) < 4:
+            opts.append(f"Option {len(opts) + 1}")
+        try:
+            ans_i = int(q.get("answer_index"))
+        except Exception:
+            ans_i = 0
+        if ans_i < 0 or ans_i > 3:
+            ans_i = 0
+        item["options"] = opts
+        item["answer_index"] = ans_i
+        item["marks"] = 1
+    else:
+        item["answer"] = str(q.get("answer") or q.get("model_answer") or "").strip()[:800]
+        if not item["answer"]:
+            item["answer"] = item["explanation"] or "(See marking points)"
+        if qtype == "short":
+            item["marks"] = int(q.get("marks") or 3)
+        else:
+            item["marks"] = int(q.get("marks") or 5)
+    return item
 
 
 @app.route("/api/mock-test", methods=["POST"])
 def api_mock_test():
-    """Generate a structured takeable mock test (JSON) via Groq."""
+    """Generate a board-style exam paper (sectioned JSON) via Groq."""
     data = request.get_json(force=True) or {}
     subject = (data.get("subject") or "Physics").strip()[:80]
     exam = (data.get("exam") or "Board exam").strip()[:80]
@@ -2847,40 +2889,53 @@ def api_mock_test():
         size = "quick"
 
     if size == "standard":
-        count_line = "Exactly 20 questions: 16 type=mcq and 4 type=short."
+        structure_line = (
+            "Include sections A, B, and C: "
+            "Section A = exactly 8 MCQ (type=mcq, marks=1 each); "
+            "Section B = exactly 4 short answers (type=short, marks=3 each); "
+            "Section C = exactly 2 long answers (type=long, marks=5 each). "
+            "total_marks=30, duration_minutes=45."
+        )
         duration = 45
-        total_marks = 24  # 16*1 + 4*2
+        total_marks = 30
     else:
-        count_line = "Exactly 10 questions: all type=mcq."
+        structure_line = (
+            "Include only Section A: exactly 10 MCQ (type=mcq, marks=1 each). "
+            "total_marks=10, duration_minutes=20. Do not include sections B or C."
+        )
         duration = 20
         total_marks = 10
 
     chapter_line = f"Focus chapters/topics: {chapters}." if chapters else "Cover a representative syllabus mix."
     prompt = (
-        f"Create a {difficulty} mock test for {grade} {subject} ({exam}). {chapter_line}\n"
-        f"{count_line}\n"
-        f"Suggested duration_minutes={duration}, total_marks={total_marks}.\n\n"
+        f"Create a {difficulty} board-style QUESTION PAPER for {grade} {subject} ({exam}). {chapter_line}\n"
+        f"{structure_line}\n\n"
         "Return ONLY valid JSON (no markdown) with this shape:\n"
         "{\n"
         '  "title": string,\n'
         '  "total_marks": number,\n'
         '  "duration_minutes": number,\n'
-        '  "questions": [\n'
+        '  "instructions": ["bullet1", "bullet2", "bullet3", "bullet4", "bullet5"],\n'
+        '  "sections": [\n'
         "    {\n"
-        '      "id": "q1",\n'
-        '      "type": "mcq" | "short",\n'
-        '      "question": string,\n'
-        '      "options": ["A","B","C","D"],   // required for mcq, omit or [] for short\n'
-        '      "answer_index": 0,              // 0-3 for mcq\n'
-        '      "answer": "model answer",       // required for short\n'
-        '      "marks": number,\n'
-        '      "explanation": string\n'
+        '      "id": "A",\n'
+        '      "title": "Section A — Very Short Answers",\n'
+        '      "questions": [\n'
+        "        {\n"
+        '          "id": "a1", "number": 1, "type": "mcq",\n'
+        '          "question": "...",\n'
+        '          "options": ["...", "...", "...", "..."],\n'
+        '          "answer_index": 0,\n'
+        '          "marks": 1,\n'
+        '          "explanation": "marking points"\n'
+        "        }\n"
+        "      ]\n"
         "    }\n"
         "  ]\n"
         "}\n"
-        "Rules: MCQ must have exactly 4 options and a valid answer_index. "
-        "Short questions need a clear model answer string. "
-        "Explanations must help a student learn. Age-appropriate school level."
+        "Rules: Write like a real school/board exam paper. "
+        "MCQ options must be the option text only (not prefixed with A/B/C/D). "
+        "Short/long need a model answer string. Age-appropriate school level."
     )
 
     try:
@@ -2891,14 +2946,14 @@ def api_mock_test():
                 {
                     "role": "system",
                     "content": (
-                        "You generate school mock tests as strict JSON only. "
+                        "You write realistic school/board exam papers as strict JSON only. "
                         "No markdown fences, no commentary before or after the JSON."
                     ),
                 },
                 {"role": "user", "content": prompt},
             ],
             temperature=0.4,
-            max_tokens=4500,
+            max_tokens=5000,
         )
         raw = (completion.choices[0].message.content or "").strip()
         if not raw:
@@ -2907,56 +2962,110 @@ def api_mock_test():
             payload = _parse_mock_test_json(raw)
         except Exception as pe:
             print(f"[ERROR] Mock test JSON parse: {pe}\nRaw: {raw[:400]}")
-            return jsonify({"error": "Could not parse mock test JSON. Please try again."}), 500
+            return jsonify({"error": "Could not parse exam paper JSON. Please try again."}), 500
 
-        questions = []
-        for i, q in enumerate(payload.get("questions") or []):
-            if not isinstance(q, dict):
+        sections_out = []
+        for sec in payload.get("sections") or []:
+            if not isinstance(sec, dict):
                 continue
-            qtype = (q.get("type") or "mcq").strip().lower()
-            if qtype not in ("mcq", "short"):
-                qtype = "mcq"
-            item = {
-                "id": str(q.get("id") or f"q{i + 1}")[:40],
-                "type": qtype,
-                "question": str(q.get("question") or "").strip()[:800],
-                "marks": int(q.get("marks") or (2 if qtype == "short" else 1)),
-                "explanation": str(q.get("explanation") or "").strip()[:600],
-            }
-            if not item["question"]:
-                continue
-            if qtype == "mcq":
-                opts = q.get("options") or []
-                if not isinstance(opts, list):
-                    opts = []
-                opts = [str(o).strip()[:200] for o in opts][:4]
-                while len(opts) < 4:
-                    opts.append(f"Option {len(opts) + 1}")
-                try:
-                    ans_i = int(q.get("answer_index"))
-                except Exception:
-                    ans_i = 0
-                if ans_i < 0 or ans_i > 3:
-                    ans_i = 0
-                item["options"] = opts
-                item["answer_index"] = ans_i
-            else:
-                item["answer"] = str(q.get("answer") or q.get("model_answer") or "").strip()[:600]
-                if not item["answer"]:
-                    item["answer"] = item["explanation"] or "(See explanation)"
-            questions.append(item)
+            sid = str(sec.get("id") or "").strip().upper() or "A"
+            title = str(sec.get("title") or f"Section {sid}").strip()[:120]
+            default_type = "mcq" if sid == "A" else ("short" if sid == "B" else "long")
+            qs = []
+            for i, q in enumerate(sec.get("questions") or []):
+                if not isinstance(q, dict):
+                    continue
+                item = _normalize_mock_question(q, default_type, sid.lower(), i + 1)
+                if item["question"]:
+                    qs.append(item)
+            if qs:
+                sections_out.append({"id": sid, "title": title, "questions": qs})
 
+        # Enforce size shape
+        by_id = {s["id"]: s for s in sections_out}
         if size == "quick":
-            questions = [q for q in questions if q["type"] == "mcq"][:10]
+            sec_a = by_id.get("A") or (sections_out[0] if sections_out else None)
+            if not sec_a:
+                return jsonify({"error": "Exam paper missing Section A — try again."}), 500
+            mcqs = [q for q in sec_a["questions"] if q["type"] == "mcq"][:10]
+            if len(mcqs) < 5:
+                return jsonify({"error": "Section A too short — try generating again."}), 500
+            sections_out = [{
+                "id": "A",
+                "title": sec_a.get("title") or "Section A — Very Short Answers",
+                "questions": mcqs,
+            }]
+            total_marks = sum(q["marks"] for q in sections_out[0]["questions"])
+            duration = int(payload.get("duration_minutes") or 20)
         else:
-            mcqs = [q for q in questions if q["type"] == "mcq"][:16]
-            shorts = [q for q in questions if q["type"] == "short"][:4]
-            questions = mcqs + shorts
+            a_qs = [q for q in (by_id.get("A") or {}).get("questions", []) if q["type"] == "mcq"][:8]
+            b_qs = [q for q in (by_id.get("B") or {}).get("questions", []) if q["type"] in ("short", "long")][:4]
+            for q in b_qs:
+                q["type"] = "short"
+                q["marks"] = 3
+            c_qs = [q for q in (by_id.get("C") or {}).get("questions", []) if q["type"] in ("short", "long")][:2]
+            for q in c_qs:
+                q["type"] = "long"
+                q["marks"] = 5
+            # Fallback: pull leftovers from flat sections if B/C missing
+            if len(b_qs) < 4 or len(c_qs) < 2:
+                extras = []
+                for s in sections_out:
+                    for q in s.get("questions") or []:
+                        if q["type"] != "mcq":
+                            extras.append(q)
+                if len(b_qs) < 4:
+                    for q in extras:
+                        if q not in b_qs and q not in c_qs and len(b_qs) < 4:
+                            q = dict(q)
+                            q["type"] = "short"
+                            q["marks"] = 3
+                            b_qs.append(q)
+                if len(c_qs) < 2:
+                    for q in extras:
+                        if q not in b_qs and q not in c_qs and len(c_qs) < 2:
+                            q = dict(q)
+                            q["type"] = "long"
+                            q["marks"] = 5
+                            c_qs.append(q)
+            if len(a_qs) < 5:
+                return jsonify({"error": "Exam paper incomplete — try generating again."}), 500
+            sections_out = []
+            if a_qs:
+                sections_out.append({
+                    "id": "A",
+                    "title": (by_id.get("A") or {}).get("title") or "Section A — Very Short Answers",
+                    "questions": a_qs,
+                })
+            if b_qs:
+                sections_out.append({
+                    "id": "B",
+                    "title": (by_id.get("B") or {}).get("title") or "Section B — Short Answers",
+                    "questions": b_qs,
+                })
+            if c_qs:
+                sections_out.append({
+                    "id": "C",
+                    "title": (by_id.get("C") or {}).get("title") or "Section C — Long Answers",
+                    "questions": c_qs,
+                })
+            total_marks = sum(q["marks"] for s in sections_out for q in s["questions"])
+            duration = int(payload.get("duration_minutes") or 45)
 
-        if len(questions) < 5:
-            return jsonify({"error": "Mock test too short — try generating again."}), 500
+        instructions = payload.get("instructions") or []
+        if not isinstance(instructions, list):
+            instructions = []
+        instructions = [str(x).strip()[:200] for x in instructions if str(x).strip()][:5]
+        if len(instructions) < 3:
+            instructions = [
+                "Read all questions carefully before answering.",
+                "Write answers in the spaces provided.",
+                "For Section A, write only the option letter (A, B, C, or D).",
+                "Marks for each question are indicated in brackets.",
+                "Manage your time wisely.",
+            ][:5]
 
-        title = str(payload.get("title") or f"{subject} Mock Test").strip()[:120]
+        title = str(payload.get("title") or f"{exam} — {subject}").strip()[:140]
         return jsonify({
             "title": title,
             "subject": subject,
@@ -2964,9 +3073,10 @@ def api_mock_test():
             "grade": grade,
             "difficulty": difficulty,
             "size": size,
-            "total_marks": int(payload.get("total_marks") or sum(q["marks"] for q in questions)),
-            "duration_minutes": int(payload.get("duration_minutes") or duration),
-            "questions": questions,
+            "total_marks": int(payload.get("total_marks") or total_marks),
+            "duration_minutes": duration,
+            "instructions": instructions,
+            "sections": sections_out,
         })
     except Exception as e:
         print(f"[ERROR] Mock test: {e}")
