@@ -3012,7 +3012,8 @@ def api_mock_test():
     )
 
     prompt = (
-        f"Create a PRE-BOARD style {exam} QUESTION PAPER for {grade} {subject}. "
+        f"Create a MOCK TEST question paper (pre-board difficulty) for {grade} {subject} ({exam}). "
+        f"The title must say 'Mock Test', not 'Pre-Board Examination'. "
         f"Difficulty setting: {difficulty}. {chapter_line}\n"
         f"{structure_line}\n{board_hint}\n\n"
         "Return ONLY valid JSON (no markdown):\n"
