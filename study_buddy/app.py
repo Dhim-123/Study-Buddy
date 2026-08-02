@@ -77,7 +77,7 @@ if not GROQ_API_KEY:
     print("   GROQ_API_KEY=your-key-here\n")
 
 if not GEMINI_API_KEY:
-    print("[WARNING] No GEMINI_API_KEY — diagrams need a billed Google AI Studio key.")
+    print("[WARNING] No GEMINI_API_KEY — diagram photos disabled; labeled SVG will use GROQ_API_KEY.")
 
 # Centralized Groq Client
 _groq_client_instance = None
@@ -3293,7 +3293,123 @@ def _diagram_topic_template(topic: str):
             f"{_DIAGRAM_NEGATIVES}"
         )
 
+    if "animal cell" in t:
+        return (
+            "sharp labeled textbook diagram of an animal cell, cell membrane, nucleus, "
+            "mitochondria, cytoplasm, ribosomes, no cell wall, white background, "
+            "leader lines, ICSE biology figure, crisp lines, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
+    if "plant cell" in t or (
+        "cell" in t and "plant" in t and "animal" not in t
+    ):
+        return (
+            "sharp labeled textbook diagram of a plant cell, cell wall, cell membrane, "
+            "nucleus, chloroplasts, vacuole, cytoplasm, mitochondria, white background, "
+            "leader lines to each part, ICSE biology figure, crisp lines, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
+    if "human heart" in t or t in ("heart", "heart structure", "structure of heart"):
+        return (
+            "sharp labeled textbook diagram of the human heart, four chambers left/right atrium "
+            "and ventricle, aorta, vena cava, pulmonary artery and vein, valves labeled, "
+            "white background, ICSE biology figure, crisp lines, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
+    if "digestive" in t or "digestive system" in t:
+        return (
+            "sharp labeled textbook diagram of the human digestive system, mouth, oesophagus, "
+            "stomach, liver, pancreas, small intestine, large intestine, anus, white background, "
+            "leader lines, ICSE biology figure, crisp lines, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
+    if "circuit" in t or "electric circuit" in t:
+        return (
+            "sharp labeled textbook electric circuit diagram, cell/battery, switch, bulb, "
+            "ammeter or resistor as relevant, connecting wires, standard school symbols, "
+            "white background, ICSE physics figure, crisp lines, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
+    if "concave lens" in t or "convex lens" in t or ("lens" in t and ("ray" in t or "image" in t)):
+        lens = "concave" if "concave" in t else "convex"
+        return (
+            f"sharp labeled textbook ray diagram for a {lens} lens, optical centre, principal axis, "
+            "focal points F and 2F, object arrow, image arrow, three standard rays, "
+            "white background, ICSE physics figure, crisp lines, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
+    if "mitosis" in t:
+        return (
+            "sharp labeled textbook diagram of mitosis stages: prophase, metaphase, anaphase, "
+            "telophase, chromosomes and spindle labeled, white background, ICSE biology figure, "
+            "crisp lines, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
+    if "carbon cycle" in t:
+        return (
+            "sharp labeled textbook diagram of the carbon cycle, atmosphere CO2, photosynthesis, "
+            "respiration, combustion, decomposition, ocean exchange, arrows between stages, "
+            "white background, ICSE geography/biology figure, crisp lines, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
+    if "nephron" in t or "kidney" in t:
+        return (
+            "sharp labeled textbook diagram of a nephron, Bowman's capsule, glomerulus, "
+            "proximal tubule, loop of Henle, distal tubule, collecting duct, white background, "
+            "ICSE biology figure, crisp lines, "
+            f"{_DIAGRAM_NEGATIVES}"
+        )
+
     return None
+
+
+def _diagram_svg_part_hints(topic: str) -> str:
+    """Extra must-label parts for Groq SVG (topic-specific)."""
+    t = _normalize_diagram_topic(topic).lower()
+    if (
+        ("atomic" in t and "structure" in t)
+        or ("bohr" in t)
+        or (re.search(r"\batoms?\b", t) and "structure" in t)
+        or t in ("atom", "atoms", "atomic structure", "bohr model")
+    ):
+        return (
+            "MUST show Bohr model: Nucleus (protons +, neutrons n), K/L/M shells, electrons e-."
+        )
+    if "water cycle" in t or "hydrologic" in t:
+        return "MUST label: Evaporation, Condensation, Precipitation, Collection; include sun, clouds, rain, water, land."
+    if "photosynthesis" in t:
+        return "MUST label: sunlight, CO2, H2O in; O2, glucose out; chloroplast or leaf."
+    if "neuron" in t or "nerve cell" in t:
+        return "MUST label: dendrites, cell body, axon, myelin sheath, axon terminals."
+    if "electrolysis" in t:
+        return "MUST label: anode, cathode, battery, H2 and O2 bubbles, electrolyte."
+    if "plant cell" in t:
+        return "MUST label: cell wall, cell membrane, nucleus, chloroplast, vacuole, cytoplasm."
+    if "animal cell" in t:
+        return "MUST label: cell membrane, nucleus, mitochondria, cytoplasm (no cell wall)."
+    if "heart" in t:
+        return "MUST label: four chambers, aorta, vena cava, pulmonary vessels."
+    if "digestive" in t:
+        return "MUST label: mouth, oesophagus, stomach, liver, small/large intestine."
+    if "circuit" in t:
+        return "MUST use standard school circuit symbols and label each component."
+    if "lens" in t:
+        return "MUST show principal axis, optical centre, F, 2F, object, image, and rays."
+    if "mitosis" in t:
+        return "MUST show labeled stages: prophase, metaphase, anaphase, telophase."
+    if "carbon cycle" in t:
+        return "MUST label: CO2 in air, photosynthesis, respiration, combustion, decomposition."
+    if "nephron" in t or "kidney" in t:
+        return "MUST label: Bowman's capsule, glomerulus, loop of Henle, collecting duct."
+    return "Label every scientifically important part with leader lines."
 
 
 def _diagram_prompt_image(topic: str, style: str = "") -> str:
@@ -3540,10 +3656,12 @@ def generate_diagram_gemini(topic: str, style: str = "") -> dict:
     client = get_gemini_client()
     model = GEMINI_IMAGE_MODEL
     detail = _groq_rewrite_diagram_prompt(topic, style)
+    part_hints = _diagram_svg_part_hints(topic)
     prompt = (
         f"Create ONE textbook-quality educational diagram image for ICSE/school students.\n"
         f"Topic: {topic}\n"
         f"Visual brief: {detail}\n"
+        f"Required labels: {part_hints}\n"
         f"Style: {(style or 'clean educational textbook illustration').strip()}.\n"
         "Hard requirements:\n"
         "- Accurate labeled scientific diagram (e.g. Bohr atomic structure with nucleus and shells)\n"
@@ -3614,50 +3732,156 @@ def generate_diagram_gemini(topic: str, style: str = "") -> dict:
     )
 
 
+def generate_diagram_svg_groq(topic: str, style: str = "") -> dict:
+    """Labeled ICSE textbook SVG via Groq (uses GROQ_API_KEY). Reliable label fallback."""
+    topic = _normalize_diagram_topic(topic)
+    if not GROQ_API_KEY:
+        raise RuntimeError("GROQ_API_KEY is not set.")
+    client = get_groq_client()
+    style_bit = (style or "ICSE science textbook schematic").strip()
+    part_hints = _diagram_svg_part_hints(topic)
+    prompt = (
+        f"Create ONE educational diagram as complete SVG for: {topic}.\n"
+        f"Style: {style_bit}. Audience: ICSE Class 6–10 science students.\n"
+        f"Topic labels: {part_hints}\n"
+        "Visual rules (strict):\n"
+        "- Flat vector schematic, muted academic colors (slate, steel blue, soft green, warm gray).\n"
+        "- Thin geometric arrows (2–3px strokes), clear sans-serif labels (Arial or similar).\n"
+        "- White background, title at top, high contrast, neat layout — NOT childish cartoon.\n"
+        "- Label every key part with leader lines. No scripts, no external images, no filters/blur.\n"
+        "- viewBox=\"0 0 720 540\". Return ONLY valid SVG from <svg> to </svg>.\n"
+        "Process diagrams (e.g. water cycle, photosynthesis, carbon cycle):\n"
+        "- Show a clear landscape/process scene with labeled stages and directional arrows.\n"
+        "Forbidden: cartoon/clip-art/kindergarten look, cute characters, Earth globe photo, "
+        "abstract art, photorealistic blobs, missing labels, stick-figure mess."
+    )
+    completion = client.chat.completions.create(
+        model=DEFAULT_GROQ_MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You output only valid SVG markup for serious school textbook diagrams. "
+                    "No markdown, no explanation. Prefer clarity and labeled stages over decoration."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.2,
+        max_tokens=4500,
+    )
+    raw = (completion.choices[0].message.content or "").strip()
+    raw = re.sub(r"^```(?:svg|xml)?\s*", "", raw, flags=re.I)
+    raw = re.sub(r"\s*```$", "", raw)
+    start = raw.lower().find("<svg")
+    end = raw.lower().rfind("</svg>")
+    if start < 0 or end < 0:
+        raise RuntimeError("Groq did not return valid SVG.")
+    svg = raw[start:end + len("</svg>")]
+    # Basic sanity: reject tiny / empty diagrams
+    if len(svg) < 80 or "<text" not in svg.lower():
+        raise RuntimeError("Groq SVG missing labels or too short.")
+    return {
+        "svg": svg,
+        "model": DEFAULT_GROQ_MODEL,
+        "engine": "groq-svg",
+    }
+
+
 @app.route("/api/diagram", methods=["POST"])
 def api_diagram():
-    """Educational diagram: Gemini Nano Banana (paid) primary — textbook images."""
+    """
+    Educational diagram:
+      1) Groq labeled SVG (primary — reliable labels via existing GROQ_API_KEY)
+      2) Optional Gemini photo if body.engine == "gemini" / prefer_image and key is set
+    Free Flux/Pollinations are intentionally unused — they produce abstract junk.
+    """
     data = request.get_json(force=True) or {}
     topic = _normalize_diagram_topic(data.get("topic") or data.get("prompt") or "")
     if not topic:
         return jsonify({"error": "Provide a topic for the diagram."}), 400
     style = (data.get("style") or "clean educational textbook illustration").strip()[:80]
+    prefer = (data.get("engine") or "").strip().lower()
+    want_gemini = prefer in ("gemini", "image", "photo") or bool(data.get("prefer_image"))
 
-    if not GEMINI_API_KEY:
-        return jsonify({
-            "error": "Diagrams need GEMINI_API_KEY (Google AI Studio) with billing enabled.",
-            "hint": (
-                "1) https://aistudio.google.com/apikey — create key. "
-                "2) Enable billing on the Google Cloud project linked to that key "
-                "(free tier image quota is often 0). "
-                "3) Set GEMINI_API_KEY on Render and redeploy."
-            ),
-        }), 503
+    # Optional Gemini photo path (only when explicitly requested — avoids slow quota failures)
+    if want_gemini and GEMINI_API_KEY:
+        try:
+            result = generate_diagram_gemini(topic, style)
+            return jsonify({
+                "image_base64": result["image_base64"],
+                "mime": result["mime"],
+                "model": result.get("model"),
+                "engine": result.get("engine") or "gemini",
+                "topic": topic,
+            })
+        except Exception as e:
+            print(f"[Diagram] Gemini preferred path failed, falling back to SVG: {e}")
 
-    try:
-        result = generate_diagram_gemini(topic, style)
-        return jsonify({
-            "image_base64": result["image_base64"],
-            "mime": result["mime"],
-            "model": result.get("model"),
-            "engine": result.get("engine") or "gemini",
-            "topic": topic,
-        })
-    except Exception as e:
-        err = str(e)
-        print(f"[ERROR] Diagram Gemini: {err}")
-        hint = "Check GEMINI_API_KEY and that billing is enabled for image generation."
-        low = err.lower()
-        if "resource_exhausted" in low or "limit: 0" in low or "quota" in low:
-            hint = (
-                "Image quota is 0 on the free tier. Enable billing for your Google Cloud "
-                "project (AI Studio → linked project → Billing), then retry."
-            )
-        return jsonify({
-            "error": "Could not generate diagram with Gemini.",
-            "detail": err[:300],
-            "hint": hint,
-        }), 500
+    if GROQ_API_KEY:
+        try:
+            result = generate_diagram_svg_groq(topic, style)
+            return jsonify({
+                "svg": result["svg"],
+                "model": result.get("model"),
+                "engine": result.get("engine") or "groq-svg",
+                "topic": topic,
+            })
+        except Exception as e:
+            print(f"[ERROR] Diagram Groq SVG: {e}")
+            # Last resort: try Gemini even if not requested, when SVG fails
+            if GEMINI_API_KEY:
+                try:
+                    result = generate_diagram_gemini(topic, style)
+                    return jsonify({
+                        "image_base64": result["image_base64"],
+                        "mime": result["mime"],
+                        "model": result.get("model"),
+                        "engine": result.get("engine") or "gemini",
+                        "topic": topic,
+                        "fallback": True,
+                        "fallback_from": "groq-svg",
+                    })
+                except Exception as ge:
+                    print(f"[ERROR] Diagram Gemini last resort: {ge}")
+            return jsonify({
+                "error": "Could not generate diagram.",
+                "detail": str(e)[:300],
+                "hint": "Check GROQ_API_KEY. Optionally set billed GEMINI_API_KEY for photo diagrams.",
+            }), 500
+
+    if GEMINI_API_KEY:
+        try:
+            result = generate_diagram_gemini(topic, style)
+            return jsonify({
+                "image_base64": result["image_base64"],
+                "mime": result["mime"],
+                "model": result.get("model"),
+                "engine": result.get("engine") or "gemini",
+                "topic": topic,
+            })
+        except Exception as e:
+            err = str(e)
+            hint = "Check GEMINI_API_KEY billing, or set GROQ_API_KEY for labeled SVG diagrams."
+            low = err.lower()
+            if "resource_exhausted" in low or "limit: 0" in low or "quota" in low:
+                hint = (
+                    "Image quota is 0 on the free tier. Set GROQ_API_KEY for labeled SVG, "
+                    "or enable Gemini billing."
+                )
+            return jsonify({
+                "error": "Could not generate diagram with Gemini.",
+                "detail": err[:300],
+                "hint": hint,
+            }), 500
+
+    return jsonify({
+        "error": "No diagram engine available.",
+        "hint": (
+            "Set GROQ_API_KEY for labeled SVG diagrams (recommended), "
+            "and/or GEMINI_API_KEY with billing for photo-style textbook images."
+        ),
+    }), 503
 
 
 @app.route("/api/formulas", methods=["POST"])
