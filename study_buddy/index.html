@@ -2303,6 +2303,55 @@
       gap: 12px;
     }
 
+    /* Live camera OCR modal */
+    #camera-ocr-modal .modal-content {
+      max-width: 520px;
+      max-height: 92vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    #camera-ocr-modal .modal-body {
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 0;
+    }
+    #camera-video {
+      width: 100%;
+      max-height: 55vh;
+      background: #000;
+      border-radius: var(--radius);
+      object-fit: cover;
+      transform: scaleX(1);
+    }
+    #camera-ocr-status {
+      font-size: 0.85rem;
+      color: var(--muted);
+      min-height: 1.2em;
+    }
+    #camera-ocr-modal .modal-footer {
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    #camera-ocr-modal .camera-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    #camera-gallery-link {
+      background: none;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-decoration: underline;
+      padding: 8px 0;
+    }
+
     .btn-sm {
       padding: 6px 12px;
       border-radius: var(--radius);
@@ -3149,9 +3198,9 @@
       <!-- Input -->
       <div id="input-bar">
         <input type="file" id="chat-ocr-input" accept="image/*,.jpg,.jpeg,.png,.webp" style="display:none;" />
-        <button id="attach-ocr-btn" type="button" title="Upload page photo (OCR)" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--text); cursor:pointer; font-size:1.1rem;">📷</button>
+        <button id="attach-ocr-btn" type="button" title="Take or upload page photo (OCR)" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--text); cursor:pointer; font-size:1.1rem;">📷</button>
         <button id="mic-btn" type="button" title="Voice message" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--text); cursor:pointer; font-size:1.1rem;">🎤</button>
-        <textarea id="user-input" placeholder="Ask me anything… (or use 📷 / 🎤)" rows="1"></textarea>
+        <textarea id="user-input" placeholder="Ask me anything… (or use 📷 to snap a page / 🎤 to speak)" rows="1"></textarea>
         <button id="voice-reply-toggle" type="button" title="Speak buddy replies" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--muted); cursor:pointer; font-size:0.95rem;">🔇</button>
         <button id="send-btn" title="Send (Enter)">➤</button>
       </div>
@@ -3600,6 +3649,28 @@
             <button id="save-mistake-btn" class="btn-primary">Save Mistake</button>
             <button id="cancel-mistake-btn" class="btn-secondary">Cancel</button>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live camera OCR modal -->
+  <div id="camera-ocr-modal" class="modal" style="display:none;" aria-hidden="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Take a page photo</h3>
+        <button id="camera-ocr-close" class="close-btn" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <video id="camera-video" autoplay playsinline muted></video>
+        <canvas id="camera-canvas" style="display:none;"></canvas>
+        <div id="camera-ocr-status">Point the camera at your notes or textbook page.</div>
+      </div>
+      <div class="modal-footer">
+        <button id="camera-gallery-link" type="button">Upload from gallery</button>
+        <div class="camera-actions">
+          <button id="camera-ocr-cancel" class="btn-secondary" type="button">Cancel</button>
+          <button id="camera-ocr-capture" class="btn-primary" type="button">📸 Capture</button>
         </div>
       </div>
     </div>
@@ -10032,19 +10103,130 @@
 
     const attachOcrBtn = document.getElementById("attach-ocr-btn");
     const chatOcrInput = document.getElementById("chat-ocr-input");
+    const cameraOcrModal = document.getElementById("camera-ocr-modal");
+    const cameraVideo = document.getElementById("camera-video");
+    const cameraCanvas = document.getElementById("camera-canvas");
+    const cameraOcrStatus = document.getElementById("camera-ocr-status");
+    const cameraOcrCapture = document.getElementById("camera-ocr-capture");
+    const cameraOcrCancel = document.getElementById("camera-ocr-cancel");
+    const cameraOcrClose = document.getElementById("camera-ocr-close");
+    const cameraGalleryLink = document.getElementById("camera-gallery-link");
+    let __cameraStream = null;
+
+    async function finishOcrAndPrefillChat(file) {
+      const statusEl = document.getElementById("upload-welcome-status");
+      await runOcrOnFile(file, statusEl || { style: {}, textContent: "" });
+      const excerpt = (notesContent || "").trim().slice(0, 500);
+      if (excerpt && userInputEl) {
+        userInputEl.value = `I uploaded a page photo. Here is the extracted text:\n\n${excerpt}${(notesContent || "").length > 500 ? "…" : ""}\n\nPlease explain the key points.`;
+        userInputEl.focus();
+      }
+    }
+
+    function stopCameraStream() {
+      if (__cameraStream) {
+        try {
+          __cameraStream.getTracks().forEach((t) => t.stop());
+        } catch (_) {}
+        __cameraStream = null;
+      }
+      if (cameraVideo) {
+        try { cameraVideo.srcObject = null; } catch (_) {}
+      }
+    }
+
+    function closeCameraModal() {
+      stopCameraStream();
+      if (cameraOcrModal) {
+        cameraOcrModal.style.display = "none";
+        cameraOcrModal.setAttribute("aria-hidden", "true");
+      }
+      if (cameraOcrStatus) {
+        cameraOcrStatus.textContent = "Point the camera at your notes or textbook page.";
+        cameraOcrStatus.style.color = "";
+      }
+      if (cameraOcrCapture) cameraOcrCapture.disabled = false;
+    }
+
+    function openGalleryPicker() {
+      closeCameraModal();
+      if (chatOcrInput) chatOcrInput.click();
+    }
+
+    async function openCameraModal() {
+      if (!cameraOcrModal || !cameraVideo) {
+        openGalleryPicker();
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        if (cameraOcrStatus) cameraOcrStatus.textContent = "Camera not supported here. Opening gallery…";
+        openGalleryPicker();
+        return;
+      }
+      cameraOcrModal.style.display = "flex";
+      cameraOcrModal.setAttribute("aria-hidden", "false");
+      if (cameraOcrStatus) {
+        cameraOcrStatus.textContent = "Starting camera…";
+        cameraOcrStatus.style.color = "";
+      }
+      if (cameraOcrCapture) cameraOcrCapture.disabled = true;
+      stopCameraStream();
+      try {
+        __cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false,
+        });
+        cameraVideo.srcObject = __cameraStream;
+        await cameraVideo.play().catch(() => {});
+        if (cameraOcrStatus) cameraOcrStatus.textContent = "Point the camera at your notes or textbook page.";
+        if (cameraOcrCapture) cameraOcrCapture.disabled = false;
+      } catch (err) {
+        console.warn("Camera open failed:", err);
+        if (cameraOcrStatus) {
+          cameraOcrStatus.textContent = "Could not access camera. Opening gallery instead…";
+          cameraOcrStatus.style.color = "var(--danger, #f87171)";
+        }
+        setTimeout(() => openGalleryPicker(), 600);
+      }
+    }
+
+    async function captureCameraFrame() {
+      if (!cameraVideo || !cameraCanvas || !__cameraStream) return;
+      if (cameraOcrCapture) cameraOcrCapture.disabled = true;
+      if (cameraOcrStatus) cameraOcrStatus.textContent = "Capturing…";
+      const w = cameraVideo.videoWidth || 1280;
+      const h = cameraVideo.videoHeight || 720;
+      cameraCanvas.width = w;
+      cameraCanvas.height = h;
+      const ctx = cameraCanvas.getContext("2d");
+      ctx.drawImage(cameraVideo, 0, 0, w, h);
+      const blob = await new Promise((resolve) => cameraCanvas.toBlob(resolve, "image/jpeg", 0.92));
+      closeCameraModal();
+      if (!blob) {
+        const statusEl = document.getElementById("upload-welcome-status");
+        showUploadStatus(statusEl || { style: {}, textContent: "" }, "Capture failed. Try gallery upload.", true);
+        return;
+      }
+      const file = new File([blob], `camera-${Date.now()}.jpg`, { type: "image/jpeg" });
+      await finishOcrAndPrefillChat(file);
+    }
+
     if (attachOcrBtn && chatOcrInput) {
-      attachOcrBtn.addEventListener("click", () => chatOcrInput.click());
+      attachOcrBtn.addEventListener("click", () => openCameraModal());
       chatOcrInput.addEventListener("change", async () => {
         const file = chatOcrInput.files && chatOcrInput.files[0];
         chatOcrInput.value = "";
         if (!file) return;
-        const statusEl = document.getElementById("upload-welcome-status");
-        await runOcrOnFile(file, statusEl || { style: {}, textContent: "" });
-        const excerpt = (notesContent || "").trim().slice(0, 500);
-        if (excerpt && userInputEl) {
-          userInputEl.value = `I uploaded a page photo. Here is the extracted text:\n\n${excerpt}${(notesContent || "").length > 500 ? "…" : ""}\n\nPlease explain the key points.`;
-          userInputEl.focus();
-        }
+        await finishOcrAndPrefillChat(file);
+      });
+    }
+    if (cameraOcrCapture) cameraOcrCapture.addEventListener("click", () => captureCameraFrame());
+    if (cameraOcrCancel) cameraOcrCancel.addEventListener("click", () => closeCameraModal());
+    if (cameraOcrClose) cameraOcrClose.addEventListener("click", () => closeCameraModal());
+    if (cameraGalleryLink) cameraGalleryLink.addEventListener("click", () => openGalleryPicker());
+    if (cameraOcrModal) {
+      cameraOcrModal.addEventListener("click", (e) => {
+        if (e.target === cameraOcrModal) closeCameraModal();
       });
     }
 
