@@ -3700,17 +3700,11 @@
     <div class="section-container">
       <div class="feature-header">
         <h2>🖼 Educational Diagrams</h2>
-        <p>Labeled textbook SVG diagrams (Groq). Optional Gemini photo if billing is enabled.</p>
+        <p>AI textbook images via Gemini Nano Banana (needs GEMINI_API_KEY with billing).</p>
       </div>
       <div class="podcast-input">
         <textarea id="diagram-input" placeholder="e.g. Atomic structure, Water cycle, Plant cell, Concave lens ray diagram" rows="2"></textarea>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;">
-          <button id="generate-diagram-btn" class="btn-primary">🎨 Generate Diagram</button>
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--muted);cursor:pointer;">
-            <input type="checkbox" id="diagram-prefer-gemini" />
-            Prefer Gemini photo
-          </label>
-        </div>
+        <button id="generate-diagram-btn" class="btn-primary">🎨 Generate Diagram</button>
       </div>
       <div id="diagrams-output" class="feature-output"></div>
     </div>
@@ -10640,67 +10634,28 @@
           out.innerHTML = `<div style="color:var(--accent2);">Enter a topic first.</div>`;
           return;
         }
-        const preferGemini = !!document.getElementById("diagram-prefer-gemini")?.checked;
-        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Generating textbook diagram…</div>`;
+        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Generating Nano Banana diagram image…</div>`;
         try {
           const res = await fetch("/api/diagram", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              topic,
-              prefer_image: preferGemini,
-              engine: preferGemini ? "gemini" : "svg",
-            }),
+            body: JSON.stringify({ topic }),
           });
           const data = await readJsonResponse(res);
           if (!res.ok) {
             const detail = [data?.error, data?.hint, data?.detail].filter(Boolean).join(" — ");
             throw new Error(detail || "Failed");
           }
-          const modelLabel = escapeHtml(data.engine || data.model || "diagram");
-          const fallbackNote = data.fallback
-            ? `<div style="margin-bottom:8px;color:var(--muted);font-size:0.78rem;">Fell back from ${escapeHtml(data.fallback_from || "primary")}.</div>`
-            : "";
-
-          if (data.svg) {
-            const svgRaw = String(data.svg);
-            // Only allow SVG markup into the page (strip scripts if model misbehaves)
-            const safeSvg = svgRaw
-              .replace(/<script[\s\S]*?<\/script>/gi, "")
-              .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-            const svgB64 = btoa(unescape(encodeURIComponent(svgRaw)));
-            const svgHref = `data:image/svg+xml;base64,${svgB64}`;
-            out.innerHTML = `
-              ${fallbackNote}
-              <div style="margin-bottom:10px;color:var(--muted);font-size:0.82rem;font-weight:700;">
-                ${escapeHtml(topic)} · ${modelLabel}
-              </div>
-              <div style="background:#fff;border-radius:12px;padding:12px;text-align:center;overflow:auto;">
-                <div class="diagram-svg-wrap" style="width:100%;max-width:720px;margin:0 auto;">${safeSvg}</div>
-              </div>
-              <div style="margin-top:10px;">
-                <a class="btn-icon" href="${svgHref}" download="study-buddy-diagram.svg" style="display:inline-flex;">⬇️ Download SVG</a>
-              </div>`;
-            const wrap = out.querySelector(".diagram-svg-wrap svg");
-            if (wrap) {
-              wrap.setAttribute("width", "100%");
-              wrap.style.maxWidth = "100%";
-              wrap.style.height = "auto";
-              wrap.style.display = "block";
-            }
-            return;
-          }
-
           if (!data.image_base64) {
-            throw new Error("No diagram returned. Set GROQ_API_KEY and/or billed GEMINI_API_KEY.");
+            throw new Error("No image returned. Set billed GEMINI_API_KEY for Nano Banana.");
           }
+          const modelLabel = escapeHtml(data.engine || data.model || "nano-banana");
           const mime = data.mime || "image/png";
           const src = `data:${mime};base64,${data.image_base64}`;
           const ext = mime.includes("png") ? "png" : "jpg";
           out.innerHTML = `
-            ${fallbackNote}
             <div style="margin-bottom:10px;color:var(--muted);font-size:0.82rem;font-weight:700;">
-              ${escapeHtml(topic)} · ${modelLabel}
+              ${escapeHtml(topic)} · ${modelLabel}${data.model ? " · " + escapeHtml(data.model) : ""}
             </div>
             <div style="background:#fff;border-radius:12px;padding:12px;text-align:center;">
               <img src="${src}" alt="${escapeHtml(topic)} diagram"
