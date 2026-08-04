@@ -4084,6 +4084,26 @@ def delete_notebook_entry(entry_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/notebook", methods=["DELETE"])
+def clear_all_notebook_entries():
+    """Delete all Living Notebook entries for the current user."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id FROM living_notebook WHERE user_id=?",
+            (user["id"],),
+        ).fetchall()
+        conn.execute("DELETE FROM living_notebook WHERE user_id=?", (user["id"],))
+
+    for row in rows:
+        fs_delete_notebook_entry(user["id"], row["id"])
+
+    return jsonify({"ok": True, "deleted": len(rows)})
+
+
 @app.route("/api/notebook/ai_extract", methods=["POST"])
 def notebook_ai_extract():
     """Extract important points and merge with existing notes for each subject/topic."""
@@ -4721,6 +4741,46 @@ def get_learning_dna():
     return resp
 
 
+@app.route("/api/learning_dna/reset", methods=["POST"])
+def reset_learning_dna():
+    """Wipe Learning DNA profile + subject analytics (resets study streak inputs)."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    uid = user["id"]
+    with get_db() as conn:
+        subjects = conn.execute(
+            "SELECT subject FROM subject_analytics WHERE user_id=?",
+            (uid,),
+        ).fetchall()
+        conn.execute("DELETE FROM subject_analytics WHERE user_id=?", (uid,))
+        conn.execute("DELETE FROM learning_dna WHERE user_id=?", (uid,))
+
+    # Soft-fail Firestore cleanup
+    db = get_firestore()
+    if db:
+        try:
+            _fs_learning_dna_ref(db, uid).delete()
+        except Exception as e:
+            print(f"[Firestore] delete learning_dna failed: {e}")
+        for row in subjects:
+            try:
+                _fs_subject_analytics_ref(db, uid, row["subject"]).delete()
+            except Exception as e:
+                print(f"[Firestore] delete subject_analytics failed: {e}")
+        try:
+            fs_push_progress_from_sqlite(uid, {
+                "accuracy": 0,
+                "study_streak": 0,
+                "exam_readiness": 0,
+            })
+        except Exception as e:
+            print(f"[Firestore] reset progress failed: {e}")
+
+    return jsonify({"ok": True})
+
+
 @app.route("/api/learning_dna/track", methods=["POST"])
 def track_learning_dna():
     """Track study pings, quiz metrics, style preferences, and mistakes."""
@@ -4974,6 +5034,26 @@ def delete_mistake(mistake_id):
     fs_delete_mistake(user["id"], mistake_id)
     fs_push_progress_from_sqlite(user["id"])
     return jsonify({"ok": True})
+
+
+@app.route("/api/mistakes", methods=["DELETE"])
+def clear_all_mistakes():
+    """Delete all Mistake Vault entries for the current user."""
+    user, err = require_auth()
+    if err:
+        return err
+
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id FROM student_mistakes WHERE user_id=?",
+            (user["id"],),
+        ).fetchall()
+        conn.execute("DELETE FROM student_mistakes WHERE user_id=?", (user["id"],))
+
+    for row in rows:
+        fs_delete_mistake(user["id"], row["id"])
+    fs_push_progress_from_sqlite(user["id"])
+    return jsonify({"ok": True, "deleted": len(rows)})
 
 
 @app.route("/api/mistakes/subjects", methods=["GET"])

@@ -3274,6 +3274,337 @@
       color: var(--text);
     }
 
+    .settings-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 14px 0 12px;
+    }
+
+    .settings-clear-wrap {
+      position: relative;
+    }
+
+    .settings-clear-trigger {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--hover-bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background-color 250ms ease, border-color 250ms ease, color 250ms ease;
+    }
+
+    .settings-clear-trigger:hover,
+    .settings-clear-wrap.open .settings-clear-trigger {
+      border-color: var(--secondary);
+      background: rgba(106, 106, 133, 0.22);
+    }
+
+    .settings-clear-trigger .chevron {
+      color: var(--secondary);
+      transition: transform 250ms ease;
+    }
+
+    .settings-clear-wrap.open .settings-clear-trigger .chevron {
+      transform: rotate(90deg);
+    }
+
+    .clear-history-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: min(60vh, 420px);
+      overflow-y: auto;
+      padding: 6px;
+    }
+
+    .clear-history-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      text-align: left;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-weight: 600;
+      font-size: 0.84rem;
+      cursor: pointer;
+      transition: background-color 200ms ease, color 200ms ease;
+    }
+
+    .clear-history-item:hover {
+      background: var(--hover-bg);
+      color: var(--accent);
+    }
+
+    .clear-history-item.danger {
+      color: #f87171;
+      margin-top: 4px;
+      border-top: 1px solid var(--border);
+      border-radius: 0 0 10px 10px;
+      padding-top: 12px;
+    }
+
+    .clear-history-item.danger:hover {
+      background: rgba(244, 63, 94, 0.12);
+      color: #fb7185;
+    }
+
+    .clear-history-count {
+      color: var(--secondary);
+      font-weight: 700;
+      font-size: 0.78rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .clear-history-item.danger .clear-history-count {
+      display: none;
+    }
+
+    /* Desktop fly-out */
+    .clear-history-flyout {
+      position: absolute;
+      top: 0;
+      right: calc(100% + 10px);
+      width: min(300px, calc(100vw - 48px));
+      background: var(--settings-glass);
+      backdrop-filter: blur(18px) saturate(1.2);
+      -webkit-backdrop-filter: blur(18px) saturate(1.2);
+      border: 1px solid var(--settings-border);
+      border-radius: 14px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateX(8px);
+      transition: opacity 250ms ease, transform 250ms ease, visibility 250ms ease;
+      z-index: 2100;
+    }
+
+    @media (min-width: 768px) {
+      .settings-clear-wrap:hover .clear-history-flyout,
+      .settings-clear-wrap:focus-within .clear-history-flyout,
+      .settings-clear-wrap.open .clear-history-flyout {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateX(0);
+      }
+      .clear-history-sheet { display: none !important; }
+    }
+
+    @media (max-width: 767px) {
+      .clear-history-flyout { display: none !important; }
+    }
+
+    /* Mobile bottom sheet */
+    .clear-history-sheet {
+      position: fixed;
+      inset: 0;
+      z-index: 2200;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 250ms ease, visibility 250ms ease;
+    }
+
+    .clear-history-sheet.open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    .clear-history-sheet-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+    }
+
+    .clear-history-sheet-panel {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      max-height: min(78vh, 560px);
+      background: var(--settings-glass);
+      backdrop-filter: blur(18px) saturate(1.2);
+      -webkit-backdrop-filter: blur(18px) saturate(1.2);
+      border: 1px solid var(--settings-border);
+      border-bottom: none;
+      border-radius: 18px 18px 0 0;
+      box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.35);
+      transform: translateY(16px);
+      transition: transform 250ms ease;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+
+    .clear-history-sheet.open .clear-history-sheet-panel {
+      transform: translateY(0);
+    }
+
+    .clear-history-sheet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 800;
+    }
+
+    /* Confirm modal */
+    .clear-confirm-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 2300;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 250ms ease, visibility 250ms ease;
+    }
+
+    .clear-confirm-modal.open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    .clear-confirm-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    .clear-confirm-card {
+      position: relative;
+      width: min(400px, 100%);
+      background: var(--settings-glass);
+      backdrop-filter: blur(18px) saturate(1.2);
+      -webkit-backdrop-filter: blur(18px) saturate(1.2);
+      border: 1px solid var(--settings-border);
+      border-radius: 16px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+      padding: 20px;
+      transform: translateY(8px);
+      transition: transform 250ms ease;
+    }
+
+    .clear-confirm-modal.open .clear-confirm-card {
+      transform: translateY(0);
+    }
+
+    .clear-confirm-card h3 {
+      font-size: 1.05rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .clear-confirm-card p {
+      color: var(--secondary);
+      font-size: 0.88rem;
+      line-height: 1.45;
+      margin-bottom: 14px;
+    }
+
+    .clear-confirm-card.danger h3 {
+      color: #f87171;
+    }
+
+    .clear-confirm-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .clear-confirm-input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--hover-bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    .clear-confirm-input:focus {
+      border-color: var(--accent2);
+      box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.2);
+    }
+
+    .clear-confirm-delete-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      background: var(--secondary) !important;
+    }
+
+    .btn-danger-solid {
+      background: #ef4444;
+      border: none;
+      color: #fff;
+      border-radius: var(--radius-md);
+      padding: 10px 16px;
+      font-family: var(--font-ui);
+      font-weight: 800;
+      font-size: 0.88rem;
+      cursor: pointer;
+    }
+
+    .btn-danger-solid:hover:not(:disabled) {
+      background: #dc2626;
+    }
+
+    /* Toast */
+    .clear-toast {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%) translateY(12px);
+      z-index: 2400;
+      background: var(--settings-glass);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--settings-border);
+      color: var(--text);
+      padding: 12px 18px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.88rem;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 250ms ease, transform 250ms ease, visibility 250ms ease;
+      max-width: min(420px, calc(100vw - 32px));
+      text-align: center;
+    }
+
+    .clear-toast.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(0);
+    }
+
     /* Light-theme surface overrides for legacy hardcoded dark fills */
     [data-theme="light"] #dict-input,
     [data-theme="light"] .input,
@@ -3375,8 +3706,51 @@
         </button>
       </div>
       <p class="settings-hint">Shortcut: <kbd>Ctrl</kbd> + <kbd>,</kbd></p>
+
+      <div class="settings-divider"></div>
+
+      <div class="settings-clear-wrap" id="settings-clear-wrap">
+        <button type="button" class="settings-clear-trigger" id="settings-clear-trigger" aria-haspopup="menu" aria-expanded="false">
+          <span>🗑️ Clear History</span>
+          <span class="chevron">›</span>
+        </button>
+        <div class="clear-history-flyout" id="clear-history-flyout" role="menu" aria-label="Clear history options">
+          <div class="clear-history-menu" id="clear-history-menu-desktop"></div>
+        </div>
+      </div>
     </div>
   </div>
+
+  <!-- Clear History mobile bottom sheet -->
+  <div id="clear-history-sheet" class="clear-history-sheet" hidden aria-hidden="true">
+    <div class="clear-history-sheet-backdrop" id="clear-history-sheet-backdrop"></div>
+    <div class="clear-history-sheet-panel" role="dialog" aria-modal="true" aria-label="Clear History">
+      <div class="clear-history-sheet-header">
+        <span>🗑️ Clear History</span>
+        <button type="button" class="settings-close-btn" id="clear-history-sheet-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="clear-history-menu" id="clear-history-menu-mobile"></div>
+    </div>
+  </div>
+
+  <!-- Clear confirm modal -->
+  <div id="clear-confirm-modal" class="clear-confirm-modal" hidden aria-hidden="true">
+    <div class="clear-confirm-backdrop" id="clear-confirm-backdrop"></div>
+    <div class="clear-confirm-card" id="clear-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="clear-confirm-title">
+      <h3 id="clear-confirm-title">Confirm</h3>
+      <p id="clear-confirm-message">This cannot be undone.</p>
+      <div id="clear-confirm-delete-gate" style="display:none;">
+        <label for="clear-confirm-delete-input" style="display:block;font-size:0.78rem;font-weight:700;color:var(--secondary);margin-bottom:6px;">Type DELETE to confirm</label>
+        <input type="text" id="clear-confirm-delete-input" class="clear-confirm-input" autocomplete="off" placeholder="DELETE" />
+      </div>
+      <div class="clear-confirm-actions">
+        <button type="button" class="btn-secondary" id="clear-confirm-cancel">Cancel</button>
+        <button type="button" class="btn-danger-solid clear-confirm-delete-btn" id="clear-confirm-ok">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="clear-toast" class="clear-toast" role="status" aria-live="polite"></div>
 
   <!-- NAVIGATION TABS -->
   <nav id="feature-tabs" class="feature-tabs">
@@ -4284,6 +4658,9 @@
       settingsPanel.classList.add("open");
       settingsToggleBtn.setAttribute("aria-expanded", "true");
       applyThemePreference(getThemePreference(), false);
+      if (typeof window.refreshClearHistoryCounts === "function") {
+        window.refreshClearHistoryCounts();
+      }
     }
 
     function closeSettingsPanel() {
@@ -4326,6 +4703,11 @@
       if (!settingsPanel || !settingsPanel.classList.contains("open")) return;
       const t = e.target;
       if (settingsPanel.contains(t) || (settingsToggleBtn && settingsToggleBtn.contains(t))) return;
+      if (t.closest && (
+        t.closest("#clear-history-sheet") ||
+        t.closest("#clear-confirm-modal") ||
+        t.closest("#clear-toast")
+      )) return;
       closeSettingsPanel();
     });
     document.addEventListener("keydown", (e) => {
@@ -4335,8 +4717,9 @@
         toggleSettingsPanel();
         return;
       }
-      if (e.key === "Escape" && settingsPanel && settingsPanel.classList.contains("open")) {
-        closeSettingsPanel();
+      if (e.key === "Escape") {
+        if (typeof window.closeClearHistoryMenus === "function" && window.closeClearHistoryMenus()) return;
+        if (settingsPanel && settingsPanel.classList.contains("open")) closeSettingsPanel();
       }
     });
     try {
@@ -11135,6 +11518,452 @@
         }
       });
     }
+
+    // =====================================================================
+    //  SETTINGS — Clear History (fly-out / bottom sheet)
+    // =====================================================================
+    (function initClearHistoryMenu() {
+      const CLEAR_ITEMS = [
+        { id: "chat", icon: "💬", label: "Clear Chat History", toast: "Chat history cleared" },
+        { id: "podcast", icon: "🎙️", label: "Clear Podcast History", toast: "Podcast history cleared" },
+        { id: "quiz", icon: "📝", label: "Clear Quiz History", toast: "Quiz history cleared" },
+        { id: "flashcards", icon: "🃏", label: "Clear Flashcard History", toast: "Flashcard history cleared" },
+        { id: "mock", icon: "📚", label: "Clear Mock Test History", toast: "Mock test history cleared" },
+        { id: "notebook", icon: "📖", label: "Clear Notebook History", toast: "Notebook history cleared" },
+        { id: "uploads", icon: "📂", label: "Clear Uploaded Files", toast: "Uploaded files cleared" },
+        { id: "dna", icon: "📊", label: "Clear Learning DNA", toast: "Learning DNA cleared" },
+        { id: "mistakes", icon: "🧠", label: "Clear Mistake Vault", toast: "Mistake Vault cleared" },
+        { id: "recent", icon: "🕒", label: "Clear Recent Activity", toast: "Recent activity cleared" },
+        { id: "search", icon: "🗂️", label: "Clear Search History", toast: "Search history cleared" },
+        { id: "cache", icon: "🧹", label: "Clear Cache", toast: "Cache cleared" },
+        { id: "streak", icon: "🔥", label: "Reset Study Streak", toast: "Study streak reset" },
+        { id: "everything", icon: "🚨", label: "Clear Everything", toast: "All history cleared", danger: true },
+      ];
+
+      const wrap = document.getElementById("settings-clear-wrap");
+      const trigger = document.getElementById("settings-clear-trigger");
+      const desktopMenu = document.getElementById("clear-history-menu-desktop");
+      const mobileMenu = document.getElementById("clear-history-menu-mobile");
+      const sheet = document.getElementById("clear-history-sheet");
+      const sheetBackdrop = document.getElementById("clear-history-sheet-backdrop");
+      const sheetClose = document.getElementById("clear-history-sheet-close");
+      const modal = document.getElementById("clear-confirm-modal");
+      const modalCard = document.getElementById("clear-confirm-card");
+      const modalTitle = document.getElementById("clear-confirm-title");
+      const modalMsg = document.getElementById("clear-confirm-message");
+      const deleteGate = document.getElementById("clear-confirm-delete-gate");
+      const deleteInput = document.getElementById("clear-confirm-delete-input");
+      const cancelBtn = document.getElementById("clear-confirm-cancel");
+      const okBtn = document.getElementById("clear-confirm-ok");
+      const toastEl = document.getElementById("clear-toast");
+      if (!wrap || !trigger || !desktopMenu || !mobileMenu) return;
+
+      let pendingAction = null;
+      let toastTimer = null;
+      const counts = {};
+
+      function isMobileClearUi() {
+        return window.matchMedia("(max-width: 767px)").matches;
+      }
+
+      function showClearToast(message) {
+        if (!toastEl) return;
+        toastEl.textContent = message;
+        toastEl.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2500);
+      }
+
+      function buildMenuHtmlFull() {
+        return CLEAR_ITEMS.map((item) => {
+          const countHtml = item.danger
+            ? ""
+            : `<span class="clear-history-count" data-clear-count="${item.id}">(0)</span>`;
+          return `<button type="button" class="clear-history-item${item.danger ? " danger" : ""}" data-clear-action="${item.id}" role="menuitem">
+            <span>${item.icon} ${item.label}</span>
+            ${countHtml}
+          </button>`;
+        }).join("");
+      }
+
+      desktopMenu.innerHTML = buildMenuHtmlFull();
+      mobileMenu.innerHTML = buildMenuHtmlFull();
+
+      function setCount(id, n) {
+        counts[id] = n;
+        document.querySelectorAll(`[data-clear-count="${id}"]`).forEach((el) => {
+          el.textContent = `(${n})`;
+        });
+      }
+
+      function countCacheKeys() {
+        let n = 0;
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i) || "";
+            if (k.startsWith("ce_cache_") || k === "ce_assessment_progress") n++;
+          }
+        } catch (_) {}
+        return n;
+      }
+
+      window.refreshClearHistoryCounts = function refreshClearHistoryCounts() {
+        setCount("chat", Array.isArray(conversations) ? conversations.length : 0);
+        const pod = document.getElementById("podcast-output");
+        setCount("podcast", pod && pod.innerHTML.trim() ? 1 : 0);
+        setCount("quiz", document.querySelectorAll("#quiz-output .quiz-question").length);
+        setCount("flashcards", document.querySelectorAll("#flashcards-output .flashcard").length);
+        setCount("mock", mockTestState && Array.isArray(mockTestState.questions) ? mockTestState.questions.length : (document.getElementById("mock-test-output")?.innerHTML.trim() ? 1 : 0));
+        setCount("notebook", Array.isArray(nbEntries) ? nbEntries.length : 0);
+        setCount("uploads", (typeof notesContent === "string" && notesContent.trim()) ? 1 : 0);
+        setCount("mistakes", Array.isArray(allMistakes) ? allMistakes.length : 0);
+        setCount("recent", Array.isArray(conversations) ? conversations.filter((c) => !c.pinned && !c.archived).length : 0);
+        setCount("search", Array.isArray(dictHistory) ? dictHistory.length : 0);
+        setCount("cache", countCacheKeys());
+        const streakEl = document.getElementById("dna-study-streak");
+        const streakN = streakEl ? (parseInt(streakEl.textContent, 10) || 0) : 0;
+        setCount("streak", streakN);
+        const quizCountEl = document.getElementById("dna-quiz-count");
+        let dnaN = 0;
+        if (quizCountEl) {
+          const m = String(quizCountEl.textContent || "").match(/(\d+)/);
+          dnaN = m ? parseInt(m[1], 10) : 0;
+        }
+        setCount("dna", dnaN);
+      };
+
+      function closeSheet() {
+        if (!sheet) return;
+        sheet.classList.remove("open");
+        sheet.setAttribute("aria-hidden", "true");
+        setTimeout(() => { if (!sheet.classList.contains("open")) sheet.hidden = true; }, 250);
+        wrap.classList.remove("open");
+        trigger.setAttribute("aria-expanded", "false");
+      }
+
+      function openSheet() {
+        if (!sheet) return;
+        sheet.hidden = false;
+        void sheet.offsetWidth;
+        sheet.classList.add("open");
+        sheet.setAttribute("aria-hidden", "false");
+        wrap.classList.add("open");
+        trigger.setAttribute("aria-expanded", "true");
+        window.refreshClearHistoryCounts();
+      }
+
+      window.closeClearHistoryMenus = function closeClearHistoryMenus() {
+        let closed = false;
+        if (modal && modal.classList.contains("open")) {
+          closeConfirmModal();
+          closed = true;
+        }
+        if (sheet && sheet.classList.contains("open")) {
+          closeSheet();
+          closed = true;
+        }
+        if (wrap.classList.contains("open") && !isMobileClearUi()) {
+          wrap.classList.remove("open");
+          trigger.setAttribute("aria-expanded", "false");
+          closed = true;
+        }
+        return closed;
+      };
+
+      function closeConfirmModal() {
+        if (!modal) return;
+        modal.classList.remove("open");
+        modal.setAttribute("aria-hidden", "true");
+        setTimeout(() => { if (!modal.classList.contains("open")) modal.hidden = true; }, 250);
+        pendingAction = null;
+        if (deleteInput) deleteInput.value = "";
+      }
+
+      function openConfirm(actionId) {
+        const item = CLEAR_ITEMS.find((x) => x.id === actionId);
+        if (!item || !modal) return;
+        pendingAction = actionId;
+        closeSheet();
+        wrap.classList.remove("open");
+
+        const isEverything = actionId === "everything";
+        modalCard.classList.toggle("danger", isEverything);
+        modalTitle.textContent = isEverything ? "🚨 Clear Everything?" : item.label + "?";
+        modalMsg.textContent = isEverything
+          ? "This permanently deletes chat, notebook, mistakes, Learning DNA, uploads, session outputs, search history, and cache. Theme and login are kept. Type DELETE to continue."
+          : `This will permanently clear ${item.label.replace(/^Clear |^Reset /, "").toLowerCase()}. This cannot be undone.`;
+        if (deleteGate) deleteGate.style.display = isEverything ? "block" : "none";
+        if (deleteInput) deleteInput.value = "";
+        okBtn.textContent = isEverything ? "DELETE" : "Clear";
+        okBtn.disabled = isEverything;
+        modal.hidden = false;
+        void modal.offsetWidth;
+        modal.classList.add("open");
+        modal.setAttribute("aria-hidden", "false");
+        if (isEverything && deleteInput) deleteInput.focus();
+      }
+
+      async function requireLoginForCloud() {
+        if (currentUser && currentUser.loggedIn) return true;
+        showClearToast("Log in to clear cloud data");
+        return false;
+      }
+
+      async function clearChatHistoryOnly() {
+        if (!(await requireLoginForCloud())) throw new Error("login");
+        const res = await fetch("/api/history", { method: "DELETE" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Failed to clear chat");
+        }
+        history = [];
+        currentConvId = null;
+        if (messagesEl) {
+          messagesEl.innerHTML = "";
+          if (welcomeEl) {
+            welcomeEl.style.display = "flex";
+            messagesEl.appendChild(welcomeEl);
+          }
+        }
+        if (typeof sbLoadConversations === "function") await sbLoadConversations();
+      }
+
+      async function clearPodcast() {
+        const el = document.getElementById("podcast-output");
+        if (el) el.innerHTML = "";
+      }
+
+      async function clearQuiz() {
+        const el = document.getElementById("quiz-output");
+        if (el) el.innerHTML = "";
+      }
+
+      async function clearFlashcards() {
+        const el = document.getElementById("flashcards-output");
+        if (el) el.innerHTML = "";
+      }
+
+      async function clearMock() {
+        mockTestState = null;
+        const el = document.getElementById("mock-test-output");
+        if (el) el.innerHTML = "";
+      }
+
+      async function clearNotebook() {
+        if (!(await requireLoginForCloud())) throw new Error("login");
+        const res = await fetch("/api/notebook", { method: "DELETE" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Failed to clear notebook");
+        }
+        nbEntries = [];
+        try {
+          localStorage.removeItem(typeof nbGetStorageKey === "function" ? nbGetStorageKey() : "sb_living_notebook");
+          localStorage.removeItem("sb_living_notebook");
+        } catch (_) {}
+        if (typeof nbRender === "function") nbRender();
+      }
+
+      async function clearUploads() {
+        notesContent = "";
+        notesFileName = "";
+        try {
+          localStorage.removeItem("sb_notes_content");
+          localStorage.removeItem("sb_notes_filename");
+        } catch (_) {}
+        window.__lastOcrText = "";
+        if (typeof updateNotesIndicators === "function") updateNotesIndicators();
+        const welcomeInput = document.getElementById("upload-input-welcome");
+        if (welcomeInput) welcomeInput.value = "";
+        const welcomeStatus = document.getElementById("upload-welcome-status");
+        if (welcomeStatus) welcomeStatus.style.display = "none";
+        const saveBtn = document.getElementById("ocr-save-notebook-btn");
+        if (saveBtn) saveBtn.style.display = "none";
+      }
+
+      async function clearDna() {
+        if (!(await requireLoginForCloud())) throw new Error("login");
+        const res = await fetch("/api/learning_dna/reset", { method: "POST" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Failed to clear Learning DNA");
+        }
+        if (typeof renderLearningDnaDashboard === "function") await renderLearningDnaDashboard();
+      }
+
+      async function clearMistakes() {
+        if (!(await requireLoginForCloud())) throw new Error("login");
+        const res = await fetch("/api/mistakes", { method: "DELETE" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Failed to clear mistakes");
+        }
+        allMistakes = [];
+        currentMistakes = [];
+        if (typeof renderMistakes === "function") renderMistakes();
+        if (typeof loadMistakeSubjects === "function") loadMistakeSubjects();
+      }
+
+      async function clearRecent() {
+        if (!(await requireLoginForCloud())) throw new Error("login");
+        const recent = (conversations || []).filter((c) => !c.pinned && !c.archived);
+        for (const c of recent) {
+          try {
+            await fetch(`/api/conversations/${c.id}`, { method: "DELETE" });
+          } catch (_) {}
+        }
+        if (typeof sbLoadConversations === "function") await sbLoadConversations();
+        // If current chat was deleted, reset UI
+        if (currentConvId && !(conversations || []).some((c) => c.id === currentConvId)) {
+          history = [];
+          currentConvId = null;
+          if (messagesEl) {
+            messagesEl.innerHTML = "";
+            if (welcomeEl) {
+              welcomeEl.style.display = "flex";
+              messagesEl.appendChild(welcomeEl);
+            }
+          }
+        }
+      }
+
+      async function clearSearch() {
+        dictHistory = [];
+        try { localStorage.setItem("sb_dict_history", "[]"); } catch (_) {}
+        if (typeof renderDictHistory === "function") renderDictHistory();
+      }
+
+      async function clearCache() {
+        const keys = [];
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith("ce_cache_") || k === "ce_assessment_progress")) keys.push(k);
+          }
+          keys.forEach((k) => localStorage.removeItem(k));
+        } catch (_) {}
+      }
+
+      async function resetStreak() {
+        // Streak is derived from DNA/chat activity; DNA reset zeroes streak inputs.
+        await clearDna();
+      }
+
+      async function clearEverything() {
+        const steps = [
+          clearChatHistoryOnly,
+          clearPodcast,
+          clearQuiz,
+          clearFlashcards,
+          clearMock,
+          clearNotebook,
+          clearUploads,
+          clearDna,
+          clearMistakes,
+          clearRecent,
+          clearSearch,
+          clearCache,
+        ];
+        let sawLoginBlock = false;
+        for (const step of steps) {
+          try { await step(); } catch (e) {
+            if (e && e.message === "login") {
+              sawLoginBlock = true;
+              continue;
+            }
+            console.warn("[Clear Everything] step failed:", e);
+          }
+        }
+        if (sawLoginBlock && !(currentUser && currentUser.loggedIn)) {
+          showClearToast("Local data cleared — log in to clear cloud data");
+        }
+      }
+
+      const runners = {
+        chat: clearChatHistoryOnly,
+        podcast: clearPodcast,
+        quiz: clearQuiz,
+        flashcards: clearFlashcards,
+        mock: clearMock,
+        notebook: clearNotebook,
+        uploads: clearUploads,
+        dna: clearDna,
+        mistakes: clearMistakes,
+        recent: clearRecent,
+        search: clearSearch,
+        cache: clearCache,
+        streak: resetStreak,
+        everything: clearEverything,
+      };
+
+      async function runPendingClear() {
+        const id = pendingAction;
+        if (!id) return;
+        const item = CLEAR_ITEMS.find((x) => x.id === id);
+        closeConfirmModal();
+        try {
+          await runners[id]();
+          showClearToast(item ? item.toast : "Cleared");
+        } catch (e) {
+          if (e && e.message === "login") return;
+          showClearToast(e.message || "Clear failed");
+        }
+        window.refreshClearHistoryCounts();
+      }
+
+      function onMenuClick(e) {
+        const btn = e.target.closest("[data-clear-action]");
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openConfirm(btn.getAttribute("data-clear-action"));
+      }
+
+      desktopMenu.addEventListener("click", onMenuClick);
+      mobileMenu.addEventListener("click", onMenuClick);
+
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        window.refreshClearHistoryCounts();
+        if (isMobileClearUi()) {
+          if (sheet && sheet.classList.contains("open")) closeSheet();
+          else openSheet();
+        } else {
+          wrap.classList.toggle("open");
+          trigger.setAttribute("aria-expanded", wrap.classList.contains("open") ? "true" : "false");
+        }
+      });
+
+      if (sheetBackdrop) sheetBackdrop.addEventListener("click", closeSheet);
+      if (sheetClose) sheetClose.addEventListener("click", closeSheet);
+      if (cancelBtn) cancelBtn.addEventListener("click", closeConfirmModal);
+      if (document.getElementById("clear-confirm-backdrop")) {
+        document.getElementById("clear-confirm-backdrop").addEventListener("click", closeConfirmModal);
+      }
+      if (okBtn) okBtn.addEventListener("click", () => runPendingClear());
+      if (deleteInput) {
+        deleteInput.addEventListener("input", () => {
+          okBtn.disabled = deleteInput.value.trim() !== "DELETE";
+        });
+      }
+
+      // Keep desktop flyout open class in sync with hover for aria
+      wrap.addEventListener("mouseenter", () => {
+        if (!isMobileClearUi()) {
+          window.refreshClearHistoryCounts();
+          wrap.classList.add("open");
+          trigger.setAttribute("aria-expanded", "true");
+        }
+      });
+      wrap.addEventListener("mouseleave", () => {
+        if (!isMobileClearUi() && !(modal && modal.classList.contains("open"))) {
+          wrap.classList.remove("open");
+          trigger.setAttribute("aria-expanded", "false");
+        }
+      });
+
+      window.refreshClearHistoryCounts();
+    })();
 
     initAll();
 
