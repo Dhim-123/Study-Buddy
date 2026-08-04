@@ -3689,7 +3689,6 @@
     </div>
     <div class="header-right">
       <span id="header-notes-badge" style="display:none; background: rgba(82, 232, 160, 0.15); color: var(--accent3); border: 1px solid var(--accent3); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; margin-right: 10px; font-weight: bold; align-items: center; gap: 4px;">📝 Notes Mode</span>
-      <button class="btn-icon" id="clear-btn">🗑️ Clear</button>
       <button class="btn-icon" id="auth-btn">🚪 Login / Register</button>
     </div>
   </header>
@@ -3772,7 +3771,6 @@
     <button class="tab-btn" data-tab="crosscheck">🧪 Crosscheck</button>
     <button class="tab-btn" data-tab="definitions">📖 Definitions</button>
     <button class="tab-btn" data-tab="mock-test">📝 Mock Test</button>
-    <button class="tab-btn" data-tab="diagrams">🖼 Diagrams</button>
     <button class="tab-btn" data-tab="formulas">📐 Formulas</button>
     <button class="tab-btn" data-tab="learning-dna">🧬 Learning DNA</button>
     <button class="tab-btn" data-tab="mistake-vault">🗃️ Mistake Vault</button>
@@ -3911,7 +3909,6 @@
         <button id="attach-ocr-btn" type="button" title="Take or upload page photo (OCR)" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--text); cursor:pointer; font-size:1.1rem;">📷</button>
         <button id="mic-btn" type="button" title="Voice message" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--text); cursor:pointer; font-size:1.1rem;">🎤</button>
         <textarea id="user-input" placeholder="Ask me anything… (or use 📷 to snap a page / 🎤 to speak)" rows="1"></textarea>
-        <button id="voice-reply-toggle" type="button" title="Speak buddy replies" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--muted); cursor:pointer; font-size:0.95rem;">🔇</button>
         <button id="send-btn" title="Send (Enter)">➤</button>
       </div>
 
@@ -4402,21 +4399,6 @@
       <div id="mock-test-actions" style="display:none; margin-top:12px;">
         <button id="submit-mock-test-btn" class="btn-primary">✅ Submit &amp; show marking scheme</button>
       </div>
-    </div>
-  </div>
-
-  <!-- DIAGRAMS SECTION -->
-  <div id="diagrams-section" class="feature-section" style="display:none;">
-    <div class="section-container">
-      <div class="feature-header">
-        <h2>🖼 Educational Diagrams</h2>
-        <p>AI textbook images via Gemini Nano Banana (needs GEMINI_API_KEY with billing).</p>
-      </div>
-      <div class="podcast-input">
-        <textarea id="diagram-input" placeholder="e.g. Atomic structure, Water cycle, Plant cell, Concave lens ray diagram" rows="2"></textarea>
-        <button id="generate-diagram-btn" class="btn-primary">🎨 Generate Diagram</button>
-      </div>
-      <div id="diagrams-output" class="feature-output"></div>
     </div>
   </div>
 
@@ -5872,48 +5854,6 @@
 
 
     // =====================================================================
-    //  CLEAR CHAT — Erase all messages and start fresh
-    // =====================================================================
-
-      document.getElementById("clear-btn").onclick = async () => {
-        if (!currentUser?.loggedIn) {
-          alert("Please log in to clear your chat history.");
-          return;
-        }
-
-        try {
-          const res = await fetch("/api/history", {
-            method: "DELETE",
-          });
-          if (res.ok) {
-            history = [];
-            messagesEl.innerHTML = "";
-            welcomeEl.style.display = "flex";
-            messagesEl.appendChild(welcomeEl);
-            showAuthMessage("Chat history cleared.");
-          } else {
-            const data = await res.json();
-            showAuthMessage(data.error || "Failed to clear chat history.", true);
-          }
-        } catch (err) {
-          showAuthMessage(`Network error clearing history: ${err.message}`, true);
-        }
-
-        // Reset notes content and file inputs/statuses
-        notesContent = "";
-        notesFileName = "";
-        localStorage.removeItem("sb_notes_content");
-        localStorage.removeItem("sb_notes_filename");
-        updateNotesIndicators();
-
-        const welcomeInput = document.getElementById("upload-input-welcome");
-        if (welcomeInput) welcomeInput.value = "";
-        const welcomeStatus = document.getElementById("upload-welcome-status");
-        if (welcomeStatus) welcomeStatus.style.display = "none";
-      };
-
-
-    // =====================================================================
     //  AUTO-GROW TEXTAREA — Makes the input box grow as you type more lines
     // =====================================================================
 
@@ -6510,8 +6450,9 @@
         // Update the Crosscheck list so this new answer is selectable
         try { if (document.getElementById('crosscheck-list')) populateCrosscheckAnswers(); } catch(e) { /* ignore */ }
 
-        if (window.__voiceReplyEnabled && typeof speakBuddyReply === "function") {
-          speakBuddyReply(reply);
+        // On-demand diagram: only when the user asked for one in this message
+        if (typeof maybeGenerateChatDiagram === "function") {
+          maybeGenerateChatDiagram(text);
         }
 
       } catch (err) {
@@ -6573,9 +6514,6 @@
           break;
         case "mock-test":
           if (mockTestSection) mockTestSection.style.display = "flex";
-          break;
-        case "diagrams":
-          if (diagramsSection) diagramsSection.style.display = "flex";
           break;
         case "formulas":
           if (formulasSection) formulasSection.style.display = "flex";
@@ -7083,15 +7021,23 @@
         const notebookStatus = /Saved to Living Notebook|Error saving to notebook|Please log in.*Living Notebook|No AI response found to save/i.test(text)
           || (typeof isNotebookSaveIntent === "function" && isNotebookSaveIntent(lastUserMsg));
 
-        // Mode 1 — greeting/small talk or notebook auto-save status: show no buttons
-        if (greeting || notebookStatus) {
-          // intentionally empty — keep the reply clean (no Add Note / Podcast / Quiz chrome)
-        } else {
-          // Modes 2 & 3 both show Podcast and Quiz
-          const actions = document.createElement("div");
-          actions.className = "bubble-actions";
+        const actions = document.createElement("div");
+        actions.className = "bubble-actions";
 
-          // 🎧 Podcast — always shown for educational + step-by-step
+        // Opt-in TTS — never auto-plays
+        const readAloudBtn = document.createElement("button");
+        readAloudBtn.className = "step-btn secondary read-aloud-btn";
+        readAloudBtn.type = "button";
+        readAloudBtn.textContent = "🔊 Read aloud";
+        readAloudBtn.onclick = () => {
+          if (typeof toggleReadAloud === "function") toggleReadAloud(text, readAloudBtn);
+          else if (typeof speakBuddyReply === "function") speakBuddyReply(text);
+        };
+        actions.appendChild(readAloudBtn);
+
+        // Mode 1 — greeting/small talk or notebook auto-save status: Read aloud only
+        if (!(greeting || notebookStatus)) {
+          // Modes 2 & 3 both show Podcast and Quiz
           const podcastBtn = document.createElement("button");
           podcastBtn.className = "step-btn secondary";
           podcastBtn.type = "button";
@@ -7102,7 +7048,6 @@
           };
           actions.appendChild(podcastBtn);
 
-          // ❓ Quiz — always shown for educational + step-by-step
           const quizBtn = document.createElement("button");
           quizBtn.className = "step-btn secondary";
           quizBtn.type = "button";
@@ -7113,7 +7058,6 @@
           };
           actions.appendChild(quizBtn);
 
-          // ✅ Crosscheck — Math/Physics only (both modes 2 and 3)
           if (mathPhysics) {
             const crosscheckBtn = document.createElement("button");
             crosscheckBtn.className = "step-btn secondary";
@@ -7126,7 +7070,6 @@
             actions.appendChild(crosscheckBtn);
           }
 
-          // Mode 3 only — step-by-step progression controls
           if (stepByStep) {
             const moveNextBtn = document.createElement("button");
             moveNextBtn.className = "step-btn secondary";
@@ -7158,13 +7101,12 @@
             };
             actions.appendChild(simplerBtn);
           }
+        }
 
-          bubble.appendChild(actions);
+        bubble.appendChild(actions);
 
-          // 💡 Suggest adding to Living Notebook (never saves automatically!)
-          if (typeof nbSuggestAiAddition === "function") {
-            nbSuggestAiAddition(lastUserMsg, text, bubble);
-          }
+        if (!(greeting || notebookStatus) && typeof nbSuggestAiAddition === "function") {
+          nbSuggestAiAddition(lastUserMsg, text, bubble);
         }
       }
 
@@ -7437,7 +7379,6 @@
     const crosscheckSection = document.getElementById("crosscheck-section");
     const definitionsSection = document.getElementById("definitions-section");
     const mockTestSection = document.getElementById("mock-test-section");
-    const diagramsSection = document.getElementById("diagrams-section");
     const formulasSection = document.getElementById("formulas-section");
     const learningDnaSection = document.getElementById("learning-dna-section");
     const mistakeVaultSection = document.getElementById("mistake-vault-section");
@@ -7453,7 +7394,6 @@
       crosscheckSection.style.display = "none";
       definitionsSection.style.display = "none";
       if (mockTestSection) mockTestSection.style.display = "none";
-      if (diagramsSection) diagramsSection.style.display = "none";
       if (formulasSection) formulasSection.style.display = "none";
       if (learningDnaSection) learningDnaSection.style.display = "none";
       if (mistakeVaultSection) mistakeVaultSection.style.display = "none";
@@ -7481,9 +7421,6 @@
         }
         else if (tab === "mock-test") {
           if (mockTestSection) mockTestSection.style.display = "flex";
-        }
-        else if (tab === "diagrams") {
-          if (diagramsSection) diagramsSection.style.display = "flex";
         }
         else if (tab === "formulas") {
           if (formulasSection) formulasSection.style.display = "flex";
@@ -10856,28 +10793,14 @@
     });
 
     // =====================================================================
-    //  PHASE 3 — OCR attach, voice chat, mock test, diagrams, formulas
+    //  PHASE 3 — OCR attach, voice chat (Read aloud), mock test, formulas
     // =====================================================================
 
-    window.__voiceReplyEnabled = localStorage.getItem("sb_voice_reply") === "1";
     let __micRecorder = null;
     let __micChunks = [];
     let __micRecording = false;
     let __buddyAudio = null;
-
-    function updateVoiceReplyToggleUI() {
-      const btn = document.getElementById("voice-reply-toggle");
-      if (!btn) return;
-      if (window.__voiceReplyEnabled) {
-        btn.textContent = "🔊";
-        btn.style.color = "var(--accent3)";
-        btn.title = "Voice replies ON (click to mute)";
-      } else {
-        btn.textContent = "🔇";
-        btn.style.color = "var(--muted)";
-        btn.title = "Voice replies OFF (click to enable)";
-      }
-    }
+    let __buddyAudioBtn = null;
 
     async function speakBuddyReply(text) {
       const clean = String(text || "")
@@ -10905,17 +10828,97 @@
       }
     }
 
-    const voiceToggleBtn = document.getElementById("voice-reply-toggle");
-    if (voiceToggleBtn) {
-      updateVoiceReplyToggleUI();
-      voiceToggleBtn.addEventListener("click", () => {
-        window.__voiceReplyEnabled = !window.__voiceReplyEnabled;
-        localStorage.setItem("sb_voice_reply", window.__voiceReplyEnabled ? "1" : "0");
-        updateVoiceReplyToggleUI();
-        if (!window.__voiceReplyEnabled && __buddyAudio) {
-          try { __buddyAudio.pause(); } catch (_) {}
+    function stopBuddyAudio() {
+      if (__buddyAudio) {
+        try { __buddyAudio.pause(); } catch (_) {}
+        __buddyAudio = null;
+      }
+      if (__buddyAudioBtn) {
+        __buddyAudioBtn.textContent = "🔊 Read aloud";
+        __buddyAudioBtn = null;
+      }
+    }
+
+    async function toggleReadAloud(text, btn) {
+      if (__buddyAudioBtn === btn && __buddyAudio && !__buddyAudio.paused) {
+        stopBuddyAudio();
+        return;
+      }
+      stopBuddyAudio();
+      __buddyAudioBtn = btn || null;
+      if (btn) btn.textContent = "⏹ Stop";
+      try {
+        await speakBuddyReply(text);
+        if (__buddyAudio) {
+          __buddyAudio.onended = () => {
+            if (btn) btn.textContent = "🔊 Read aloud";
+            if (__buddyAudioBtn === btn) __buddyAudioBtn = null;
+          };
         }
-      });
+      } catch (_) {
+        if (btn) btn.textContent = "🔊 Read aloud";
+        __buddyAudioBtn = null;
+      }
+    }
+
+    function extractDiagramTopic(userText) {
+      let t = String(userText || "").trim();
+      t = t.replace(/\b(please|can you|could you|would you|show me|make me|generate|create|give me|i want|i need)\b/gi, " ");
+      t = t.replace(/\b(a|an|the|of|for|me|my|diagram|diagrams|draw|drawing|illustrate|illustration|sketch|visualize|visualise|picture|image|figure)\b/gi, " ");
+      t = t.replace(/[?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+      return t.slice(0, 200);
+    }
+
+    function wantsChatDiagram(userText) {
+      return /\b(diagram|diagrams|draw|illustrate|illustration|sketch|visualize|visualise)\b/i.test(String(userText || ""));
+    }
+
+    async function maybeGenerateChatDiagram(userText) {
+      if (!wantsChatDiagram(userText)) return;
+      const topic = extractDiagramTopic(userText) || String(userText || "").trim().slice(0, 200);
+      if (!topic) return;
+
+      const msg = document.createElement("div");
+      msg.className = "msg ai";
+      const avatar = document.createElement("div");
+      avatar.className = "avatar";
+      avatar.textContent = "🤖";
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Generating diagram for <strong>${escapeHtml(topic)}</strong>…</div>`;
+      msg.appendChild(avatar);
+      msg.appendChild(bubble);
+      messagesEl.appendChild(msg);
+      scrollBottom();
+
+      try {
+        const res = await fetch("/api/diagram", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topic }),
+        });
+        const data = await readJsonResponse(res);
+        if (!res.ok) {
+          const detail = [data?.error, data?.hint, data?.detail].filter(Boolean).join(" — ");
+          throw new Error(detail || "Diagram failed");
+        }
+        if (!data.image_base64) throw new Error("No diagram image returned.");
+        const mime = data.mime || "image/png";
+        const src = `data:${mime};base64,${data.image_base64}`;
+        const ext = mime.includes("png") ? "png" : "jpg";
+        bubble.innerHTML = `
+          <div style="margin-bottom:8px;font-weight:700;">🖼 ${escapeHtml(topic)}</div>
+          <div style="background:#fff;border-radius:12px;padding:10px;text-align:center;">
+            <img src="${src}" alt="${escapeHtml(topic)} diagram"
+                 style="width:100%;max-width:100%;height:auto;border-radius:8px;display:block;" />
+          </div>
+          <div class="bubble-actions" style="margin-top:10px;">
+            <a class="step-btn secondary" href="${src}" download="study-buddy-diagram.${ext}" style="display:inline-flex;text-decoration:none;">⬇️ Download</a>
+          </div>`;
+      } catch (e) {
+        bubble.innerHTML = `<div style="color:var(--accent2);">❌ Could not generate diagram: ${escapeHtml(e.message || "failed")}</div>`;
+      }
+      scrollBottom();
     }
 
     const attachOcrBtn = document.getElementById("attach-ocr-btn");
@@ -11441,51 +11444,6 @@
     }
 
     document.getElementById("submit-mock-test-btn")?.addEventListener("click", submitMockTest);
-
-    const generateDiagramBtn = document.getElementById("generate-diagram-btn");
-    if (generateDiagramBtn) {
-      generateDiagramBtn.addEventListener("click", async () => {
-        const topic = (document.getElementById("diagram-input")?.value || "").trim() || getLatestUserPrompt();
-        const out = document.getElementById("diagrams-output");
-        if (!topic) {
-          out.innerHTML = `<div style="color:var(--accent2);">Enter a topic first.</div>`;
-          return;
-        }
-        out.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><div class="loading-spinner"></div> Generating Nano Banana diagram image…</div>`;
-        try {
-          const res = await fetch("/api/diagram", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ topic }),
-          });
-          const data = await readJsonResponse(res);
-          if (!res.ok) {
-            const detail = [data?.error, data?.hint, data?.detail].filter(Boolean).join(" — ");
-            throw new Error(detail || "Failed");
-          }
-          if (!data.image_base64) {
-            throw new Error("No image returned. Set billed GEMINI_API_KEY for Nano Banana.");
-          }
-          const modelLabel = escapeHtml(data.engine || data.model || "nano-banana");
-          const mime = data.mime || "image/png";
-          const src = `data:${mime};base64,${data.image_base64}`;
-          const ext = mime.includes("png") ? "png" : "jpg";
-          out.innerHTML = `
-            <div style="margin-bottom:10px;color:var(--muted);font-size:0.82rem;font-weight:700;">
-              ${escapeHtml(topic)} · ${modelLabel}${data.model ? " · " + escapeHtml(data.model) : ""}
-            </div>
-            <div style="background:#fff;border-radius:12px;padding:12px;text-align:center;">
-              <img src="${src}" alt="${escapeHtml(topic)} diagram"
-                   style="width:100%;max-width:100%;height:auto;border-radius:8px;display:block;" />
-            </div>
-            <div style="margin-top:10px;">
-              <a class="btn-icon" href="${src}" download="study-buddy-diagram.${ext}" style="display:inline-flex;">⬇️ Download</a>
-            </div>`;
-        } catch (e) {
-          out.innerHTML = `<div style="color:var(--accent2);">❌ ${escapeHtml(e.message)}</div>`;
-        }
-      });
-    }
 
     let __lastFormulaSheet = "";
     const generateFormulaBtn = document.getElementById("generate-formula-btn");
