@@ -11690,17 +11690,16 @@
         modalCard.classList.toggle("danger", isEverything);
         modalTitle.textContent = isEverything ? "🚨 Clear Everything?" : item.label + "?";
         modalMsg.textContent = isEverything
-          ? "This permanently deletes chat, notebook, mistakes, Learning DNA, uploads, session outputs, search history, and cache. Theme and login are kept. Type DELETE to continue."
+          ? "This permanently deletes chat, notebook, mistakes, Learning DNA, uploads, session outputs, search history, and cache. Theme and login are kept. This cannot be undone."
           : `This will permanently clear ${item.label.replace(/^Clear |^Reset /, "").toLowerCase()}. This cannot be undone.`;
-        if (deleteGate) deleteGate.style.display = isEverything ? "block" : "none";
+        if (deleteGate) deleteGate.style.display = "none";
         if (deleteInput) deleteInput.value = "";
-        okBtn.textContent = isEverything ? "DELETE" : "Clear";
-        okBtn.disabled = isEverything;
+        okBtn.textContent = isEverything ? "Delete all" : "Clear";
+        okBtn.disabled = false;
         modal.hidden = false;
         void modal.offsetWidth;
         modal.classList.add("open");
         modal.setAttribute("aria-hidden", "false");
-        if (isEverything && deleteInput) deleteInput.focus();
       }
 
       async function requireLoginForCloud() {
@@ -11941,11 +11940,6 @@
         document.getElementById("clear-confirm-backdrop").addEventListener("click", closeConfirmModal);
       }
       if (okBtn) okBtn.addEventListener("click", () => runPendingClear());
-      if (deleteInput) {
-        deleteInput.addEventListener("input", () => {
-          okBtn.disabled = deleteInput.value.trim() !== "DELETE";
-        });
-      }
 
       // Keep desktop flyout open class in sync with hover for aria
       wrap.addEventListener("mouseenter", () => {
