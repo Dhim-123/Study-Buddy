@@ -1955,6 +1955,22 @@ def api_health():
 
 # ── Auth Routes ──────────────────────────────────────────────────────
 
+def _row_get(row, key, default=None):
+    """Safe sqlite3.Row / mapping get (handles missing columns)."""
+    if row is None:
+        return default
+    try:
+        if hasattr(row, "keys") and key in row.keys():
+            val = row[key]
+            return default if val is None else val
+    except Exception:
+        pass
+    try:
+        return row[key]
+    except Exception:
+        return default
+
+
 @app.route("/api/auth/me", methods=["GET"])
 def auth_me():
     """Check if a user is logged in."""
@@ -1971,7 +1987,7 @@ def auth_me():
         "loggedIn": True,
         "identifier": row["identifier"],
         "buddyName": row["buddy_name"],
-        "avatarB64": row["avatar_b64"] if "avatar_b64" in row.keys() else None,
+        "avatarB64": _row_get(row, "avatar_b64"),
         "hasPassword": bool(pw) and not str(pw).startswith("firebase_only:"),
     })
 
@@ -1992,10 +2008,10 @@ def auth_register():
         return jsonify({"error": "Please use a username, not an email."}), 400
     if len(password) < 6:
         return jsonify({"error": "Password must be at least 6 characters."}), 400
-    if confirm_password and confirm_password != password:
-        return jsonify({"error": "Password and confirmation do not match."}), 400
     if not confirm_password:
-        return jsonify({"error": "Please confirm your password."}), 400
+        return jsonify({"error": "Please confirm your password in the Confirm Password field."}), 400
+    if confirm_password != password:
+        return jsonify({"error": "Password and confirmation do not match."}), 400
 
     ph = hash_password(password)
     try:
@@ -2014,7 +2030,7 @@ def auth_register():
         return jsonify({
             "identifier": row["identifier"],
             "buddyName": row["buddy_name"],
-            "avatarB64": row["avatar_b64"] if "avatar_b64" in row.keys() else None,
+            "avatarB64": _row_get(row, "avatar_b64"),
             "hasPassword": True,
         })
     except Exception as e:
@@ -2046,7 +2062,7 @@ def auth_login():
     return jsonify({
         "identifier": row["identifier"],
         "buddyName": row["buddy_name"],
-        "avatarB64": row["avatar_b64"] if "avatar_b64" in row.keys() else None,
+        "avatarB64": _row_get(row, "avatar_b64"),
         "hasPassword": True,
     })
 
@@ -2236,7 +2252,7 @@ def auth_firebase():
         return jsonify({
             "identifier": row["identifier"],
             "buddyName": row["buddy_name"],
-            "avatarB64": row["avatar_b64"] if "avatar_b64" in row.keys() else None,
+            "avatarB64": _row_get(row, "avatar_b64"),
             "hasPassword": bool(pw) and not str(pw).startswith("firebase_only:"),
         })
     except Exception as e:
@@ -3354,6 +3370,30 @@ def api_stt():
         return jsonify({"error": str(e)}), 500
 
 
+# Allowed Edge neural voices for Read aloud (unknown → English Jenny)
+TTS_VOICE_ALLOWLIST = {
+    "en-US-JennyNeural",
+    "en-US-AriaNeural",
+    "en-GB-SoniaNeural",
+    "en-IN-NeerjaNeural",
+    "de-DE-KatjaNeural",
+    "hi-IN-SwaraNeural",
+    "te-IN-ShrutiNeural",
+    "ta-IN-PallaviNeural",
+    "kn-IN-SapnaNeural",
+    "ml-IN-SobhanaNeural",
+    "ar-SA-ZariyahNeural",
+    "ru-RU-SvetlanaNeural",
+    "zh-CN-XiaoxiaoNeural",
+    "ja-JP-NanamiNeural",
+    "ko-KR-SunHiNeural",
+    "es-ES-ElviraNeural",
+    "fr-FR-DeniseNeural",
+    "pt-BR-FranciscaNeural",
+    "it-IT-ElsaNeural",
+}
+
+
 @app.route("/api/tts", methods=["POST"])
 def api_tts():
     """Single-voice TTS for buddy voice replies (edge-tts)."""
@@ -3364,6 +3404,9 @@ def api_tts():
     # Keep replies short for latency
     text = text[:1200]
     voice = (data.get("voice") or "en-US-JennyNeural").strip() or "en-US-JennyNeural"
+    if voice not in TTS_VOICE_ALLOWLIST:
+        print(f"[TTS] Unknown voice {voice!r}; falling back to en-US-JennyNeural")
+        voice = "en-US-JennyNeural"
     rate = (data.get("rate") or "+0%").strip() or "+0%"
     pitch = (data.get("pitch") or "+0Hz").strip() or "+0Hz"
     try:

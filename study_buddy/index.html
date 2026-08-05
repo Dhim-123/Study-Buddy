@@ -932,6 +932,15 @@
       font-size: .8rem;
     }
 
+    /* Register-only fields: hidden unless auth card is in register mode and user logged out */
+    .auth-card .register-only-field {
+      display: none !important;
+    }
+
+    .auth-card[data-mode="register"]:not([data-logged-in="1"]) .register-only-field {
+      display: block !important;
+    }
+
     .input {
       width: 100%;
       background: rgba(17, 24, 39, 0.6);
@@ -4193,7 +4202,7 @@
           </div>
           <div class="sb-footer">
 
-            <div class="auth-card" id="auth-card">
+            <div class="auth-card" id="auth-card" data-mode="login" data-logged-in="0">
               <h3 id="auth-mode-title">Login</h3>
               <div class="field">
                 <label for="auth-identifier">Username</label>
@@ -4203,11 +4212,11 @@
                 <label for="auth-password">Password</label>
                 <input type="password" class="input" id="auth-password" placeholder="Minimum 6 characters" />
               </div>
-              <div class="field" id="password-confirm-field" style="margin-top: 10px; display: none;">
+              <div class="field register-only-field" id="password-confirm-field" style="margin-top: 10px;">
                 <label for="auth-password-confirm">Confirm Password</label>
                 <input type="password" class="input" id="auth-password-confirm" placeholder="Re-type the same password" autocomplete="new-password" />
               </div>
-              <div class="field" id="buddy-name-field" style="margin-top: 10px; display: none;">
+              <div class="field register-only-field" id="buddy-name-field" style="margin-top: 10px;">
                 <label for="auth-buddy-name">Buddy Name <small>(for new accounts)</small></label>
                 <input type="text" class="input" id="auth-buddy-name" placeholder="Enter name" />
               </div>
@@ -5252,6 +5261,7 @@
 
         if (!authCard) return;
         if (!authCard.dataset.mode) authCard.dataset.mode = "login";
+        authCard.dataset.loggedIn = currentUser?.loggedIn ? "1" : "0";
 
         if (clearMessage && authMessage) {
           authMessage.style.display = "none";
@@ -5269,8 +5279,6 @@
           if (idLabel) idLabel.style.display = "none";
           if (pwLabel) pwLabel.style.display = "none";
           if (logoutBtn) logoutBtn.style.display = "block";
-          if (buddyNameField) buddyNameField.style.display = "none";
-          if (passwordConfirmField) passwordConfirmField.style.display = "none";
           if (googleWrap) googleWrap.style.display = "none";
 
           loggedInOnlyElements.forEach(el => el.style.display = "block");
@@ -5311,29 +5319,13 @@
           }
         }
 
-        if (authCard.dataset.mode === "register") {
-          if (currentUser?.loggedIn) {
-            if (authModeTitle) authModeTitle.textContent = `Logged in as ${currentUser.identifier}`;
-            if (authSubmitBtn) authSubmitBtn.style.display = "none";
-            if (authToggleBtn) authToggleBtn.style.display = "none";
-            if (buddyNameField) buddyNameField.style.display = "none";
-            if (passwordConfirmField) passwordConfirmField.style.display = "none";
-          } else {
-            if (authModeTitle) authModeTitle.textContent = "Register New Account";
-            if (authSubmitBtn) authSubmitBtn.textContent = "Register";
-            if (authToggleBtn) authToggleBtn.textContent = "Already have an account? Login";
-            if (passwordConfirmField) passwordConfirmField.style.display = "block";
-            if (buddyNameField) buddyNameField.style.display = "block";
-          }
-        } else {
+        if (authCard.dataset.mode === "register" && !currentUser?.loggedIn) {
+          if (authModeTitle) authModeTitle.textContent = "Register New Account";
+          if (authSubmitBtn) authSubmitBtn.textContent = "Register";
+          if (authToggleBtn) authToggleBtn.textContent = "Already have an account? Login";
+        } else if (!currentUser?.loggedIn) {
           if (authSubmitBtn) authSubmitBtn.textContent = "Login";
           if (authToggleBtn) authToggleBtn.textContent = "New user? Register";
-          if (!currentUser?.loggedIn && buddyNameField) {
-            buddyNameField.style.display = "none";
-          }
-          if (!currentUser?.loggedIn && passwordConfirmField) {
-            passwordConfirmField.style.display = "none";
-          }
         }
       }
 
@@ -5351,17 +5343,24 @@
           const res = await fetch("/api/auth/me", { credentials: "include" });
           const data = await res.json();
           if (data.loggedIn) {
+            let avatarB64 = data.avatarB64 || null;
+            if (!avatarB64) {
+              try { avatarB64 = localStorage.getItem("sb_avatar_b64") || null; } catch (_) {}
+            } else {
+              try { localStorage.setItem("sb_avatar_b64", avatarB64); } catch (_) {}
+            }
             currentUser = { 
               loggedIn: true,
               identifier: data.identifier,
               buddyName: data.buddyName,
-              avatarB64: data.avatarB64 || null,
+              avatarB64,
               hasPassword: !!data.hasPassword,
             };
             // Fetch and display chat history if logged in
             await fetchChatHistory();
           } else {
             currentUser = { loggedIn: false };
+            try { localStorage.removeItem("sb_avatar_b64"); } catch (_) {}
           }
         } catch (err) {
           console.error("Error checking login status:", err);
@@ -5948,12 +5947,16 @@
           return;
         }
         if (mode === "register") {
+          const confirmField = document.getElementById("password-confirm-field");
+          if (confirmField) confirmField.scrollIntoView({ block: "nearest", behavior: "smooth" });
           if (!confirmPassword) {
-            showAuthMessage("Please confirm your password.", true);
+            showAuthMessage("Please confirm your password in the Confirm Password field (below Password).", true);
+            document.getElementById("auth-password-confirm")?.focus();
             return;
           }
           if (password !== confirmPassword) {
             showAuthMessage("Password and confirmation do not match.", true);
+            document.getElementById("auth-password-confirm")?.focus();
             return;
           }
         }
@@ -5984,11 +5987,18 @@
           const data = await res.json();
 
           if (res.ok) {
+            let avatarB64 = data.avatarB64 || null;
+            if (!avatarB64 && mode === "login") {
+              try { avatarB64 = localStorage.getItem("sb_avatar_b64") || null; } catch (_) {}
+            }
+            if (avatarB64) {
+              try { localStorage.setItem("sb_avatar_b64", avatarB64); } catch (_) {}
+            }
             currentUser = { 
               loggedIn: true,
               identifier: data.identifier,
               buddyName: data.buddyName,
-              avatarB64: data.avatarB64 || null,
+              avatarB64,
               hasPassword: data.hasPassword !== false,
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || identifier);
@@ -6039,6 +6049,7 @@
           });
           if (res.ok) {
             currentUser = { loggedIn: false };
+            try { localStorage.removeItem("sb_avatar_b64"); } catch (_) {}
             history = []; // Clear chat history on logout
             currentConvId = null;
             conversations = [];
@@ -6114,13 +6125,25 @@
       let profilePasswordRevealed = false;
 
       function avatarSrcFromB64(b64) {
-        if (!b64) return "";
-        if (b64.startsWith("data:image/")) return b64;
-        return `data:image/jpeg;base64,${b64}`;
+        if (!b64 || typeof b64 !== "string") return "";
+        const s = b64.trim();
+        if (!s) return "";
+        if (s.startsWith("data:image/")) return s;
+        return `data:image/jpeg;base64,${s}`;
+      }
+
+      function rememberAvatarLocally(avatarB64) {
+        try {
+          if (avatarB64) localStorage.setItem("sb_avatar_b64", avatarB64);
+          else localStorage.removeItem("sb_avatar_b64");
+        } catch (_) { /* quota / private mode */ }
       }
 
       function applyAvatarEverywhere(avatarB64) {
-        const src = avatarSrcFromB64(avatarB64);
+        let src = avatarSrcFromB64(avatarB64);
+        if (!src) {
+          try { src = avatarSrcFromB64(localStorage.getItem("sb_avatar_b64") || ""); } catch (_) {}
+        }
         const pairs = [
           ["profile-avatar-img", "profile-avatar-fallback"],
           ["profile-dropdown-avatar", "profile-dropdown-fallback"],
@@ -6131,12 +6154,21 @@
           if (!img) return;
           if (src) {
             img.src = src;
-            img.hidden = false;
-            if (fb) fb.hidden = true;
+            img.removeAttribute("hidden");
+            img.style.display = "block";
+            img.style.visibility = "visible";
+            if (fb) {
+              fb.hidden = true;
+              fb.style.display = "none";
+            }
           } else {
             img.removeAttribute("src");
             img.hidden = true;
-            if (fb) fb.hidden = false;
+            img.style.display = "none";
+            if (fb) {
+              fb.hidden = false;
+              fb.style.display = "";
+            }
           }
         });
         document.querySelectorAll(".msg.user .avatar").forEach((el) => {
@@ -6160,7 +6192,9 @@
         if (nameEl) nameEl.textContent = currentUser?.identifier || "—";
         const usernameInput = document.getElementById("username-input");
         if (usernameInput && currentUser?.identifier) usernameInput.value = currentUser.identifier;
-        applyAvatarEverywhere(currentUser?.avatarB64 || null);
+        const avatar = currentUser?.avatarB64 || null;
+        if (avatar) rememberAvatarLocally(avatar);
+        applyAvatarEverywhere(avatar);
         profilePasswordRevealed = false;
         if (pwEl) pwEl.textContent = "••••••••••";
         if (hintEl) {
@@ -6301,6 +6335,7 @@
                 return;
               }
               currentUser.avatarB64 = data.avatarB64 || dataUrl;
+              rememberAvatarLocally(currentUser.avatarB64);
               applyAvatarEverywhere(currentUser.avatarB64);
               profileFlash("Profile picture updated");
             } catch (err) {
@@ -11850,21 +11885,88 @@
     let __buddyAudio = null;
     let __buddyAudioBtn = null;
 
+    const EDGE_VOICE_BY_LANG = {
+      en: "en-US-JennyNeural",
+      de: "de-DE-KatjaNeural",
+      hi: "hi-IN-SwaraNeural",
+      te: "te-IN-ShrutiNeural",
+      ta: "ta-IN-PallaviNeural",
+      kn: "kn-IN-SapnaNeural",
+      ml: "ml-IN-SobhanaNeural",
+      ar: "ar-SA-ZariyahNeural",
+      ru: "ru-RU-SvetlanaNeural",
+      zh: "zh-CN-XiaoxiaoNeural",
+      ja: "ja-JP-NanamiNeural",
+      ko: "ko-KR-SunHiNeural",
+      es: "es-ES-ElviraNeural",
+      fr: "fr-FR-DeniseNeural",
+      pt: "pt-BR-FranciscaNeural",
+      it: "it-IT-ElsaNeural",
+    };
+
+    function detectReadAloudLang(text) {
+      const t = String(text || "");
+      if (!t.trim()) return "en";
+      const counts = {
+        hi: (t.match(/[\u0900-\u097F]/g) || []).length,
+        te: (t.match(/[\u0C00-\u0C7F]/g) || []).length,
+        ta: (t.match(/[\u0B80-\u0BFF]/g) || []).length,
+        kn: (t.match(/[\u0C80-\u0CFF]/g) || []).length,
+        ml: (t.match(/[\u0D00-\u0D7F]/g) || []).length,
+        ar: (t.match(/[\u0600-\u06FF]/g) || []).length,
+        ru: (t.match(/[\u0400-\u04FF]/g) || []).length,
+        ja: (t.match(/[\u3040-\u30FF]/g) || []).length,
+        ko: (t.match(/[\uAC00-\uD7AF]/g) || []).length,
+        zh: (t.match(/[\u4E00-\u9FFF]/g) || []).length,
+      };
+      let best = "en";
+      let bestN = 0;
+      Object.keys(counts).forEach((lang) => {
+        if (counts[lang] > bestN) {
+          bestN = counts[lang];
+          best = lang;
+        }
+      });
+      if (bestN >= 8) return best;
+
+      const low = t.toLowerCase();
+      const letters = (t.match(/[A-Za-zÀ-ÿ]/g) || []).length;
+      if (letters < 12) return "en";
+      if (/[äöüß]/i.test(t) || /\b(der|die|das|und|nicht|ist|ein|eine|mit|für|auch|ich|sie|wir)\b/i.test(low)) {
+        return "de";
+      }
+      if (/[ñ¿¡]/i.test(t) || /\b(el|la|los|las|que|por|para|una|como|más|está)\b/i.test(low)) {
+        return "es";
+      }
+      if (/[àâçéèêëîïôùûü]/i.test(t) || /\b(le|la|les|des|une|est|pour|avec|dans|pas|que)\b/i.test(low)) {
+        return "fr";
+      }
+      if (/\b(il|che|per|una|sono|con|non|più|questo)\b/i.test(low)) return "it";
+      if (/\b(o|uma|não|para|com|está|mais|que)\b/i.test(low) && /[ãõç]/i.test(t)) return "pt";
+      return "en";
+    }
+
+    function pickEdgeVoiceForText(text) {
+      const lang = detectReadAloudLang(text);
+      return EDGE_VOICE_BY_LANG[lang] || EDGE_VOICE_BY_LANG.en;
+    }
+
     async function speakBuddyReply(text) {
       const clean = String(text || "")
         .replace(/[*_`#]/g, "")
         .replace(/https?:\/\/\S+/g, "")
         .trim()
-        .slice(0, 900);
+        .slice(0, 1200);
       if (!clean) return;
       try {
         if (__buddyAudio) {
           try { __buddyAudio.pause(); } catch (_) {}
         }
+        const voice = pickEdgeVoiceForText(clean);
         const res = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: clean, voice: "en-US-JennyNeural" }),
+          body: JSON.stringify({ text: clean, voice }),
         });
         const data = await readJsonResponse(res);
         if (!res.ok) throw new Error(data?.error || "TTS failed");
