@@ -56,26 +56,13 @@ else:
 
 # Store API key in module variable to avoid environment access issues during runtime
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-# Nano Banana 2 (default) → legacy Nano Banana. Override with GEMINI_IMAGE_MODEL.
-GEMINI_IMAGE_MODEL = os.getenv(
-    "GEMINI_IMAGE_MODEL",
-    "gemini-3.1-flash-image",
-).strip() or "gemini-3.1-flash-image"
-GEMINI_IMAGE_MODEL_FALLBACKS = [
-    m for m in (
-        GEMINI_IMAGE_MODEL,
-        "gemini-3.1-flash-image",
-        "gemini-2.5-flash-image",
-        "gemini-3.1-flash-lite-image",
-    ) if m
-]
-# de-dupe preserving order
-_seen_models = set()
-GEMINI_IMAGE_MODEL_FALLBACKS = [
-    m for m in GEMINI_IMAGE_MODEL_FALLBACKS
-    if not (m in _seen_models or _seen_models.add(m))
-]
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+# Diagram images via OpenAI (gpt-image-1 / dall-e-3). Override with OPENAI_IMAGE_MODEL.
+OPENAI_IMAGE_MODEL = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1").strip() or "gpt-image-1"
+OPENAI_IMAGE_MODEL_FALLBACKS = []
+for _m in (OPENAI_IMAGE_MODEL, "gpt-image-1", "dall-e-3"):
+    if _m and _m not in OPENAI_IMAGE_MODEL_FALLBACKS:
+        OPENAI_IMAGE_MODEL_FALLBACKS.append(_m)
 HF_TOKEN = (
     os.getenv("HF_TOKEN", "").strip()
     or os.getenv("HUGGINGFACE_API_TOKEN", "").strip()
@@ -91,8 +78,8 @@ if not GROQ_API_KEY:
     print("   Create a file called  .env  in this folder and add:")
     print("   GROQ_API_KEY=your-key-here\n")
 
-if not GEMINI_API_KEY:
-    print("[WARNING] No GEMINI_API_KEY — diagrams need Nano Banana (set GEMINI_API_KEY with billing).")
+if not OPENAI_API_KEY:
+    print("[INFO] No OPENAI_API_KEY — diagram photos use Groq SVG fallback (chat still uses Groq).")
 
 # Centralized Groq Client
 _groq_client_instance = None
@@ -105,12 +92,12 @@ def get_groq_client():
     return Groq(api_key=GROQ_API_KEY)
 
 
-def get_gemini_client():
-    """Gemini client for Nano Banana educational image diagrams."""
-    if not GEMINI_API_KEY:
-        raise ValueError("Set GEMINI_API_KEY for diagram images.")
-    from google import genai
-    return genai.Client(api_key=GEMINI_API_KEY)
+def get_openai_client():
+    """OpenAI client for educational diagram images."""
+    if not OPENAI_API_KEY:
+        raise ValueError("Set OPENAI_API_KEY for diagram images.")
+    from openai import OpenAI
+    return OpenAI(api_key=OPENAI_API_KEY)
 
 DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
 # Groq vision models (llama-3.2-*-vision-preview were decommissioned)
@@ -4231,147 +4218,68 @@ def generate_diagram_pollinations(topic: str, style: str = "") -> dict:
     raise RuntimeError(str(last_err) if last_err else "Pollinations image generation failed")
 
 
-def _bytes_to_b64(data) -> str:
-    """Normalize Gemini image payload (bytes or base64 str) to base64 ascii."""
-    if data is None:
-        return ""
-    if isinstance(data, str):
-        return data
-    if isinstance(data, (bytes, bytearray)):
-        return base64.b64encode(bytes(data)).decode("ascii")
-    return base64.b64encode(bytes(data)).decode("ascii")
-
-
-def _extract_image_from_gemini_response(response):
-    """Return (mime, base64_str) from a generate_content response, or (None, None)."""
-    try:
-        # Newer SDK convenience
-        parts = getattr(response, "parts", None) or []
-        for part in parts:
-            inline = getattr(part, "inline_data", None)
-            if inline and getattr(inline, "data", None):
-                mime = getattr(inline, "mime_type", None) or "image/png"
-                return mime, _bytes_to_b64(inline.data)
-        candidates = getattr(response, "candidates", None) or []
-        for cand in candidates:
-            content = getattr(cand, "content", None)
-            parts = getattr(content, "parts", None) or []
-            for part in parts:
-                inline = getattr(part, "inline_data", None)
-                if inline and getattr(inline, "data", None):
-                    mime = getattr(inline, "mime_type", None) or "image/png"
-                    return mime, _bytes_to_b64(inline.data)
-    except Exception as e:
-        print(f"[Diagram] parse generate_content failed: {e}")
-    return None, None
-
-
-def _extract_image_from_interaction(interaction):
-    """Return (mime, base64_str) from Interactions API result, or (None, None)."""
-    out_img = getattr(interaction, "output_image", None)
-    if out_img is not None:
-        data = getattr(out_img, "data", None)
-        mime = getattr(out_img, "mime_type", None) or "image/png"
-        if data:
-            return mime, _bytes_to_b64(data)
-    outputs = getattr(interaction, "outputs", None) or getattr(interaction, "output", None) or []
-    if not isinstance(outputs, (list, tuple)):
-        outputs = [outputs]
-    for item in outputs:
-        if item is None:
-            continue
-        data = getattr(item, "data", None)
-        mime = getattr(item, "mime_type", None) or "image/png"
-        typ = str(getattr(item, "type", None) or "")
-        if data and ("image" in typ.lower() or str(mime).startswith("image/")):
-            return (mime if str(mime).startswith("image/") else "image/png"), _bytes_to_b64(data)
-    return None, None
-
-
-def generate_diagram_gemini(topic: str, style: str = "") -> dict:
+def generate_diagram_openai(topic: str, style: str = "") -> dict:
     """
-    Real AI diagram image via Gemini Nano Banana (image models).
-    Requires billed GEMINI_API_KEY. Returns { image_base64, mime, model, engine }.
+    Real AI diagram image via OpenAI Images API.
+    Requires OPENAI_API_KEY. Returns { image_base64, mime, model, engine }.
     """
     topic = _normalize_diagram_topic(topic)
-    client = get_gemini_client()
-    detail = _groq_rewrite_diagram_prompt(topic, style)
+    client = get_openai_client()
+    try:
+        detail = _groq_rewrite_diagram_prompt(topic, style)
+    except Exception:
+        detail = topic
     part_hints = _diagram_svg_part_hints(topic)
     prompt = (
-        f"Generate a single educational textbook diagram IMAGE (not text, not SVG code).\n"
+        f"Educational textbook diagram illustration (not a photo of a real classroom).\n"
         f"Topic: {topic}\n"
         f"Visual brief: {detail}\n"
         f"Required labels: {part_hints}\n"
         f"Style: {(style or 'clean educational textbook illustration').strip()}.\n"
-        "Hard requirements:\n"
-        "- Accurate labeled scientific diagram for ICSE/school students\n"
-        "- White or light paper background, high contrast, sharp readable labels\n"
-        "- Title at top; neat school science book figure — not abstract art\n"
-        "- No cartoon mascots, watermarks, or UI chrome\n"
-        "- Output an IMAGE only"
+        "Hard requirements: accurate labeled scientific diagram for school students; "
+        "white/light paper background; high contrast readable labels; title at top; "
+        "no cartoon mascots, watermarks, or UI chrome."
     )
 
     last_err = None
-    for model in GEMINI_IMAGE_MODEL_FALLBACKS:
-        # 1) Interactions API (recommended for Nano Banana)
+    for model in OPENAI_IMAGE_MODEL_FALLBACKS:
         try:
-            interaction = client.interactions.create(model=model, input=prompt)
-            mime, b64 = _extract_image_from_interaction(interaction)
-            if b64:
-                return {
-                    "image_base64": b64,
-                    "mime": mime or "image/png",
-                    "model": model,
-                    "engine": "nano-banana",
-                }
-            last_err = RuntimeError(f"{model}: interactions returned no image")
-            print(f"[Diagram] {last_err}")
+            kwargs = {
+                "model": model,
+                "prompt": prompt[:3900],
+                "n": 1,
+                "size": "1024x1024",
+            }
+            # dall-e-3 / older Images API accept response_format; gpt-image-1 returns b64 by default
+            if model.startswith("dall-e"):
+                kwargs["response_format"] = "b64_json"
+            result = client.images.generate(**kwargs)
+            item = (result.data or [None])[0]
+            if not item:
+                raise RuntimeError(f"{model}: empty images response")
+            b64 = getattr(item, "b64_json", None)
+            if not b64 and getattr(item, "url", None):
+                import urllib.request
+                with urllib.request.urlopen(item.url, timeout=60) as resp:
+                    raw = resp.read()
+                b64 = base64.b64encode(raw).decode("ascii")
+            if not b64:
+                raise RuntimeError(f"{model}: no image data")
+            return {
+                "image_base64": b64,
+                "mime": "image/png",
+                "model": model,
+                "engine": "openai",
+            }
         except Exception as e:
             last_err = e
-            print(f"[Diagram] interactions.create failed ({model}): {e}")
-
-        # 2) generate_content (IMAGE modality)
-        try:
-            from google.genai import types
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["TEXT", "IMAGE"],
-                ),
-            )
-            mime, b64 = _extract_image_from_gemini_response(response)
-            if b64:
-                return {
-                    "image_base64": b64,
-                    "mime": mime or "image/png",
-                    "model": model,
-                    "engine": "nano-banana",
-                }
-        except Exception as e:
-            last_err = e
-            print(f"[Diagram] generate_content+modalities failed ({model}): {e}")
-
-        # 3) Plain generate_content (some SDK/model combos ignore modalities)
-        try:
-            response = client.models.generate_content(model=model, contents=prompt)
-            mime, b64 = _extract_image_from_gemini_response(response)
-            if b64:
-                return {
-                    "image_base64": b64,
-                    "mime": mime or "image/png",
-                    "model": model,
-                    "engine": "nano-banana",
-                }
-            last_err = RuntimeError(f"{model}: generate_content returned no image")
-        except Exception as e:
-            last_err = e
-            print(f"[Diagram] generate_content failed ({model}): {e}")
+            print(f"[Diagram] OpenAI image failed ({model}): {e}")
+            continue
 
     detail = str(last_err)[:300] if last_err else "unknown error"
     raise RuntimeError(
-        "Nano Banana returned no image. Enable billing on Google AI Studio / Cloud, "
-        f"confirm GEMINI_API_KEY, tried models={GEMINI_IMAGE_MODEL_FALLBACKS}. Last error: {detail}"
+        f"OpenAI image generation failed. Confirm OPENAI_API_KEY and billing. "
+        f"Tried models={OPENAI_IMAGE_MODEL_FALLBACKS}. Last error: {detail}"
     )
 
 
@@ -4433,51 +4341,53 @@ def generate_diagram_svg_groq(topic: str, style: str = "") -> dict:
 
 @app.route("/api/diagram", methods=["POST"])
 def api_diagram():
-    """Educational diagram images via Gemini Nano Banana (real AI image generation)."""
+    """Educational diagrams: OpenAI image first, then Groq labeled SVG fallback."""
     data = request.get_json(force=True) or {}
     topic = _normalize_diagram_topic(data.get("topic") or data.get("prompt") or "")
     if not topic:
         return jsonify({"error": "Provide a topic for the diagram."}), 400
     style = (data.get("style") or "clean educational textbook illustration").strip()[:80]
 
-    if not GEMINI_API_KEY:
-        return jsonify({
-            "error": "Diagrams need GEMINI_API_KEY (Nano Banana / Gemini image).",
-            "hint": (
-                "1) Create a key at https://aistudio.google.com/apikey "
-                "2) Enable billing on the linked Google Cloud project "
-                "(free image quota is often 0). "
-                "3) Set GEMINI_API_KEY on Render → Environment → Redeploy."
-            ),
-        }), 503
+    # 1) OpenAI Images (preferred when OPENAI_API_KEY is set)
+    if OPENAI_API_KEY:
+        try:
+            result = generate_diagram_openai(topic, style)
+            return jsonify({
+                "image_base64": result["image_base64"],
+                "mime": result["mime"],
+                "model": result.get("model"),
+                "engine": result.get("engine") or "openai",
+                "topic": topic,
+            })
+        except Exception as e:
+            print(f"[ERROR] Diagram OpenAI: {e}")
+            # Fall through to SVG rather than hard-fail if Groq is available
 
-    try:
-        result = generate_diagram_gemini(topic, style)
-        return jsonify({
-            "image_base64": result["image_base64"],
-            "mime": result["mime"],
-            "model": result.get("model"),
-            "engine": result.get("engine") or "nano-banana",
-            "topic": topic,
-        })
-    except Exception as e:
-        err = str(e)
-        print(f"[ERROR] Diagram Nano Banana: {err}")
-        hint = (
-            "Check GEMINI_API_KEY and enable billing for Gemini image generation "
-            "(Nano Banana) on Google AI Studio / Cloud."
-        )
-        low = err.lower()
-        if "resource_exhausted" in low or "limit: 0" in low or "quota" in low:
-            hint = (
-                "Image quota is 0 on the free tier. Enable billing for your Google Cloud "
-                "project (AI Studio → linked project → Billing), then retry."
-            )
-        return jsonify({
-            "error": "Could not generate Nano Banana diagram image.",
-            "detail": err[:400],
-            "hint": hint,
-        }), 500
+    # 2) Groq SVG fallback (works with GROQ_API_KEY only)
+    if GROQ_API_KEY:
+        try:
+            result = generate_diagram_svg_groq(topic, style)
+            return jsonify({
+                "svg": result["svg"],
+                "model": result.get("model"),
+                "engine": result.get("engine") or "groq-svg",
+                "topic": topic,
+            })
+        except Exception as e:
+            print(f"[ERROR] Diagram Groq SVG: {e}")
+            return jsonify({
+                "error": "Could not generate diagram.",
+                "detail": str(e)[:400],
+                "hint": (
+                    "Set OPENAI_API_KEY on Render for photo diagrams, "
+                    "or ensure GROQ_API_KEY works for SVG diagrams."
+                ),
+            }), 500
+
+    return jsonify({
+        "error": "No diagram provider configured.",
+        "hint": "Set OPENAI_API_KEY (images) and/or GROQ_API_KEY (SVG) on Render → Environment.",
+    }), 503
 
 
 @app.route("/api/formulas", methods=["POST"])

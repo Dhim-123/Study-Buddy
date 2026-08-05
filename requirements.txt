@@ -6,3 +6,4 @@ gunicorn
 requests
 edge-tts
 firebase-admin
+openai

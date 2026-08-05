@@ -12052,18 +12052,30 @@
           const detail = [data?.error, data?.hint, data?.detail].filter(Boolean).join(" — ");
           throw new Error(detail || "Diagram failed");
         }
-        if (!data.image_base64) throw new Error("No diagram image returned.");
-        const mime = data.mime || "image/png";
-        const src = `data:${mime};base64,${data.image_base64}`;
-        const ext = mime.includes("png") ? "png" : "jpg";
+        let mediaHtml = "";
+        let downloadHref = "";
+        let downloadName = "study-buddy-diagram.png";
+        if (data.image_base64) {
+          const mime = data.mime || "image/png";
+          downloadHref = `data:${mime};base64,${data.image_base64}`;
+          downloadName = mime.includes("png") ? "study-buddy-diagram.png" : "study-buddy-diagram.jpg";
+          mediaHtml = `<img src="${downloadHref}" alt="${escapeHtml(topic)} diagram"
+                 style="width:100%;max-width:100%;height:auto;border-radius:8px;display:block;" />`;
+        } else if (data.svg) {
+          const svgRaw = String(data.svg);
+          downloadHref = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgRaw)}`;
+          downloadName = "study-buddy-diagram.svg";
+          mediaHtml = `<div style="width:100%;overflow:auto;">${svgRaw}</div>`;
+        } else {
+          throw new Error("No diagram image returned.");
+        }
         bubble.innerHTML = `
           <div style="margin-bottom:8px;font-weight:700;">🖼 ${escapeHtml(topic)}</div>
           <div style="background:#fff;border-radius:12px;padding:10px;text-align:center;">
-            <img src="${src}" alt="${escapeHtml(topic)} diagram"
-                 style="width:100%;max-width:100%;height:auto;border-radius:8px;display:block;" />
+            ${mediaHtml}
           </div>
           <div class="bubble-actions" style="margin-top:10px;">
-            <a class="step-btn secondary" href="${src}" download="study-buddy-diagram.${ext}" style="display:inline-flex;text-decoration:none;">⬇️ Download</a>
+            <a class="step-btn secondary" href="${downloadHref}" download="${downloadName}" style="display:inline-flex;text-decoration:none;">⬇️ Download</a>
           </div>`;
       } catch (e) {
         bubble.innerHTML = `<div style="color:var(--accent2);">❌ Could not generate diagram: ${escapeHtml(e.message || "failed")}</div>`;

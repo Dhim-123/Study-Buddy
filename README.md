@@ -66,10 +66,11 @@ pip install -r requirements.txt
 Create a `.env` file inside the `study_buddy/` folder:
 
 ```env
-GEMINI_API_KEY=your-google-gemini-api-key-here
+GROQ_API_KEY=your-groq-api-key-here
+OPENAI_API_KEY=your-openai-api-key-here
 ```
 
-> 🔑 Get your free Gemini API key at: https://aistudio.google.com/app/apikey
+> Chat uses Groq. Diagram photos use OpenAI (`OPENAI_API_KEY`); without it, diagrams fall back to Groq SVG.
 
 ### 4. Run the app
 
