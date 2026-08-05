@@ -4025,6 +4025,211 @@
       border-color: var(--accent) !important;
       box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
     }
+
+    /* ── Gamification navbar + modals ── */
+    header { position: relative; }
+    .header-center {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      z-index: 5;
+      max-width: min(560px, calc(100vw - 220px));
+    }
+    .nav-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(59, 130, 246, 0.28);
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-weight: 700;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+      white-space: nowrap;
+    }
+    .nav-chip:hover {
+      border-color: rgba(59, 130, 246, 0.55);
+      background: rgba(59, 130, 246, 0.12);
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.15);
+      transform: translateY(-1px);
+    }
+    .nav-chip .nav-chip-label { color: #6a6a85; font-weight: 600; }
+    .nav-chip .nav-chip-value { color: var(--accent); font-weight: 800; }
+    .nav-chip.running {
+      border-color: var(--accent2);
+      background: rgba(249, 115, 22, 0.12);
+    }
+    .nav-chip-icon { font-size: 0.95rem; line-height: 1; }
+    @media (max-width: 820px) {
+      .nav-chip .nav-chip-label { display: none; }
+      .header-center { gap: 4px; max-width: calc(100vw - 160px); }
+      .nav-chip { padding: 6px 9px; font-size: 0.72rem; }
+    }
+    @media (max-width: 520px) {
+      .nav-chip-shop { display: none; }
+    }
+
+    .sb-game-modal {
+      position: fixed; inset: 0; z-index: 1200;
+      display: none; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    .sb-game-modal.open { display: flex; }
+    .sb-game-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(8, 10, 20, 0.55);
+      backdrop-filter: blur(4px);
+    }
+    .sb-game-card {
+      position: relative;
+      width: min(440px, 100%);
+      max-height: min(86vh, 720px);
+      overflow: auto;
+      border-radius: 18px;
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      background: var(--surface);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+      padding: 20px 22px;
+      animation: sbGameIn 0.28s ease;
+    }
+    .sb-game-card.wide { width: min(560px, 100%); }
+    @keyframes sbGameIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.98); }
+      to { opacity: 1; transform: none; }
+    }
+    .sb-game-card h3 { margin: 0 0 12px; font-size: 1.15rem; }
+    .sb-game-close {
+      position: absolute; top: 10px; right: 12px;
+      background: transparent; border: none; color: var(--secondary);
+      font-size: 1.4rem; cursor: pointer; line-height: 1;
+    }
+    .streak-fire {
+      font-size: 2.4rem; text-align: center;
+      animation: firePulse 1.4s ease-in-out infinite;
+    }
+    @keyframes firePulse {
+      0%, 100% { transform: scale(1); filter: brightness(1); }
+      50% { transform: scale(1.08); filter: brightness(1.15); }
+    }
+    .streak-stats {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0;
+    }
+    .streak-stat {
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.18);
+      border-radius: 12px; padding: 10px 12px;
+    }
+    .streak-stat .lbl { font-size: 0.7rem; color: #6a6a85; font-weight: 700; text-transform: uppercase; }
+    .streak-stat .val { font-size: 1.35rem; font-weight: 900; color: var(--accent); }
+
+    .puzzle-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .puzzle-pill {
+      font-size: 0.72rem; font-weight: 800; padding: 4px 10px; border-radius: 999px;
+      background: rgba(59, 130, 246, 0.12); color: var(--accent); border: 1px solid rgba(59, 130, 246, 0.22);
+    }
+    .puzzle-pill.xp { color: var(--accent3); }
+    .puzzle-prompt { font-size: 1rem; line-height: 1.5; margin: 0 0 12px; }
+    .puzzle-hint { margin-bottom: 12px; color: #6a6a85; font-size: 0.88rem; }
+    .puzzle-input { width: 100%; margin: 6px 0 12px; }
+    .puzzle-actions { display: flex; gap: 8px; }
+    .puzzle-result { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--hover-bg); }
+    .puzzle-result.ok { border: 1px solid rgba(82, 232, 160, 0.4); }
+
+    .shop-grid { display: flex; flex-direction: column; gap: 10px; }
+    .shop-item {
+      display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center;
+      padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--hover-bg);
+    }
+    .shop-item-icon { font-size: 1.5rem; text-align: center; }
+    .shop-item-info p { margin: 2px 0 4px; font-size: 0.78rem; color: #6a6a85; }
+    .shop-cost { font-size: 0.72rem; font-weight: 700; color: var(--accent); }
+    .shop-balance { margin: 0 0 12px; color: #6a6a85; }
+
+    .sb-game-toasts {
+      position: fixed; top: 72px; right: 16px; z-index: 1400;
+      display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+    }
+    .sb-game-toast {
+      min-width: 180px; max-width: 300px;
+      padding: 10px 14px; border-radius: 12px;
+      background: rgba(20, 24, 40, 0.92); color: #fff;
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      opacity: 0; transform: translateX(12px); transition: opacity 0.25s, transform 0.25s;
+      font-size: 0.85rem; font-weight: 700;
+    }
+    .sb-game-toast.show { opacity: 1; transform: none; }
+    .sb-game-toast.success { border-color: rgba(82, 232, 160, 0.45); }
+    .sb-game-toast.warn { border-color: rgba(249, 115, 22, 0.45); }
+
+    .settings-panel-card { max-height: min(80vh, 640px); overflow-y: auto; }
+    .settings-block { margin-top: 14px; }
+    .settings-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 8px 0; font-size: 0.85rem;
+    }
+    .settings-row select, .settings-row input[type="range"] { max-width: 140px; }
+    .settings-toggle { accent-color: var(--accent); }
+
+    .planner-box {
+      background: rgba(59, 130, 246, 0.06);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+    }
+    .planner-box h4 { margin: 0 0 8px; font-size: 0.82rem; font-weight: 800; }
+    .planner-add { display: flex; gap: 6px; margin-bottom: 8px; }
+    .planner-add input { flex: 1; padding: 6px 8px; font-size: 0.8rem; }
+    #planner-task-list { list-style: none; margin: 0; padding: 0; max-height: 140px; overflow-y: auto; }
+    .planner-task {
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      padding: 4px 0; font-size: 0.78rem;
+    }
+    .planner-task.done span { text-decoration: line-through; color: #6a6a85; }
+    .planner-task label { display: flex; align-items: center; gap: 6px; flex: 1; cursor: pointer; }
+    .planner-del { background: none; border: none; color: #6a6a85; cursor: pointer; font-size: 1rem; }
+    .planner-empty { color: #6a6a85; font-size: 0.75rem; padding: 4px 0; }
+
+    .profile-email { font-size: 0.78rem; color: #6a6a85; margin-top: 2px; }
+    .sb-skel { color: #6a6a85; padding: 20px 0; text-align: center; }
+    .sb-err { color: var(--accent2); }
+
+    html.sb-high-contrast { --border: #888; --text: #fff; --secondary: #ccc; }
+    html.sb-high-contrast body { filter: contrast(1.08); }
+    html { font-size: calc(16px * var(--sb-font-scale, 1)); }
+    html.sb-reduced-motion *,
+    html.sb-reduced-motion *::before,
+    html.sb-reduced-motion *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .streak-fire, .sb-game-card { animation: none !important; }
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+    html.unlock-chat-sparkle .msg.ai .bubble::after {
+      content: "✨"; position: absolute; top: 4px; right: 8px; font-size: 0.7rem; opacity: 0.55;
+    }
+    html.unlock-theme-aurora {
+      --accent: #38bdf8; --accent-hover: #7dd3fc;
+    }
+    html.unlock-theme-forest {
+      --accent: #34d399; --accent-hover: #6ee7b7;
+    }
   </style>
 </head>
 
@@ -4044,6 +4249,27 @@
         Study<span>Buddy</span>
       </div>
     </div>
+    <div class="header-center" id="header-center" role="group" aria-label="Study engagement">
+      <button type="button" class="nav-chip" id="nav-streak-chip" aria-label="Streak details">
+        <span class="nav-chip-icon" aria-hidden="true">🔥</span>
+        <span class="nav-chip-value" id="nav-streak-count">0</span>
+        <span class="nav-chip-label">Day Streak</span>
+      </button>
+      <button type="button" class="nav-chip" id="nav-puzzle-chip" aria-label="Open Daily Puzzle">
+        <span class="nav-chip-icon" aria-hidden="true">🧩</span>
+        <span class="nav-chip-label">Daily Puzzle</span>
+      </button>
+      <button type="button" class="nav-chip" id="nav-focus-chip" aria-label="Toggle Focus timer">
+        <span class="nav-chip-icon" aria-hidden="true">⏱️</span>
+        <span class="nav-chip-value" id="nav-focus-display">25:00</span>
+        <span class="nav-chip-label">Focus</span>
+      </button>
+      <button type="button" class="nav-chip nav-chip-shop" id="nav-shop-chip" aria-label="Open XP Shop">
+        <span class="nav-chip-icon" aria-hidden="true">🛍️</span>
+        <span class="nav-chip-value" id="nav-xp-count">0</span>
+        <span class="nav-chip-label">XP</span>
+      </button>
+    </div>
     <div class="header-right">
       <span id="header-notes-badge" style="display:none; background: rgba(82, 232, 160, 0.15); color: var(--accent3); border: 1px solid var(--accent3); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; margin-right: 10px; font-weight: bold; align-items: center; gap: 4px;">📝 Notes Mode</span>
       <button class="btn-icon" id="auth-btn">🚪 Login / Register</button>
@@ -4062,6 +4288,7 @@
               </div>
               <div class="profile-identity-meta">
                 <div class="profile-username" id="profile-username-display">—</div>
+                <div class="profile-email" id="profile-email-display">—</div>
                 <div class="profile-password-row">
                   <span class="profile-password-label">Password</span>
                   <span id="profile-password-display" class="profile-password-value">••••••••••</span>
@@ -4104,7 +4331,7 @@
         <h3 id="settings-panel-title">Settings</h3>
         <button type="button" class="settings-close-btn" id="settings-close-btn" aria-label="Close settings">&times;</button>
       </div>
-      <div class="settings-section-label">Theme</div>
+      <div class="settings-section-label">Appearance</div>
       <div class="theme-options" role="group" aria-label="Theme">
         <button type="button" class="theme-option-btn" data-theme-choice="dark" title="Dark theme">
           <span class="theme-icon">🌙</span>
@@ -4122,16 +4349,119 @@
       <p class="settings-hint">Shortcut: <kbd>Ctrl</kbd> + <kbd>,</kbd></p>
 
       <div class="settings-divider"></div>
+      <div class="settings-block">
+        <div class="settings-section-label">Notifications</div>
+        <div class="settings-row"><span>Streak reminders</span><input type="checkbox" class="settings-toggle" id="settings-notify-streak" checked /></div>
+        <div class="settings-row"><span>Daily Puzzle</span><input type="checkbox" class="settings-toggle" id="settings-notify-puzzle" checked /></div>
+      </div>
 
-      <div class="settings-clear-wrap" id="settings-clear-wrap">
-        <button type="button" class="settings-clear-trigger" id="settings-clear-trigger" aria-haspopup="menu" aria-expanded="false">
-          <span>🗑️ Clear History</span>
-          <span class="chevron">›</span>
-        </button>
-        <div class="clear-history-flyout" id="clear-history-flyout" role="menu" aria-label="Clear history options">
-          <div class="clear-history-menu" id="clear-history-menu-desktop"></div>
+      <div class="settings-divider"></div>
+      <div class="settings-block">
+        <div class="settings-section-label">Study</div>
+        <div class="settings-row">
+          <span>Grade</span>
+          <select id="settings-grade" class="input" style="padding:6px 8px;width:auto;">
+            <option value="6">6</option><option value="7">7</option><option value="8">8</option>
+            <option value="9">9</option><option value="10" selected>10</option>
+            <option value="11">11</option><option value="12">12</option>
+          </select>
         </div>
       </div>
+
+      <div class="settings-divider"></div>
+      <div class="settings-block">
+        <div class="settings-section-label">Language</div>
+        <div class="settings-row">
+          <span>App language</span>
+          <select id="settings-language" class="input" style="padding:6px 8px;width:auto;">
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-divider"></div>
+      <div class="settings-block">
+        <div class="settings-section-label">Accessibility</div>
+        <div class="settings-row"><span>High contrast</span><input type="checkbox" class="settings-toggle" id="settings-high-contrast" /></div>
+        <div class="settings-row"><span>Reduced motion</span><input type="checkbox" class="settings-toggle" id="settings-reduced-motion" /></div>
+        <div class="settings-row">
+          <span>Font scale</span>
+          <input type="range" id="settings-font-scale" min="0.9" max="1.25" step="0.05" value="1" />
+        </div>
+      </div>
+
+      <div class="settings-divider"></div>
+      <div class="settings-block">
+        <div class="settings-section-label">Rewards</div>
+        <button type="button" class="btn-primary" id="settings-open-shop" style="width:100%;padding:10px;">🛍️ Open XP Shop</button>
+      </div>
+
+      <div class="settings-divider"></div>
+      <div class="settings-block">
+        <div class="settings-section-label">History</div>
+        <div class="settings-clear-wrap" id="settings-clear-wrap">
+          <button type="button" class="settings-clear-trigger" id="settings-clear-trigger" aria-haspopup="menu" aria-expanded="false">
+            <span>🗑️ Clear History</span>
+            <span class="chevron">›</span>
+          </button>
+          <div class="clear-history-flyout" id="clear-history-flyout" role="menu" aria-label="Clear history options">
+            <div class="clear-history-menu" id="clear-history-menu-desktop"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-divider"></div>
+      <div class="settings-block">
+        <div class="settings-section-label">Account</div>
+        <p class="settings-hint">Edit buddy name and username in the left sidebar. Change password from your profile menu.</p>
+      </div>
+
+      <div class="settings-divider"></div>
+      <div class="settings-block">
+        <div class="settings-section-label">About</div>
+        <p class="settings-hint">Study Buddy — AI study companion with streaks, XP, and daily puzzles.</p>
+        <button type="button" class="btn-secondary" id="settings-save-prefs" style="width:100%;margin-top:8px;padding:10px;">Save preferences</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Streak modal -->
+  <div id="streak-modal" class="sb-game-modal" hidden aria-hidden="true">
+    <div class="sb-game-backdrop" data-close-modal></div>
+    <div class="sb-game-card" role="dialog" aria-modal="true" aria-labelledby="streak-modal-title">
+      <button type="button" class="sb-game-close" data-close-modal aria-label="Close">&times;</button>
+      <div class="streak-fire" aria-hidden="true">🔥</div>
+      <h3 id="streak-modal-title" style="text-align:center;">Study Streak</h3>
+      <div class="streak-stats">
+        <div class="streak-stat"><div class="lbl">Current</div><div class="val" id="streak-current-count">0</div></div>
+        <div class="streak-stat"><div class="lbl">Best</div><div class="val" id="streak-best-count">0</div></div>
+        <div class="streak-stat"><div class="lbl">Freezes</div><div class="val" id="streak-freezes-count">0</div></div>
+        <div class="streak-stat"><div class="lbl">Today</div><div class="val" id="streak-today-status" style="font-size:0.85rem;line-height:1.3;">—</div></div>
+      </div>
+      <p style="text-align:center;color:#6a6a85;font-size:0.85rem;margin:0;" id="streak-next-reward">—</p>
+    </div>
+  </div>
+
+  <!-- Daily Puzzle modal -->
+  <div id="puzzle-modal" class="sb-game-modal" hidden aria-hidden="true">
+    <div class="sb-game-backdrop" data-close-modal></div>
+    <div class="sb-game-card" role="dialog" aria-modal="true" aria-labelledby="puzzle-modal-title">
+      <button type="button" class="sb-game-close" data-close-modal aria-label="Close">&times;</button>
+      <h3 id="puzzle-modal-title">🧩 Daily Puzzle</h3>
+      <div id="puzzle-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- XP Shop modal -->
+  <div id="shop-modal" class="sb-game-modal" hidden aria-hidden="true">
+    <div class="sb-game-backdrop" data-close-modal></div>
+    <div class="sb-game-card wide" role="dialog" aria-modal="true" aria-labelledby="shop-modal-title">
+      <button type="button" class="sb-game-close" data-close-modal aria-label="Close">&times;</button>
+      <h3 id="shop-modal-title">🛍️ XP Shop</h3>
+      <div id="shop-modal-body"></div>
     </div>
   </div>
 
@@ -4254,6 +4584,16 @@
                   <button id="timer-toggle-btn" class="btn-primary" type="button" style="padding: 3px 10px; font-size: 0.75rem; font-weight: 700;">▶ Start</button>
                   <button id="timer-reset-btn" class="btn-icon" type="button" style="padding: 3px 6px; font-size: 0.75rem;" title="Reset Timer">🔄</button>
                 </div>
+              </div>
+
+              <!-- Minimal Study Planner -->
+              <div class="planner-box logged-in-only" id="study-planner-box" style="display:none;">
+                <h4>📋 Study Planner</h4>
+                <div class="planner-add">
+                  <input type="text" id="planner-new-title" class="input" placeholder="Today's task…" maxlength="200" />
+                  <button type="button" class="btn-primary" id="planner-add-btn" style="padding:6px 10px;font-size:0.75rem;">Add</button>
+                </div>
+                <ul id="planner-task-list"></ul>
               </div>
 
               <!-- 2. Clean Horizontal Divider -->
@@ -5208,6 +5548,12 @@
       //  AUTH STATE & UI UPDATES
       // =====================================================================
       let currentUser = null;
+      // Expose for gamification layer
+      Object.defineProperty(window, "currentUser", {
+        get() { return currentUser; },
+        set(v) { currentUser = v; },
+        configurable: true,
+      });
       let firebaseReady = false;
       let firebaseAuth = null;
 
@@ -5286,6 +5632,7 @@
           if (usernameInputEl) usernameInputEl.value = currentUser.identifier || "";
           cfg.buddyName = currentUser.buddyName || "Nova";
           localStorage.setItem("sb_config", JSON.stringify({ buddyName: cfg.buddyName }));
+          try { if (window.SBGame) window.SBGame.onLogin(); } catch (_) {}
           if (headerAuthBtn) {
             headerAuthBtn.style.display = "none";
           }
@@ -5317,6 +5664,7 @@
             profileWrap.hidden = true;
             profileWrap.classList.remove("open");
           }
+          try { if (window.SBGame) window.SBGame.onLogout(); } catch (_) {}
         }
 
         if (authCard.dataset.mode === "register" && !currentUser?.loggedIn) {
@@ -5355,6 +5703,7 @@
               buddyName: data.buddyName,
               avatarB64,
               hasPassword: !!data.hasPassword,
+              email: data.email || null,
             };
             // Fetch and display chat history if logged in
             await fetchChatHistory();
@@ -5479,6 +5828,7 @@
           updateNotesIndicators();
           const saveBtn = document.getElementById("ocr-save-notebook-btn");
           if (saveBtn) saveBtn.style.display = "none";
+          try { if (window.SBGame) window.SBGame.award("notes_upload"); } catch (_) {}
         };
         reader.onerror = () => showUploadStatus(statusEl, "Unable to read the file.", true);
         reader.readAsText(file, "UTF-8");
@@ -5662,6 +6012,7 @@
         window.__lastOcrText = text;
         await rememberPageImage(file);
         updateReferPageChip();
+        try { if (window.SBGame) window.SBGame.award("notes_upload"); } catch (_) {}
         return text;
       } catch (err) {
         showUploadStatus(statusEl, `OCR failed: ${err.message}`, true);
@@ -6000,6 +6351,7 @@
               buddyName: data.buddyName,
               avatarB64,
               hasPassword: data.hasPassword !== false,
+              email: data.email || null,
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || identifier);
             let successMsg = `Login successful. Welcome, ${data.buddyName}!`;
@@ -6100,6 +6452,7 @@
               buddyName: data.buddyName,
               avatarB64: data.avatarB64 || null,
               hasPassword: !!data.hasPassword,
+              email: data.email || null,
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || "");
             updateAuthUI({ clearMessage: false });
@@ -6186,10 +6539,12 @@
 
       function syncProfileMenuUI() {
         const nameEl = document.getElementById("profile-username-display");
+        const emailEl = document.getElementById("profile-email-display");
         const pwEl = document.getElementById("profile-password-display");
         const hintEl = document.getElementById("profile-password-hint");
         const eyeBtn = document.getElementById("profile-toggle-password");
         if (nameEl) nameEl.textContent = currentUser?.identifier || "—";
+        if (emailEl) emailEl.textContent = currentUser?.email || "—";
         const usernameInput = document.getElementById("username-input");
         if (usernameInput && currentUser?.identifier) usernameInput.value = currentUser.identifier;
         const avatar = currentUser?.avatarB64 || null;
@@ -6794,66 +7149,7 @@
     }
 
 
-    // =====================================================================
-    //  QUICK FOCUS TIMER (Pomodoro Widget in Sidebar)
-    // =====================================================================
-    let timerSeconds = 25 * 60;
-    let timerInterval = null;
-    let timerRunning = false;
-
-    const timerDisplay = document.getElementById("timer-display");
-    const timerToggleBtn = document.getElementById("timer-toggle-btn");
-    const timerResetBtn = document.getElementById("timer-reset-btn");
-
-    function updateTimerDisplay() {
-      if (!timerDisplay) return;
-      const mins = Math.floor(timerSeconds / 60);
-      const secs = timerSeconds % 60;
-      timerDisplay.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    }
-
-    if (timerToggleBtn) {
-      timerToggleBtn.onclick = () => {
-        if (timerRunning) {
-          clearInterval(timerInterval);
-          timerRunning = false;
-          timerToggleBtn.textContent = "▶ Start";
-          timerToggleBtn.style.background = "";
-        } else {
-          timerRunning = true;
-          timerToggleBtn.textContent = "⏸ Pause";
-          timerToggleBtn.style.background = "var(--accent2)";
-          timerInterval = setInterval(() => {
-            if (timerSeconds > 0) {
-              timerSeconds--;
-              updateTimerDisplay();
-            } else {
-              clearInterval(timerInterval);
-              timerRunning = false;
-              timerToggleBtn.textContent = "▶ Start";
-              timerToggleBtn.style.background = "";
-              alert("🎉 Focus session complete! Take a 5-minute break.");
-              timerSeconds = 25 * 60;
-              updateTimerDisplay();
-            }
-          }, 1000);
-        }
-      };
-    }
-
-    if (timerResetBtn) {
-      timerResetBtn.onclick = () => {
-        clearInterval(timerInterval);
-        timerRunning = false;
-        timerSeconds = 25 * 60;
-        if (timerToggleBtn) {
-          timerToggleBtn.textContent = "▶ Start";
-          timerToggleBtn.style.background = "";
-        }
-        updateTimerDisplay();
-      };
-    }
-
+    // Focus timer: wired by gamification.js (window.SBGame.Focus)
 
     // =====================================================================
     //  AUTO-GROW TEXTAREA — Makes the input box grow as you type more lines
@@ -7479,6 +7775,8 @@
         if (typeof maybeGenerateChatDiagram === "function") {
           maybeGenerateChatDiagram(text);
         }
+
+        try { if (window.SBGame) window.SBGame.award("chat"); } catch (_) {}
 
       } catch (err) {
         // ── If something went REALLY wrong (like the server is off) ──
@@ -8802,6 +9100,7 @@
         statusEl.innerHTML = `<div class="loading-spinner"></div> Script ready in ${scriptSec}s — voicing ${hosts.label}…`;
         statusEl.style.color = "var(--accent3)";
         output.appendChild(statusEl);
+        try { if (window.SBGame) window.SBGame.award("podcast"); } catch (_) {}
 
         renderCollapsiblePodcastScript(output, rawText);
         appendChatSources(output, data.sources);
@@ -8957,6 +9256,7 @@
           output.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent2);">Could not parse flashcards. Here's the raw response:<div style="margin-top: 16px; background: var(--surface); padding: 12px; border-radius: 8px; white-space: pre-wrap;">${escapeHtml(data.reply)}</div></div>`;
         }
         appendChatSources(output, data.sources, "grid-column: 1 / -1;");
+        try { if (window.SBGame) window.SBGame.award("flashcards"); } catch (_) {}
       } catch (err) {
         output.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
@@ -9066,6 +9366,7 @@
         });
         output.appendChild(submitBtn);
         appendChatSources(output, data.sources);
+        try { if (window.SBGame) window.SBGame.award("quiz"); } catch (_) {}
       } catch (err) {
         output.innerHTML = `<div style="color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
@@ -9161,6 +9462,7 @@
           output.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent2);">Could not parse flashcards. Here's the raw response:<div style="margin-top: 16px; background: var(--surface); padding: 12px; border-radius: 8px; white-space: pre-wrap;">${escapeHtml(data.reply)}</div></div>`;
         }
         appendChatSources(output, data.sources, "grid-column: 1 / -1;");
+        try { if (window.SBGame) window.SBGame.award("flashcards"); } catch (_) {}
       } catch (err) {
         output.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
@@ -9281,6 +9583,7 @@
 
         output.appendChild(submitBtn);
         appendChatSources(output, data.sources);
+        try { if (window.SBGame) window.SBGame.award("quiz"); } catch (_) {}
       } catch (err) {
         output.innerHTML = `<div style="color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
@@ -12628,6 +12931,7 @@
           if (!res.ok) throw new Error(data?.error || "Failed");
           if (!data.sections?.length) throw new Error("No exam sections returned");
           renderMockTest(data);
+          try { if (window.SBGame) window.SBGame.award("mock"); } catch (_) {}
         } catch (e) {
           out.innerHTML = `<div style="color:var(--accent2);">❌ ${escapeHtml(e.message)}</div>`;
         }
@@ -13120,6 +13424,7 @@
     initAll();
 
   </script>
+  <script src="/gamification.js"></script>
 </body>
 
 </html>

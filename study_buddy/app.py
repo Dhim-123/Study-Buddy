@@ -909,6 +909,16 @@ def init_db():
         except Exception:
             pass
 
+        # Gamification tables (XP, streaks, shop, puzzle, planner, prefs)
+        try:
+            try:
+                from gamification import migrate_gamification_tables
+            except ImportError:
+                from study_buddy.gamification import migrate_gamification_tables
+            migrate_gamification_tables(conn)
+        except Exception as e:
+            print(f"[DB] Gamification migration warning: {e}")
+
 
 # =====================================================================
 #  STEP 5: AUTH HELPERS
@@ -1976,6 +1986,7 @@ def auth_me():
         "buddyName": row["buddy_name"],
         "avatarB64": _row_get(row, "avatar_b64"),
         "hasPassword": bool(pw) and not str(pw).startswith("firebase_only:"),
+        "email": _row_get(row, "email"),
     })
 
 
@@ -2214,10 +2225,16 @@ def auth_firebase():
             if not row:
                 nick = allocate_unique_identifier(conn, base_nick)
                 unusable = "firebase_only:" + secrets.token_hex(32)
-                conn.execute(
-                    "INSERT INTO users (identifier, password_hash, buddy_name, firebase_uid) VALUES (?,?,?,?)",
-                    (nick, unusable, "Max", firebase_uid),
-                )
+                try:
+                    conn.execute(
+                        "INSERT INTO users (identifier, password_hash, buddy_name, firebase_uid, email) VALUES (?,?,?,?,?)",
+                        (nick, unusable, "Max", firebase_uid, email or None),
+                    )
+                except Exception:
+                    conn.execute(
+                        "INSERT INTO users (identifier, password_hash, buddy_name, firebase_uid) VALUES (?,?,?,?)",
+                        (nick, unusable, "Max", firebase_uid),
+                    )
                 row = conn.execute(
                     "SELECT * FROM users WHERE firebase_uid=?", (firebase_uid,)
                 ).fetchone()
@@ -2229,9 +2246,17 @@ def auth_firebase():
                         "UPDATE users SET identifier=? WHERE id=?",
                         (nick, row["id"]),
                     )
-                    row = conn.execute(
-                        "SELECT * FROM users WHERE id=?", (row["id"],)
-                    ).fetchone()
+                if email:
+                    try:
+                        conn.execute(
+                            "UPDATE users SET email=? WHERE id=?",
+                            (email, row["id"]),
+                        )
+                    except Exception:
+                        pass
+                row = conn.execute(
+                    "SELECT * FROM users WHERE id=?", (row["id"],)
+                ).fetchone()
 
         session.permanent = True
         session["user_id"] = row["id"]
@@ -2241,6 +2266,7 @@ def auth_firebase():
             "buddyName": row["buddy_name"],
             "avatarB64": _row_get(row, "avatar_b64"),
             "hasPassword": bool(pw) and not str(pw).startswith("firebase_only:"),
+            "email": _row_get(row, "email") or email or None,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -5007,7 +5033,7 @@ def get_learning_dna():
             if subj.get("updated_at"):
                 study_dates.add(subj["updated_at"][:10])  # Extract date part
 
-        # Calculate current streak
+        # Calculate current streak (activity-derived fallback)
         today = datetime.now().date()
         streak = 0
         current_date = today
@@ -5015,6 +5041,16 @@ def get_learning_dna():
         while current_date.strftime('%Y-%m-%d') in study_dates:
             streak += 1
             current_date -= timedelta(days=1)
+
+        # Prefer gamification action-based streak so DNA and navbar agree
+        try:
+            g_row = conn.execute(
+                "SELECT current_streak FROM user_streaks WHERE user_id=?", (uid,)
+            ).fetchone()
+            if g_row is not None:
+                streak = int(g_row["current_streak"] or 0)
+        except Exception:
+            pass
 
         # Learning pace analysis
         total_study_time = profile.get("total_study_minutes", 0)
@@ -5582,6 +5618,20 @@ def get_mistake_subjects():
         """, (user["id"],)).fetchall()
 
     return jsonify({"subjects": [dict(r) for r in rows]})
+
+
+# =====================================================================
+#  GAMIFICATION ROUTES (additive)
+# =====================================================================
+
+try:
+    try:
+        from gamification import register_gamification_routes
+    except ImportError:
+        from study_buddy.gamification import register_gamification_routes
+    register_gamification_routes(app, get_db, require_auth, get_groq_client, resolve_groq_model)
+except Exception as e:
+    print(f"[WARN] Gamification routes not registered: {e}")
 
 
 # =====================================================================
