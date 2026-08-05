@@ -3407,6 +3407,17 @@
       color: #fb7185;
     }
 
+    @keyframes sb-field-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.55); }
+      70% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+    }
+
+    .sb-focus-pulse {
+      animation: sb-field-pulse 1.2s ease-out 2;
+      border-color: var(--accent) !important;
+    }
+
     .msg.user .page-image-card {
       display: flex;
       flex-direction: column;
@@ -4191,6 +4202,10 @@
               <div class="field" style="margin-top: 10px;">
                 <label for="auth-password">Password</label>
                 <input type="password" class="input" id="auth-password" placeholder="Minimum 6 characters" />
+              </div>
+              <div class="field" id="password-confirm-field" style="margin-top: 10px; display: none;">
+                <label for="auth-password-confirm">Confirm Password</label>
+                <input type="password" class="input" id="auth-password-confirm" placeholder="Re-type the same password" autocomplete="new-password" />
               </div>
               <div class="field" id="buddy-name-field" style="margin-top: 10px; display: none;">
                 <label for="auth-buddy-name">Buddy Name <small>(for new accounts)</small></label>
@@ -5224,6 +5239,7 @@
         const logoutBtn = document.getElementById("logout-btn");
         const authMessage = document.getElementById("auth-message");
         const buddyNameField = document.getElementById("buddy-name-field");
+        const passwordConfirmField = document.getElementById("password-confirm-field");
         const authBuddyNameInput = document.getElementById("auth-buddy-name");
         const loggedInOnlyElements = document.querySelectorAll(".logged-in-only");
         const authIdentifierInput = document.getElementById("auth-identifier");
@@ -5254,6 +5270,7 @@
           if (pwLabel) pwLabel.style.display = "none";
           if (logoutBtn) logoutBtn.style.display = "block";
           if (buddyNameField) buddyNameField.style.display = "none";
+          if (passwordConfirmField) passwordConfirmField.style.display = "none";
           if (googleWrap) googleWrap.style.display = "none";
 
           loggedInOnlyElements.forEach(el => el.style.display = "block");
@@ -5300,10 +5317,12 @@
             if (authSubmitBtn) authSubmitBtn.style.display = "none";
             if (authToggleBtn) authToggleBtn.style.display = "none";
             if (buddyNameField) buddyNameField.style.display = "none";
+            if (passwordConfirmField) passwordConfirmField.style.display = "none";
           } else {
             if (authModeTitle) authModeTitle.textContent = "Register New Account";
             if (authSubmitBtn) authSubmitBtn.textContent = "Register";
             if (authToggleBtn) authToggleBtn.textContent = "Already have an account? Login";
+            if (passwordConfirmField) passwordConfirmField.style.display = "block";
             if (buddyNameField) buddyNameField.style.display = "block";
           }
         } else {
@@ -5311,6 +5330,9 @@
           if (authToggleBtn) authToggleBtn.textContent = "New user? Register";
           if (!currentUser?.loggedIn && buddyNameField) {
             buddyNameField.style.display = "none";
+          }
+          if (!currentUser?.loggedIn && passwordConfirmField) {
+            passwordConfirmField.style.display = "none";
           }
         }
       }
@@ -5908,6 +5930,7 @@
       authSubmitBtn.addEventListener("click", async () => {
         const identifier = (authIdentifierInput.value || "").trim();
         const password = (authPasswordInput.value || "").trim();
+        const confirmPassword = (document.getElementById("auth-password-confirm")?.value || "").trim();
         const buddyName = (authBuddyNameInput.value || "").trim() || "Nova";
         const mode = authCard.dataset.mode || "login";
 
@@ -5924,6 +5947,16 @@
           showAuthMessage("Password must be at least 6 characters.", true);
           return;
         }
+        if (mode === "register") {
+          if (!confirmPassword) {
+            showAuthMessage("Please confirm your password.", true);
+            return;
+          }
+          if (password !== confirmPassword) {
+            showAuthMessage("Password and confirmation do not match.", true);
+            return;
+          }
+        }
         if (identifier.includes("@")) {
           showAuthMessage("Please use a username, not an email.", true);
           return;
@@ -5934,7 +5967,7 @@
 
         if (mode === "register") {
           url = "/api/auth/register";
-          body = { identifier, password, buddyName };
+          body = { identifier, password, confirmPassword, buddyName };
         } else {
           url = "/api/auth/login";
           body = { identifier, password };
@@ -5964,6 +5997,8 @@
               successMsg = `Registration successful. Welcome, ${data.buddyName}! You can now customize your Study Buddy's name in the settings panel.`;
             }
             authPasswordInput.value = "";
+            const confirmEl = document.getElementById("auth-password-confirm");
+            if (confirmEl) confirmEl.value = "";
             updateAuthUI({ clearMessage: false });
             showAuthMessage(successMsg);
             updateWelcomeGreeting();
@@ -6275,48 +6310,46 @@
           reader.readAsDataURL(file);
         });
 
-        document.getElementById("profile-change-username-btn")?.addEventListener("click", () => {
+        function openSidebarAccountSettings() {
           closeProfileMenu();
-          openProfileEditModal(
-            "Change Username",
-            `<div class="profile-edit-field">
-              <label for="profile-edit-username">New username</label>
-              <input id="profile-edit-username" type="text" value="${(currentUser?.identifier || "").replace(/"/g, "&quot;")}" autocomplete="username" />
-            </div>`,
-            async () => {
-              const input = document.getElementById("profile-edit-username");
-              const newName = (input?.value || "").trim();
-              if (!newName) {
-                profileFlash("Username cannot be empty.", true);
-                return false;
-              }
-              if (newName === currentUser.identifier) {
-                closeProfileEditModal();
-                return true;
-              }
-              const res = await fetch("/api/auth/update_username", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({ identifier: newName }),
-              });
-              const data = await res.json();
-              if (!res.ok) {
-                profileFlash(data.error || "Failed to update username.", true);
-                return false;
-              }
-              currentUser.identifier = data.identifier;
-              localStorage.setItem("sb_auth_identifier", data.identifier);
-              const authId = document.getElementById("auth-identifier");
-              if (authId) authId.value = data.identifier;
-              syncProfileMenuUI();
-              updateAuthUI({ clearMessage: false });
-              updateWelcomeGreeting();
-              profileFlash("Username updated");
-              closeProfileEditModal();
-              return true;
+          if (typeof closeSettingsPanel === "function") closeSettingsPanel();
+          if (sidebarEl) {
+            sidebarEl.classList.remove("hidden");
+            if (typeof updateLeftSidebarState === "function") updateLeftSidebarState();
+          }
+          const target =
+            document.getElementById("username-input") ||
+            document.getElementById("buddy-name-input") ||
+            document.getElementById("save-settings-btn");
+          const scrollRoot = document.querySelector("#sidebar .sidebar-content") || sidebarEl;
+          const focusField = () => {
+            if (!target) return;
+            try {
+              target.scrollIntoView({ behavior: "smooth", block: "center" });
+            } catch (_) {
+              target.scrollIntoView();
             }
-          );
+            if (typeof target.focus === "function") {
+              try { target.focus({ preventScroll: true }); } catch (_) { target.focus(); }
+            }
+            target.classList.add("sb-focus-pulse");
+            setTimeout(() => target.classList.remove("sb-focus-pulse"), 1800);
+          };
+          // Allow sidebar expand animation before scrolling
+          setTimeout(focusField, 80);
+          if (scrollRoot && target) {
+            setTimeout(() => {
+              try {
+                const rootRect = scrollRoot.getBoundingClientRect();
+                const tRect = target.getBoundingClientRect();
+                scrollRoot.scrollTop += (tRect.top - rootRect.top) - 24;
+              } catch (_) { /* ignore */ }
+            }, 100);
+          }
+        }
+
+        document.getElementById("profile-change-username-btn")?.addEventListener("click", () => {
+          openSidebarAccountSettings();
         });
 
         document.getElementById("profile-change-password-btn")?.addEventListener("click", () => {
@@ -6328,7 +6361,7 @@
           openProfileEditModal(
             "Change Password",
             `<div class="profile-edit-field">
-              <label for="profile-edit-current-pw">Current password</label>
+              <label for="profile-edit-current-pw">Current (old) password</label>
               <input id="profile-edit-current-pw" type="password" autocomplete="current-password" />
             </div>
             <div class="profile-edit-field">
@@ -6336,7 +6369,7 @@
               <input id="profile-edit-new-pw" type="password" autocomplete="new-password" />
             </div>
             <div class="profile-edit-field">
-              <label for="profile-edit-confirm-pw">Confirm password</label>
+              <label for="profile-edit-confirm-pw">Confirm new password</label>
               <input id="profile-edit-confirm-pw" type="password" autocomplete="new-password" />
             </div>`,
             async () => {
@@ -6373,6 +6406,10 @@
         document.getElementById("profile-open-settings-btn")?.addEventListener("click", () => {
           closeProfileMenu();
           if (typeof openSettingsPanel === "function") openSettingsPanel();
+          else {
+            const gear = document.getElementById("settings-toggle-btn") || document.getElementById("settings-btn");
+            if (gear) gear.click();
+          }
         });
 
         document.getElementById("profile-logout-btn")?.addEventListener("click", async () => {

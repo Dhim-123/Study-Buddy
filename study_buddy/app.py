@@ -1984,12 +1984,18 @@ def auth_register():
     password   = (data.get("password")   or "").strip()
     buddy_name = (data.get("buddyName")  or "Max").strip() or "Max"
 
+    confirm_password = (data.get("confirmPassword") or "").strip()
+
     if not identifier or not password:
         return jsonify({"error": "Username and password are required."}), 400
     if "@" in identifier:
         return jsonify({"error": "Please use a username, not an email."}), 400
     if len(password) < 6:
         return jsonify({"error": "Password must be at least 6 characters."}), 400
+    if confirm_password and confirm_password != password:
+        return jsonify({"error": "Password and confirmation do not match."}), 400
+    if not confirm_password:
+        return jsonify({"error": "Please confirm your password."}), 400
 
     ph = hash_password(password)
     try:
@@ -2778,6 +2784,99 @@ def apply_smart_routing(system_prompt: str, messages, notes: str, endpoint: str)
     return system_prompt, sources
 
 
+def _truncate_notes_in_system_prompt(system_prompt: str, max_notes_chars: int) -> str:
+    """Cap UPLOADED NOTES / NOTEBOOK blocks inside a system prompt."""
+    if not system_prompt or max_notes_chars <= 0:
+        return system_prompt or ""
+
+    out = re.sub(
+        r"--- (UPLOADED NOTES) ---\n(.*?)--- END UPLOADED NOTES ---",
+        lambda m: (
+            f"--- UPLOADED NOTES ---\n{(m.group(2) or '')[:max_notes_chars]}"
+            + ("\n…[truncated]" if len(m.group(2) or "") > max_notes_chars else "")
+            + "\n--- END UPLOADED NOTES ---"
+        ),
+        system_prompt,
+        count=1,
+        flags=re.S,
+    )
+    out = re.sub(
+        r"--- (LIVING NOTEBOOK) ---\n(.*?)--- END NOTEBOOK ---",
+        lambda m: (
+            f"--- LIVING NOTEBOOK ---\n{(m.group(2) or '')[: max(400, max_notes_chars // 2)]}"
+            + ("\n…[truncated]" if len(m.group(2) or "") > max(400, max_notes_chars // 2) else "")
+            + "\n--- END NOTEBOOK ---"
+        ),
+        out,
+        count=1,
+        flags=re.S,
+    )
+    return out
+
+
+def trim_groq_payload(system_prompt: str, messages, endpoint: str, aggressive: bool = False):
+    """
+    Shrink history/notes so Groq free-tier TPM limits (esp. llama-3.1-8b-instant) are not exceeded.
+    Returns (system_prompt, messages).
+    """
+    msgs = list(messages or [])
+    sys_p = system_prompt or ""
+
+    if endpoint == "podcast":
+        keep_n = 2 if aggressive else 4
+        notes_cap = 800 if aggressive else 2000
+        msgs = msgs[-keep_n:] if len(msgs) > keep_n else msgs
+        # Cap each message content (OCR referrals can be huge)
+        per_msg = 1200 if aggressive else 2500
+        trimmed = []
+        for m in msgs:
+            content = m.get("content") or ""
+            if len(content) > per_msg:
+                content = content[:per_msg] + "\n…[truncated]"
+            trimmed.append({**m, "content": content})
+        msgs = trimmed
+        sys_p = _truncate_notes_in_system_prompt(sys_p, notes_cap)
+        # Also hard-cap total system length for podcast
+        sys_max = 3500 if aggressive else 5500
+        if len(sys_p) > sys_max:
+            sys_p = sys_p[:sys_max] + "\n…[system truncated]"
+        return sys_p, msgs
+
+    # Chat / tools: drop oldest until under budget
+    budget = 8000 if aggressive else 12000
+    notes_cap = 3000 if aggressive else 6000
+    sys_p = _truncate_notes_in_system_prompt(sys_p, notes_cap)
+    if len(sys_p) > budget // 2:
+        sys_p = sys_p[: budget // 2] + "\n…[system truncated]"
+
+    def _total():
+        return len(sys_p) + sum(len(m.get("content") or "") for m in msgs)
+
+    while len(msgs) > 2 and _total() > budget:
+        msgs = msgs[1:]
+
+    if _total() > budget and msgs:
+        # Truncate oldest remaining, keep last intact if possible
+        overflow = _total() - budget
+        first = msgs[0]
+        c = first.get("content") or ""
+        if len(c) > overflow + 200:
+            msgs[0] = {**first, "content": c[: max(200, len(c) - overflow - 20)] + "\n…[truncated]"}
+        elif len(msgs) > 1:
+            msgs = msgs[1:]
+
+    return sys_p, msgs
+
+
+def _is_groq_payload_too_large(err: Exception) -> bool:
+    msg = str(err or "").lower()
+    return (
+        "request too large" in msg
+        or ("rate_limit_exceeded" in msg and ("tpm" in msg or "tokens per minute" in msg or "requested" in msg))
+        or "please reduce your message size" in msg
+    )
+
+
 # ── Chat (main AI endpoint) ───────────────────────────────────────────
 
 
@@ -2918,22 +3017,39 @@ def chat():
             target_model = resolve_groq_model(model_name)
             completion_kwargs = {}
 
-        groq_messages = []
-        if system_prompt:
-            groq_messages.append({"role": "system", "content": system_prompt})
-
-        for msg in messages:
-            role = "assistant" if msg["role"] in ("assistant", "ai") else "user"
-            groq_messages.append({
-                "role": role,
-                "content": msg["content"]
-            })
-
-        response = client.chat.completions.create(
-            model=target_model,
-            messages=groq_messages,
-            **completion_kwargs,
+        # Keep original messages for DB persistence; send a trimmed copy to Groq
+        sys_for_model, msgs_for_model = trim_groq_payload(
+            system_prompt, messages, endpoint, aggressive=False
         )
+
+        def _build_groq_messages(sys_p, msgs):
+            out = []
+            if sys_p:
+                out.append({"role": "system", "content": sys_p})
+            for msg in msgs:
+                role = "assistant" if msg["role"] in ("assistant", "ai") else "user"
+                out.append({"role": role, "content": msg["content"]})
+            return out
+
+        try:
+            response = client.chat.completions.create(
+                model=target_model,
+                messages=_build_groq_messages(sys_for_model, msgs_for_model),
+                **completion_kwargs,
+            )
+        except Exception as first_err:
+            if not _is_groq_payload_too_large(first_err):
+                raise
+            print(f"[Groq] Payload too large on {endpoint}; retrying with aggressive trim: {first_err}")
+            sys_for_model, msgs_for_model = trim_groq_payload(
+                system_prompt, messages, endpoint, aggressive=True
+            )
+            response = client.chat.completions.create(
+                model=target_model,
+                messages=_build_groq_messages(sys_for_model, msgs_for_model),
+                **completion_kwargs,
+            )
+
         reply = response.choices[0].message.content
         last_message = messages[-1]["content"] if messages else ""
 
