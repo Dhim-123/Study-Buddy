@@ -864,6 +864,12 @@ def init_db():
         except Exception:
             pass
 
+        # Profile avatar (base64 data URL or raw base64)
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN avatar_b64 TEXT")
+        except Exception:
+            pass
+
 
 # =====================================================================
 #  STEP 5: AUTH HELPERS
@@ -1908,10 +1914,13 @@ def auth_me():
     if not row:
         session.clear()
         return jsonify({"loggedIn": False})
+    pw = row["password_hash"] or ""
     return jsonify({
         "loggedIn": True,
         "identifier": row["identifier"],
         "buddyName": row["buddy_name"],
+        "avatarB64": row["avatar_b64"] if "avatar_b64" in row.keys() else None,
+        "hasPassword": bool(pw) and not str(pw).startswith("firebase_only:"),
     })
 
 
@@ -1944,7 +1953,12 @@ def auth_register():
             row = conn.execute("SELECT * FROM users WHERE identifier=?", (identifier,)).fetchone()
         session.permanent = True
         session["user_id"] = row["id"]
-        return jsonify({"identifier": row["identifier"], "buddyName": row["buddy_name"]})
+        return jsonify({
+            "identifier": row["identifier"],
+            "buddyName": row["buddy_name"],
+            "avatarB64": row["avatar_b64"] if "avatar_b64" in row.keys() else None,
+            "hasPassword": True,
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1971,7 +1985,12 @@ def auth_login():
 
     session.permanent = True
     session["user_id"] = row["id"]
-    return jsonify({"identifier": row["identifier"], "buddyName": row["buddy_name"]})
+    return jsonify({
+        "identifier": row["identifier"],
+        "buddyName": row["buddy_name"],
+        "avatarB64": row["avatar_b64"] if "avatar_b64" in row.keys() else None,
+        "hasPassword": True,
+    })
 
 @app.route("/api/auth/update_buddy", methods=["POST"])
 def auth_update_buddy():
@@ -2010,6 +2029,64 @@ def auth_update_username():
         conn.execute("UPDATE users SET identifier=? WHERE id=?", (new_identifier, uid))
         
     return jsonify({"ok": True, "identifier": new_identifier})
+
+
+@app.route("/api/auth/update_password", methods=["POST"])
+def auth_update_password():
+    """Change password for logged-in username/password accounts."""
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not logged in."}), 401
+
+    data = request.get_json(force=True) or {}
+    current_pw = (data.get("currentPassword") or "").strip()
+    new_pw = (data.get("newPassword") or "").strip()
+    confirm_pw = (data.get("confirmPassword") or "").strip()
+
+    if not current_pw or not new_pw:
+        return jsonify({"error": "Current and new password are required."}), 400
+    if new_pw != confirm_pw:
+        return jsonify({"error": "New password and confirmation do not match."}), 400
+    if len(new_pw) < 6:
+        return jsonify({"error": "New password must be at least 6 characters."}), 400
+
+    with get_db() as conn:
+        row = conn.execute("SELECT password_hash, firebase_uid FROM users WHERE id=?", (uid,)).fetchone()
+        if not row:
+            return jsonify({"error": "User not found."}), 404
+        # Google-only accounts may have a random hash; still require current password match
+        if row["password_hash"] != hash_password(current_pw):
+            return jsonify({"error": "Current password is incorrect."}), 401
+        conn.execute(
+            "UPDATE users SET password_hash=? WHERE id=?",
+            (hash_password(new_pw), uid),
+        )
+    return jsonify({"ok": True})
+
+
+@app.route("/api/auth/update_avatar", methods=["POST"])
+def auth_update_avatar():
+    """Save profile picture (base64 / data URL, capped size)."""
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not logged in."}), 401
+
+    data = request.get_json(force=True) or {}
+    avatar = data.get("avatarB64") or data.get("avatar") or ""
+    if not isinstance(avatar, str) or not avatar.strip():
+        return jsonify({"error": "No image provided."}), 400
+    avatar = avatar.strip()
+    # Cap ~900KB base64 to keep SQLite rows reasonable
+    if len(avatar) > 1_200_000:
+        return jsonify({"error": "Image too large. Use a smaller photo."}), 400
+    if not (avatar.startswith("data:image/") or re.match(r"^[A-Za-z0-9+/=]+$", avatar[:80] or "")):
+        # Allow data URLs; raw base64 also ok
+        if "base64," not in avatar and not avatar.startswith("/9j") and not avatar.startswith("iVBOR"):
+            return jsonify({"error": "Invalid image data."}), 400
+
+    with get_db() as conn:
+        conn.execute("UPDATE users SET avatar_b64=? WHERE id=?", (avatar, uid))
+    return jsonify({"ok": True, "avatarB64": avatar})
 
 
 @app.route("/api/auth/logout", methods=["POST"])
@@ -2097,9 +2174,12 @@ def auth_firebase():
 
         session.permanent = True
         session["user_id"] = row["id"]
+        pw = row["password_hash"] or ""
         return jsonify({
             "identifier": row["identifier"],
             "buddyName": row["buddy_name"],
+            "avatarB64": row["avatar_b64"] if "avatar_b64" in row.keys() else None,
+            "hasPassword": bool(pw) and not str(pw).startswith("firebase_only:"),
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2357,6 +2437,295 @@ def generate_smart_title(client, user_msg: str, target_model: str) -> str:
     return cleaned[:40].strip()
 
 
+# ── Smart routing: notes / notebook / live web / internal knowledge ──
+
+_LIVE_INFO_RE = re.compile(
+    r"\b("
+    r"today|tonight|yesterday|tomorrow|latest|current|currently|recent|recently|"
+    r"who\s+won|winner|score|scores|fixture|fixtures|match\s+result|"
+    r"released|release\s+date|launch|launched|announced|breaking|"
+    r"news|headline|headlines|update|updates|trending|"
+    r"election|elections|polls|prime\s+minister|president|"
+    r"ipl|world\s+cup|fifa|olympics|nba|nfl|premier\s+league|"
+    r"isro|nasa|spacex|chatgpt|iphone|android|"
+    r"stock|crypto|bitcoin|sensex|nifty|"
+    r"2024|2025|2026|2027|2028"
+    r")\b",
+    re.I,
+)
+
+
+def needs_live_info(text: str) -> bool:
+    """True when the query likely needs up-to-date / internet information."""
+    t = (text or "").strip()
+    if not t:
+        return False
+    if _LIVE_INFO_RE.search(t):
+        return True
+    # Year mentions like "in 2026"
+    if re.search(r"\b20(2[4-9]|[3-9]\d)\b", t):
+        return True
+    return False
+
+
+_STOPWORDS = {
+    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of",
+    "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
+    "do", "does", "did", "will", "would", "could", "should", "may", "might",
+    "what", "which", "who", "whom", "whose", "when", "where", "why", "how",
+    "this", "that", "these", "those", "with", "from", "about", "into", "over",
+    "please", "explain", "tell", "give", "make", "generate", "create", "me",
+    "my", "your", "you", "i", "we", "they", "it", "its", "as", "by", "not",
+}
+
+
+def material_likely_answers(query: str, material: str) -> bool:
+    """Heuristic: study material likely covers the query (skip live search if so)."""
+    q = (query or "").strip().lower()
+    m = (material or "").strip().lower()
+    if not q or not m or len(m) < 40:
+        return False
+    tokens = [t for t in re.findall(r"[a-z0-9]{3,}", q) if t not in _STOPWORDS]
+    if not tokens:
+        return False
+    hits = sum(1 for t in tokens if t in m)
+    return hits >= max(2, int(len(tokens) * 0.45))
+
+
+def _last_user_text(messages) -> str:
+    for msg in reversed(messages or []):
+        if isinstance(msg, dict) and msg.get("role") == "user":
+            return (msg.get("content") or "").strip()
+    return ""
+
+
+def get_user_notebook_text(uid, limit_chars: int = 6000) -> str:
+    """Concatenate Living Notebook entries for routing context (skip if empty)."""
+    if not uid:
+        return ""
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                """
+                SELECT subject, category, content FROM living_notebook
+                WHERE user_id=? ORDER BY updated_at DESC LIMIT 40
+                """,
+                (uid,),
+            ).fetchall()
+        if not rows:
+            return ""
+        parts = []
+        total = 0
+        for r in rows:
+            chunk = f"[{r['subject']} / {r['category']}] {r['content']}".strip()
+            if not chunk:
+                continue
+            if total + len(chunk) > limit_chars:
+                remain = limit_chars - total
+                if remain > 80:
+                    parts.append(chunk[:remain] + "…")
+                break
+            parts.append(chunk)
+            total += len(chunk)
+        return "\n\n".join(parts)
+    except Exception as e:
+        print(f"[Notebook] context load failed: {e}")
+        return ""
+
+
+def web_search(query: str, max_results: int = 5):
+    """
+    Free web search via DuckDuckGo HTML (no API key).
+    Returns list of {title, url, snippet}.
+    """
+    import html as html_lib
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    q = (query or "").strip()
+    if not q:
+        return []
+
+    results = []
+    # 1) Instant Answer API (Abstract + RelatedTopics)
+    try:
+        ia_url = (
+            "https://api.duckduckgo.com/?"
+            + urllib.parse.urlencode({"q": q, "format": "json", "no_html": 1, "skip_disambig": 1})
+        )
+        req = urllib.request.Request(
+            ia_url,
+            headers={"User-Agent": "StudyBuddy/1.0 (educational)"},
+            method="GET",
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+        abs_text = (payload.get("AbstractText") or "").strip()
+        abs_url = (payload.get("AbstractURL") or "").strip()
+        abs_src = (payload.get("AbstractSource") or "DuckDuckGo").strip()
+        if abs_text and abs_url:
+            results.append({"title": abs_src, "url": abs_url, "snippet": abs_text[:400]})
+        for topic in (payload.get("RelatedTopics") or [])[:4]:
+            if not isinstance(topic, dict):
+                continue
+            text = (topic.get("Text") or "").strip()
+            url = (topic.get("FirstURL") or "").strip()
+            if text and url:
+                results.append({
+                    "title": text.split(" - ")[0][:80],
+                    "url": url,
+                    "snippet": text[:400],
+                })
+            if len(results) >= max_results:
+                break
+    except Exception as e:
+        print(f"[Search] DDG instant answer failed: {e}")
+
+    # 2) HTML results if still thin
+    if len(results) < 2:
+        try:
+            html_url = "https://html.duckduckgo.com/html/?" + urllib.parse.urlencode({"q": q})
+            req = urllib.request.Request(
+                html_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; StudyBuddy/1.0; +https://study-buddy)",
+                    "Accept": "text/html",
+                },
+                method="GET",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+            # result links: class="result__a" href="..."
+            for m in re.finditer(
+                r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+                raw,
+                flags=re.I | re.S,
+            ):
+                href = html_lib.unescape(m.group(1).strip())
+                title = re.sub(r"<[^>]+>", "", html_lib.unescape(m.group(2))).strip()
+                if href.startswith("//duckduckgo.com/l/?"):
+                    # unwrap uddg=
+                    um = re.search(r"[?&]uddg=([^&]+)", href)
+                    if um:
+                        href = urllib.parse.unquote(um.group(1))
+                if not href.startswith("http") or not title:
+                    continue
+                if any(r["url"] == href for r in results):
+                    continue
+                results.append({"title": title[:120], "url": href, "snippet": ""})
+                if len(results) >= max_results:
+                    break
+            # snippets
+            snippets = re.findall(r'class="result__snippet[^"]*"[^>]*>(.*?)</(?:a|td|div)', raw, flags=re.I | re.S)
+            for i, sn in enumerate(snippets):
+                if i < len(results) and not results[i].get("snippet"):
+                    clean = re.sub(r"<[^>]+>", "", html_lib.unescape(sn)).strip()
+                    results[i]["snippet"] = clean[:400]
+        except Exception as e:
+            print(f"[Search] DDG HTML failed: {e}")
+
+    return results[:max_results]
+
+
+def format_search_context(results) -> str:
+    if not results:
+        return ""
+    lines = []
+    for i, r in enumerate(results, 1):
+        lines.append(
+            f"{i}. {r.get('title') or 'Source'}\n"
+            f"   URL: {r.get('url') or ''}\n"
+            f"   {(r.get('snippet') or '').strip()}"
+        )
+    return "\n".join(lines)
+
+
+def apply_smart_routing(system_prompt: str, messages, notes: str, endpoint: str):
+    """
+    Notes/Notebook → Live search (if needed) → Internal knowledge.
+    Skips notes pipeline when empty. Never asks the user for permission to search.
+    Returns (system_prompt, sources_list).
+    """
+    uid = current_user_id()
+    last_q = _last_user_text(messages)
+    # For feature endpoints with a custom topic, last user message is the topic prompt
+    query_for_live = last_q
+
+    notes_text = (notes or "").strip() if isinstance(notes, str) else ""
+    notebook_text = get_user_notebook_text(uid) if uid else ""
+    has_material = bool(notes_text) or bool(notebook_text)
+
+    sources = []
+    live = needs_live_info(query_for_live)
+    combined_material = "\n".join(x for x in (notes_text, notebook_text) if x)
+    covered_by_material = has_material and material_likely_answers(query_for_live, combined_material)
+    # Explicit "refer to page / case study" with uploaded notes → always treat as covered
+    if has_material and re.search(
+        r"\b(refer|case\s*study|answer the questions?|extracted page text)\b",
+        query_for_live or "",
+        re.I,
+    ):
+        covered_by_material = True
+
+    # Step 1: study material (only if non-empty) — skip empty note DBs entirely
+    if has_material:
+        blocks = []
+        if notes_text:
+            blocks.append(f"--- UPLOADED NOTES ---\n{notes_text[:16000]}\n--- END UPLOADED NOTES ---")
+        if notebook_text:
+            blocks.append(f"--- LIVING NOTEBOOK ---\n{notebook_text}\n--- END NOTEBOOK ---")
+        system_prompt = (
+            f"{system_prompt}\n\n"
+            "STUDY MATERIAL (use when relevant):\n"
+            + "\n\n".join(blocks)
+            + "\n\n"
+            "ROUTING RULES:\n"
+            "- If the user's question is answered by the study material above, answer primarily from that material.\n"
+            "- If the user says refer / case study / answer the questions / from the page / from the notes / uploaded, "
+            "you MUST use the uploaded notes/OCR text above. Search for headings like Case Study 1, Case Study 2, Q1, etc.\n"
+            "- Never claim a case study or page is missing if matching text exists in the uploaded material.\n"
+            "- If the material does not cover the question, do NOT refuse — continue with other knowledge / live results.\n"
+        )
+        if covered_by_material:
+            system_prompt += (
+                "\nThe study material appears to cover this question — prefer it over general web knowledge.\n"
+            )
+
+    # Step 2: automatic live search for current affairs / recent topics
+    # Skip search when notes/notebook already look sufficient.
+    if live and query_for_live and not covered_by_material:
+        print(f"[Search] Auto web search for: {query_for_live[:120]}")
+        sources = web_search(query_for_live, max_results=5)
+        if sources:
+            ctx = format_search_context(sources)
+            system_prompt = (
+                f"{system_prompt}\n\n"
+                "LIVE WEB SEARCH RESULTS (fetched automatically — do NOT ask the user whether to search):\n"
+                f"{ctx}\n\n"
+                "Use these results for anything time-sensitive or recent. Summarize naturally. "
+                "If results conflict, prefer the most specific recent sources. "
+                "Do not invent facts beyond the results and your careful reasoning. "
+                "At the end of your reply, do NOT invent source URLs — the UI will show Sources separately."
+            )
+        else:
+            system_prompt = (
+                f"{system_prompt}\n\n"
+                "The question appears to need current information, but live search returned no results. "
+                "Say clearly that you could not verify the latest facts online, and avoid stating outdated "
+                "winners/scores/releases as if they are current."
+            )
+    elif not live:
+        # Step 3: general knowledge — no search
+        system_prompt = (
+            f"{system_prompt}\n\n"
+            "This looks like a general knowledge / academic question. "
+            "Answer from your internal knowledge. Do not pretend to have live web access."
+        )
+
+    return system_prompt, sources
+
+
 # ── Chat (main AI endpoint) ───────────────────────────────────────────
 
 
@@ -2388,8 +2757,6 @@ def chat():
         and isinstance(msg.get("content"), str)
         and msg["content"].strip()
     ]
-
-# Feature routing is now handled in frontend JavaScript
 
     # Endpoint-specific system prompt enhancement
     if endpoint == "chat":
@@ -2474,22 +2841,15 @@ def chat():
             "If no clear key terms or definitions are discussed or found, reply ONLY with the exact string: NO_DEFINITIONS"
         )
 
-    if isinstance(notes, str) and notes.strip():
-        notes_stripped = notes.strip()
-        system_prompt = (
-            f"{system_prompt}\n\n"
-            f"CONTEXT: The student has uploaded the following study notes:\n"
-            f"--- START OF NOTES ---\n{notes_stripped}\n--- END OF NOTES ---\n\n"
-            f"IMPORTANT: You must answer mainly with respect to the provided study notes above. "
-            f"Prioritize using the information in these notes to answer the user's questions and "
-            f"generate any content (podcasts, quizzes, flashcards, or reviews). However, if the user "
-            f"asks a question or requests something that is not covered in these notes, you MUST still "
-            f"answer the question and fulfill the request fully using your general knowledge."
-        )
-
-
     if not messages:
         return jsonify({"error": "No messages provided."}), 400
+
+    # Smart routing: notes/notebook (if any) → live search when needed → internal knowledge
+    sources = []
+    try:
+        system_prompt, sources = apply_smart_routing(system_prompt, messages, notes, endpoint)
+    except Exception as e:
+        print(f"[Routing] apply_smart_routing failed: {e}")
 
     # --- Talk to Groq AI ---
     try:
@@ -2600,7 +2960,14 @@ def chat():
                             print(f"[Firestore] chat persist mirror failed: {e}")
 
         # Podcast script only — TTS is a separate /api/podcast/tts call (avoids proxy timeouts)
-        return jsonify({"reply": reply, "conversation_id": conv_id})
+        payload = {"reply": reply, "conversation_id": conv_id}
+        if sources:
+            payload["sources"] = [
+                {"title": s.get("title") or "Source", "url": s.get("url") or "", "snippet": s.get("snippet") or ""}
+                for s in sources if s.get("url")
+            ]
+            payload["used_web_search"] = True
+        return jsonify(payload)
 
     except Exception as e:
         error_msg = str(e)
@@ -3070,18 +3437,26 @@ def api_mock_test():
         "For quick papers omit unused sections. Options text must NOT be prefixed with A)/B)."
     )
 
+    # Live context when subject/chapters look time-sensitive
+    mock_query = f"{subject} {chapters} {exam} {grade}".strip()
+    system_mock = (
+        "You are an experienced CBSE/ICSE exam paper setter writing PRE-BOARD papers. "
+        "Output strict JSON only — no markdown fences, no commentary."
+    )
+    if needs_live_info(mock_query):
+        live = web_search(mock_query, max_results=4)
+        if live:
+            system_mock += (
+                "\n\nLIVE WEB CONTEXT (use for current/recent facts in questions when relevant):\n"
+                + format_search_context(live)
+            )
+
     try:
         client = get_groq_client()
         completion = client.chat.completions.create(
             model=resolve_groq_model(data.get("model")),
             messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an experienced CBSE/ICSE exam paper setter writing PRE-BOARD papers. "
-                        "Output strict JSON only — no markdown fences, no commentary."
-                    ),
-                },
+                {"role": "system", "content": system_mock},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.45,

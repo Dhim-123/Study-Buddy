@@ -1216,6 +1216,9 @@
     .msg.user .avatar {
       background: rgba(59, 130, 246, 0.2);
       border: 1px solid var(--accent);
+      overflow: hidden;
+      background-size: cover;
+      background-position: center;
     }
 
     .msg.ai .avatar {
@@ -3146,6 +3149,301 @@
       min-width: 0;
     }
 
+    /* Profile menu (top-right) */
+    .profile-menu-wrap {
+      position: relative;
+    }
+
+    .profile-avatar-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--hover-bg);
+      padding: 0;
+      cursor: pointer;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      transition: border-color 250ms ease, box-shadow 250ms ease, transform 250ms ease;
+    }
+
+    .profile-avatar-btn:hover,
+    .profile-menu-wrap.open .profile-avatar-btn {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+
+    .profile-avatar-btn img,
+    .profile-identity-pic-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .profile-avatar-fallback {
+      font-size: 1.15rem;
+      line-height: 1;
+      color: var(--text);
+    }
+
+    .profile-avatar-fallback.large {
+      font-size: 2rem;
+    }
+
+    .profile-dropdown {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      width: min(320px, calc(100vw - 24px));
+      z-index: 2100;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(-8px);
+      transition: opacity 250ms ease, transform 250ms ease, visibility 250ms ease;
+    }
+
+    .profile-menu-wrap.open .profile-dropdown {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+
+    .profile-dropdown-card {
+      background: var(--settings-glass);
+      backdrop-filter: blur(18px) saturate(1.2);
+      -webkit-backdrop-filter: blur(18px) saturate(1.2);
+      border: 1px solid var(--settings-border);
+      border-radius: 16px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+      padding: 16px;
+      color: var(--text);
+    }
+
+    .profile-dropdown-header {
+      font-weight: 800;
+      font-size: 0.95rem;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .profile-identity {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+
+    .profile-identity-pic-wrap {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 2px solid var(--border);
+      background: var(--hover-bg);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    .profile-identity-meta {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .profile-username {
+      font-weight: 800;
+      font-size: 1.05rem;
+      margin-bottom: 6px;
+      word-break: break-word;
+    }
+
+    .profile-password-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-size: 0.82rem;
+      color: var(--secondary);
+    }
+
+    .profile-password-label {
+      font-weight: 700;
+    }
+
+    .profile-password-value {
+      font-family: var(--font-mono);
+      color: var(--text);
+      letter-spacing: 0.08em;
+    }
+
+    .profile-eye-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      padding: 2px 6px;
+      font-size: 0.85rem;
+    }
+
+    .profile-password-hint {
+      font-size: 0.72rem;
+      color: var(--secondary);
+      margin-top: 4px;
+    }
+
+    .profile-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .profile-action-btn {
+      width: 100%;
+      text-align: left;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--hover-bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-weight: 700;
+      font-size: 0.86rem;
+      cursor: pointer;
+      transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+    }
+
+    .profile-action-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(59, 130, 246, 0.1);
+    }
+
+    .profile-action-btn.danger {
+      color: #f87171;
+    }
+
+    .profile-action-btn.danger:hover {
+      background: rgba(244, 63, 94, 0.12);
+      border-color: rgba(244, 63, 94, 0.4);
+      color: #fb7185;
+    }
+
+    .refer-page-chip {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      max-width: 100%;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(59, 130, 246, 0.45);
+      background: rgba(59, 130, 246, 0.12);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .refer-page-chip:not([hidden]) {
+      display: inline-flex;
+    }
+
+    .refer-page-chip:hover {
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, 0.2);
+    }
+
+    .refer-page-chip img {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .msg.user .page-image-card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .msg.user .page-image-card img {
+      max-width: min(280px, 70vw);
+      max-height: 220px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.18);
+      cursor: pointer;
+      object-fit: cover;
+      transition: transform 180ms ease, box-shadow 180ms ease;
+    }
+
+    .msg.user .page-image-card img:hover {
+      transform: scale(1.02);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.45);
+    }
+
+    .msg.user .page-image-hint {
+      font-size: 0.78rem;
+      opacity: 0.85;
+      font-weight: 600;
+    }
+
+    .chat-sources {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+
+    .chat-sources-title {
+      font-weight: 800;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    .chat-sources a {
+      display: block;
+      color: var(--accent);
+      margin: 4px 0;
+      word-break: break-all;
+      text-decoration: none;
+    }
+
+    .chat-sources a:hover {
+      color: var(--accent-hover);
+      text-decoration: underline;
+    }
+
+    .profile-edit-field {
+      margin-bottom: 10px;
+    }
+
+    .profile-edit-field label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--secondary);
+      margin-bottom: 4px;
+    }
+
+    .profile-edit-field input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--hover-bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 0.9rem;
+    }
+
     .settings-panel {
       position: fixed;
       top: 64px;
@@ -3690,8 +3988,55 @@
     <div class="header-right">
       <span id="header-notes-badge" style="display:none; background: rgba(82, 232, 160, 0.15); color: var(--accent3); border: 1px solid var(--accent3); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; margin-right: 10px; font-weight: bold; align-items: center; gap: 4px;">📝 Notes Mode</span>
       <button class="btn-icon" id="auth-btn">🚪 Login / Register</button>
+      <div class="profile-menu-wrap" id="profile-menu-wrap" hidden>
+        <button type="button" class="profile-avatar-btn" id="profile-avatar-btn" title="Profile" aria-haspopup="menu" aria-expanded="false">
+          <img id="profile-avatar-img" alt="Profile" hidden />
+          <span id="profile-avatar-fallback" class="profile-avatar-fallback">👤</span>
+        </button>
+        <div class="profile-dropdown" id="profile-dropdown" role="menu">
+          <div class="profile-dropdown-card">
+            <div class="profile-dropdown-header">👤 Profile</div>
+            <div class="profile-identity">
+              <div class="profile-identity-pic-wrap">
+                <img id="profile-dropdown-avatar" alt="" hidden />
+                <span id="profile-dropdown-fallback" class="profile-avatar-fallback large">👤</span>
+              </div>
+              <div class="profile-identity-meta">
+                <div class="profile-username" id="profile-username-display">—</div>
+                <div class="profile-password-row">
+                  <span class="profile-password-label">Password</span>
+                  <span id="profile-password-display" class="profile-password-value">••••••••••</span>
+                  <button type="button" class="profile-eye-btn" id="profile-toggle-password" title="Show/Hide">👁️</button>
+                </div>
+                <p class="profile-password-hint" id="profile-password-hint">Hidden for security</p>
+              </div>
+            </div>
+            <div class="profile-actions">
+              <button type="button" class="profile-action-btn" id="profile-change-pic-btn">🖼️ Change Profile Picture</button>
+              <input type="file" id="profile-pic-input" accept="image/*" hidden />
+              <button type="button" class="profile-action-btn" id="profile-change-username-btn">✏️ Change Username</button>
+              <button type="button" class="profile-action-btn" id="profile-change-password-btn">🔑 Change Password</button>
+              <button type="button" class="profile-action-btn" id="profile-open-settings-btn">⚙️ Open Settings</button>
+              <button type="button" class="profile-action-btn danger" id="profile-logout-btn">🚪 Logout</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
+
+  <!-- Profile edit modals -->
+  <div id="profile-edit-modal" class="clear-confirm-modal" hidden aria-hidden="true">
+    <div class="clear-confirm-backdrop" id="profile-edit-backdrop"></div>
+    <div class="clear-confirm-card" id="profile-edit-card" role="dialog" aria-modal="true">
+      <h3 id="profile-edit-title">Edit</h3>
+      <div id="profile-edit-body"></div>
+      <div class="clear-confirm-actions">
+        <button type="button" class="btn-secondary" id="profile-edit-cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="profile-edit-save" style="width:auto;padding:10px 16px;">Save</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Floating Settings Panel -->
   <div id="settings-panel" class="settings-panel" role="dialog" aria-modal="false" aria-labelledby="settings-panel-title" hidden>
@@ -3908,7 +4253,13 @@
         <input type="file" id="chat-ocr-input" accept="image/*,.jpg,.jpeg,.png,.webp" style="display:none;" />
         <button id="attach-ocr-btn" type="button" title="Take or upload page photo (OCR)" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--text); cursor:pointer; font-size:1.1rem;">📷</button>
         <button id="mic-btn" type="button" title="Voice message" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--text); cursor:pointer; font-size:1.1rem;">🎤</button>
-        <textarea id="user-input" placeholder="Ask me anything… (or use 📷 to snap a page / 🎤 to speak)" rows="1"></textarea>
+        <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:6px;">
+          <button type="button" id="refer-page-chip" class="refer-page-chip" hidden title="Click to refer this page to the AI again">
+            <img id="refer-page-chip-img" alt="" hidden />
+            <span id="refer-page-chip-label">📎 Refer uploaded page</span>
+          </button>
+          <textarea id="user-input" placeholder="Ask me anything… (or use 📷 to snap a page / 🎤 to speak)" rows="1"></textarea>
+        </div>
         <button id="send-btn" title="Send (Enter)">➤</button>
       </div>
 
@@ -4594,6 +4945,10 @@
     // ^ These store the uploaded study notes content and filename so that we can send them
     //   with our API requests to ensure the AI answers strictly from the notes.
 
+    let lastPageImageUrl = null;
+    let lastPageImageName = "";
+    window.__lastOcrText = notesContent || "";
+
 
     // =====================================================================
     //  LOAD SAVED SETTINGS
@@ -4865,10 +5220,11 @@
           cfg.buddyName = currentUser.buddyName || "Nova";
           localStorage.setItem("sb_config", JSON.stringify({ buddyName: cfg.buddyName }));
           if (headerAuthBtn) {
-            const shortId = (currentUser.identifier || "Account").slice(0, 18);
-            headerAuthBtn.textContent = `👤 ${shortId}`;
-            headerAuthBtn.title = `Logged in as ${currentUser.identifier}`;
+            headerAuthBtn.style.display = "none";
           }
+          const profileWrap = document.getElementById("profile-menu-wrap");
+          if (profileWrap) profileWrap.hidden = false;
+          if (typeof syncProfileMenuUI === "function") syncProfileMenuUI();
           updateWelcomeGreeting();
         } else {
           if (authModeTitle) authModeTitle.textContent = "Login";
@@ -4885,8 +5241,14 @@
           if (buddyNameEl) buddyNameEl.value = "";
           if (usernameInputEl) usernameInputEl.value = "";
           if (headerAuthBtn) {
+            headerAuthBtn.style.display = "";
             headerAuthBtn.textContent = "🚪 Login / Register";
             headerAuthBtn.title = "Open login / register";
+          }
+          const profileWrap = document.getElementById("profile-menu-wrap");
+          if (profileWrap) {
+            profileWrap.hidden = true;
+            profileWrap.classList.remove("open");
           }
         }
 
@@ -4928,7 +5290,9 @@
             currentUser = { 
               loggedIn: true,
               identifier: data.identifier,
-              buddyName: data.buddyName
+              buddyName: data.buddyName,
+              avatarB64: data.avatarB64 || null,
+              hasPassword: !!data.hasPassword,
             };
             // Fetch and display chat history if logged in
             await fetchChatHistory();
@@ -5016,6 +5380,7 @@
           welcomeBadge.style.display = "none";
         }
       }
+      if (typeof updateReferPageChip === "function") updateReferPageChip();
       
       const notesPageTextarea = document.getElementById("notes-page-textarea");
       if (notesPageTextarea) {
@@ -5065,6 +5430,127 @@
       showUploadStatus(statusEl, "Only .txt or image files (jpg/png/webp) are supported.", true);
     }
 
+    function updateReferPageChip() {
+      const chip = document.getElementById("refer-page-chip");
+      const img = document.getElementById("refer-page-chip-img");
+      const label = document.getElementById("refer-page-chip-label");
+      if (!chip) return;
+      const hasPage = !!(window.__lastOcrText || notesContent);
+      if (!hasPage) {
+        chip.hidden = true;
+        return;
+      }
+      chip.hidden = false;
+      const name = lastPageImageName || notesFileName || "uploaded page";
+      if (label) label.textContent = `📎 Refer: ${String(name).slice(0, 28)}`;
+      if (img) {
+        if (lastPageImageUrl) {
+          img.src = lastPageImageUrl;
+          img.hidden = false;
+        } else {
+          img.removeAttribute("src");
+          img.hidden = true;
+        }
+      }
+    }
+
+    function buildPageReferralPrompt(extraAsk) {
+      const ocr = (window.__lastOcrText || notesContent || "").trim();
+      const ask = (extraAsk || "").trim();
+      const header = ask
+        ? ask
+        : "I'm referring to the page photo I uploaded. Use the extracted page text below (Notes Mode) as the source of truth.";
+      const guidance =
+        "Find any case studies, passages, or numbered questions on that page and answer them completely. " +
+        "Do not say the case study is missing if it appears in the text.";
+      if (!ocr) return `${header}\n\n${guidance}`;
+      const body = ocr.length > 14000 ? `${ocr.slice(0, 14000)}\n…[truncated]` : ocr;
+      return `${header}\n\n${guidance}\n\n--- EXTRACTED PAGE TEXT ---\n${body}\n--- END PAGE TEXT ---`;
+    }
+
+    function appendUserPageImageBubble(imageUrl, fileName) {
+      if (!messagesEl || !imageUrl) return;
+      if (welcomeEl && welcomeEl.parentElement) welcomeEl.remove();
+      const msg = document.createElement("div");
+      msg.className = "msg user";
+      const avatar = document.createElement("div");
+      avatar.className = "avatar";
+      const src = typeof avatarSrcFromB64 === "function" ? avatarSrcFromB64(currentUser?.avatarB64) : "";
+      if (src) {
+        avatar.style.backgroundImage = `url("${src}")`;
+        avatar.style.backgroundSize = "cover";
+        avatar.style.backgroundPosition = "center";
+      } else {
+        avatar.textContent = "🧑";
+      }
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      const card = document.createElement("div");
+      card.className = "page-image-card";
+      const img = document.createElement("img");
+      img.src = imageUrl;
+      img.alt = fileName || "Uploaded page";
+      img.title = "Click to refer this page to the AI";
+      img.addEventListener("click", () => {
+        if (typeof referUploadedPageToChat === "function") {
+          referUploadedPageToChat({ autoSend: true });
+        }
+      });
+      const hint = document.createElement("div");
+      hint.className = "page-image-hint";
+      hint.textContent = `📎 ${fileName || "Page photo"} — click image to refer again`;
+      card.appendChild(img);
+      card.appendChild(hint);
+      bubble.appendChild(card);
+      msg.appendChild(avatar);
+      msg.appendChild(bubble);
+      messagesEl.appendChild(msg);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    async function referUploadedPageToChat(options = {}) {
+      const autoSend = options.autoSend !== false;
+      const extraAsk = options.extraAsk || "";
+      const ocr = (window.__lastOcrText || notesContent || "").trim();
+      if (!ocr) {
+        if (typeof profileFlash === "function") profileFlash("Upload a page photo first (📷).", true);
+        else alert("Upload a page photo first (📷).");
+        return;
+      }
+      const prompt = buildPageReferralPrompt(extraAsk);
+      const labelName = lastPageImageName || notesFileName || "uploaded page";
+      const displayText = `📎 Referring to: ${labelName}\n\nUse the extracted page text (Notes Mode) and answer all questions on that page.`;
+      if (autoSend) {
+        if (typeof isLoading !== "undefined" && isLoading) {
+          if (userInputEl) {
+            userInputEl.value = "Refer to the uploaded page and answer all questions on it.";
+            userInputEl.focus();
+            autoGrow(userInputEl);
+          }
+          return;
+        }
+        if (userInputEl) userInputEl.value = "";
+        await sendMessage(prompt, {
+          displayText,
+          skipUserBubble: !!options.skipUserBubble,
+        });
+      } else if (userInputEl) {
+        userInputEl.value = "Refer to the uploaded page and answer all questions on it (including any case studies).";
+        userInputEl.focus();
+        autoGrow(userInputEl);
+      }
+    }
+
+    async function rememberPageImage(file) {
+      if (!file) return;
+      try {
+        if (lastPageImageUrl) URL.revokeObjectURL(lastPageImageUrl);
+      } catch (_) {}
+      lastPageImageUrl = URL.createObjectURL(file);
+      lastPageImageName = file.name || "page-photo.jpg";
+      updateReferPageChip();
+    }
+
     async function runOcrOnFile(file, statusEl) {
       showUploadStatus(statusEl, "Reading page with OCR… this may take a few seconds.");
       const saveBtn = document.getElementById("ocr-save-notebook-btn");
@@ -5081,13 +5567,17 @@
         notesFileName = file.name + " (OCR)";
         localStorage.setItem("sb_notes_content", notesContent);
         localStorage.setItem("sb_notes_filename", notesFileName);
-        showUploadStatus(statusEl, `OCR extracted ${text.length} characters from ${file.name}. AI will prioritize this text.`);
+        showUploadStatus(statusEl, `OCR extracted ${text.length} characters from ${file.name}. Click the image or chip to refer it to the AI.`);
         updateNotesIndicators();
         if (saveBtn) saveBtn.style.display = "inline-flex";
         window.__lastOcrText = text;
+        await rememberPageImage(file);
+        updateReferPageChip();
+        return text;
       } catch (err) {
         showUploadStatus(statusEl, `OCR failed: ${err.message}`, true);
         if (saveBtn) saveBtn.style.display = "none";
+        return "";
       }
     }
 
@@ -5396,7 +5886,9 @@
             currentUser = { 
               loggedIn: true,
               identifier: data.identifier,
-              buddyName: data.buddyName
+              buddyName: data.buddyName,
+              avatarB64: data.avatarB64 || null,
+              hasPassword: data.hasPassword !== false,
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || identifier);
             let successMsg = `Login successful. Welcome, ${data.buddyName}!`;
@@ -5492,6 +5984,8 @@
               loggedIn: true,
               identifier: data.identifier,
               buddyName: data.buddyName,
+              avatarB64: data.avatarB64 || null,
+              hasPassword: !!data.hasPassword,
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || "");
             updateAuthUI({ clearMessage: false });
@@ -5510,6 +6004,355 @@
         });
       }
 
+      // =====================================================================
+      //  PROFILE MENU (top-right avatar)
+      // =====================================================================
+
+      let profilePasswordRevealed = false;
+
+      function avatarSrcFromB64(b64) {
+        if (!b64) return "";
+        if (b64.startsWith("data:image/")) return b64;
+        return `data:image/jpeg;base64,${b64}`;
+      }
+
+      function applyAvatarEverywhere(avatarB64) {
+        const src = avatarSrcFromB64(avatarB64);
+        const pairs = [
+          ["profile-avatar-img", "profile-avatar-fallback"],
+          ["profile-dropdown-avatar", "profile-dropdown-fallback"],
+        ];
+        pairs.forEach(([imgId, fbId]) => {
+          const img = document.getElementById(imgId);
+          const fb = document.getElementById(fbId);
+          if (!img) return;
+          if (src) {
+            img.src = src;
+            img.hidden = false;
+            if (fb) fb.hidden = true;
+          } else {
+            img.removeAttribute("src");
+            img.hidden = true;
+            if (fb) fb.hidden = false;
+          }
+        });
+        document.querySelectorAll(".msg.user .avatar").forEach((el) => {
+          if (src) {
+            el.textContent = "";
+            el.style.backgroundImage = `url("${src}")`;
+            el.style.backgroundSize = "cover";
+            el.style.backgroundPosition = "center";
+          } else {
+            el.style.backgroundImage = "";
+            if (!el.textContent) el.textContent = "🧑";
+          }
+        });
+      }
+
+      function syncProfileMenuUI() {
+        const nameEl = document.getElementById("profile-username-display");
+        const pwEl = document.getElementById("profile-password-display");
+        const hintEl = document.getElementById("profile-password-hint");
+        const eyeBtn = document.getElementById("profile-toggle-password");
+        if (nameEl) nameEl.textContent = currentUser?.identifier || "—";
+        const usernameInput = document.getElementById("username-input");
+        if (usernameInput && currentUser?.identifier) usernameInput.value = currentUser.identifier;
+        applyAvatarEverywhere(currentUser?.avatarB64 || null);
+        profilePasswordRevealed = false;
+        if (pwEl) pwEl.textContent = "••••••••••";
+        if (hintEl) {
+          hintEl.textContent = currentUser?.hasPassword === false
+            ? "Google Sign-In — no password on file"
+            : "Hidden for security";
+        }
+        if (eyeBtn) eyeBtn.textContent = "👁️";
+      }
+
+      function closeProfileMenu() {
+        const wrap = document.getElementById("profile-menu-wrap");
+        const btn = document.getElementById("profile-avatar-btn");
+        if (!wrap) return;
+        wrap.classList.remove("open");
+        if (btn) btn.setAttribute("aria-expanded", "false");
+      }
+
+      function toggleProfileMenu() {
+        const wrap = document.getElementById("profile-menu-wrap");
+        const btn = document.getElementById("profile-avatar-btn");
+        if (!wrap || wrap.hidden) return;
+        const open = !wrap.classList.contains("open");
+        wrap.classList.toggle("open", open);
+        if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) syncProfileMenuUI();
+      }
+
+      function closeProfileEditModal() {
+        const modal = document.getElementById("profile-edit-modal");
+        if (!modal) return;
+        modal.hidden = true;
+        modal.setAttribute("aria-hidden", "true");
+        const body = document.getElementById("profile-edit-body");
+        if (body) body.innerHTML = "";
+        modal._saveHandler = null;
+      }
+
+      function openProfileEditModal(title, bodyHtml, onSave) {
+        const modal = document.getElementById("profile-edit-modal");
+        const titleEl = document.getElementById("profile-edit-title");
+        const body = document.getElementById("profile-edit-body");
+        if (!modal || !body) return;
+        if (titleEl) titleEl.textContent = title;
+        body.innerHTML = bodyHtml;
+        modal.hidden = false;
+        modal.setAttribute("aria-hidden", "false");
+        modal._saveHandler = onSave;
+        const first = body.querySelector("input");
+        if (first) setTimeout(() => first.focus(), 50);
+      }
+
+      function profileFlash(msg, isError) {
+        const el = document.createElement("div");
+        el.textContent = msg;
+        el.style.cssText = [
+          "position:fixed", "bottom:24px", "left:50%", "transform:translateX(-50%)",
+          "z-index:4000", "padding:10px 16px", "border-radius:12px", "font-weight:700",
+          "font-size:0.9rem", "box-shadow:0 8px 28px rgba(0,0,0,.35)",
+          isError ? "background:#7f1d1d;color:#fecaca" : "background:#14532d;color:#bbf7d0",
+        ].join(";");
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 2200);
+      }
+
+      (function initProfileMenu() {
+        const avatarBtn = document.getElementById("profile-avatar-btn");
+        const wrap = document.getElementById("profile-menu-wrap");
+        if (avatarBtn) {
+          avatarBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            toggleProfileMenu();
+          });
+        }
+        document.addEventListener("click", (e) => {
+          if (!wrap || wrap.hidden || !wrap.classList.contains("open")) return;
+          if (wrap.contains(e.target)) return;
+          closeProfileMenu();
+        });
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            closeProfileMenu();
+            closeProfileEditModal();
+          }
+        });
+
+        document.getElementById("profile-toggle-password")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const pwEl = document.getElementById("profile-password-display");
+          const hintEl = document.getElementById("profile-password-hint");
+          const eyeBtn = document.getElementById("profile-toggle-password");
+          profilePasswordRevealed = !profilePasswordRevealed;
+          if (!pwEl) return;
+          if (profilePasswordRevealed) {
+            pwEl.textContent = "••••••••••";
+            if (hintEl) hintEl.textContent = "Passwords are stored hashed and cannot be shown";
+            if (eyeBtn) eyeBtn.textContent = "🙈";
+          } else {
+            pwEl.textContent = "••••••••••";
+            if (hintEl) {
+              hintEl.textContent = currentUser?.hasPassword === false
+                ? "Google Sign-In — no password on file"
+                : "Hidden for security";
+            }
+            if (eyeBtn) eyeBtn.textContent = "👁️";
+          }
+        });
+
+        document.getElementById("profile-change-pic-btn")?.addEventListener("click", () => {
+          document.getElementById("profile-pic-input")?.click();
+        });
+
+        document.getElementById("profile-pic-input")?.addEventListener("change", async (e) => {
+          const file = e.target.files && e.target.files[0];
+          e.target.value = "";
+          if (!file) return;
+          if (!file.type.startsWith("image/")) {
+            profileFlash("Please choose an image file.", true);
+            return;
+          }
+          if (file.size > 900000) {
+            profileFlash("Image too large. Use a smaller photo.", true);
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const dataUrl = reader.result;
+            try {
+              const res = await fetch("/api/auth/update_avatar", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ avatarB64: dataUrl }),
+              });
+              const data = await res.json();
+              if (!res.ok) {
+                profileFlash(data.error || "Failed to update picture.", true);
+                return;
+              }
+              currentUser.avatarB64 = data.avatarB64 || dataUrl;
+              applyAvatarEverywhere(currentUser.avatarB64);
+              profileFlash("Profile picture updated");
+            } catch (err) {
+              profileFlash(err.message || "Network error", true);
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+
+        document.getElementById("profile-change-username-btn")?.addEventListener("click", () => {
+          closeProfileMenu();
+          openProfileEditModal(
+            "Change Username",
+            `<div class="profile-edit-field">
+              <label for="profile-edit-username">New username</label>
+              <input id="profile-edit-username" type="text" value="${(currentUser?.identifier || "").replace(/"/g, "&quot;")}" autocomplete="username" />
+            </div>`,
+            async () => {
+              const input = document.getElementById("profile-edit-username");
+              const newName = (input?.value || "").trim();
+              if (!newName) {
+                profileFlash("Username cannot be empty.", true);
+                return false;
+              }
+              if (newName === currentUser.identifier) {
+                closeProfileEditModal();
+                return true;
+              }
+              const res = await fetch("/api/auth/update_username", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ identifier: newName }),
+              });
+              const data = await res.json();
+              if (!res.ok) {
+                profileFlash(data.error || "Failed to update username.", true);
+                return false;
+              }
+              currentUser.identifier = data.identifier;
+              localStorage.setItem("sb_auth_identifier", data.identifier);
+              const authId = document.getElementById("auth-identifier");
+              if (authId) authId.value = data.identifier;
+              syncProfileMenuUI();
+              updateAuthUI({ clearMessage: false });
+              updateWelcomeGreeting();
+              profileFlash("Username updated");
+              closeProfileEditModal();
+              return true;
+            }
+          );
+        });
+
+        document.getElementById("profile-change-password-btn")?.addEventListener("click", () => {
+          if (currentUser?.hasPassword === false) {
+            profileFlash("This account uses Google Sign-In — no password to change.", true);
+            return;
+          }
+          closeProfileMenu();
+          openProfileEditModal(
+            "Change Password",
+            `<div class="profile-edit-field">
+              <label for="profile-edit-current-pw">Current password</label>
+              <input id="profile-edit-current-pw" type="password" autocomplete="current-password" />
+            </div>
+            <div class="profile-edit-field">
+              <label for="profile-edit-new-pw">New password</label>
+              <input id="profile-edit-new-pw" type="password" autocomplete="new-password" />
+            </div>
+            <div class="profile-edit-field">
+              <label for="profile-edit-confirm-pw">Confirm password</label>
+              <input id="profile-edit-confirm-pw" type="password" autocomplete="new-password" />
+            </div>`,
+            async () => {
+              const currentPassword = document.getElementById("profile-edit-current-pw")?.value || "";
+              const newPassword = document.getElementById("profile-edit-new-pw")?.value || "";
+              const confirmPassword = document.getElementById("profile-edit-confirm-pw")?.value || "";
+              if (!currentPassword || !newPassword) {
+                profileFlash("Current and new password are required.", true);
+                return false;
+              }
+              if (newPassword !== confirmPassword) {
+                profileFlash("New password and confirmation do not match.", true);
+                return false;
+              }
+              const res = await fetch("/api/auth/update_password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+              });
+              const data = await res.json();
+              if (!res.ok) {
+                profileFlash(data.error || "Failed to change password.", true);
+                return false;
+              }
+              currentUser.hasPassword = true;
+              profileFlash("Password updated");
+              closeProfileEditModal();
+              return true;
+            }
+          );
+        });
+
+        document.getElementById("profile-open-settings-btn")?.addEventListener("click", () => {
+          closeProfileMenu();
+          if (typeof openSettingsPanel === "function") openSettingsPanel();
+        });
+
+        document.getElementById("profile-logout-btn")?.addEventListener("click", async () => {
+          closeProfileMenu();
+          const logoutBtn = document.getElementById("logout-btn");
+          if (logoutBtn) logoutBtn.click();
+          else {
+            try {
+              if (firebaseAuth) {
+                try { await firebaseAuth.signOut(); } catch (_) { /* ignore */ }
+              }
+              await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+              currentUser = { loggedIn: false };
+              history = [];
+              currentConvId = null;
+              conversations = [];
+              if (typeof sbRenderConversations === "function") sbRenderConversations();
+              if (messagesEl) {
+                messagesEl.innerHTML = "";
+                if (welcomeEl) {
+                  messagesEl.appendChild(welcomeEl);
+                  welcomeEl.style.display = "flex";
+                }
+              }
+              updateAuthUI({ clearMessage: false });
+            } catch (err) {
+              profileFlash(err.message || "Logout failed", true);
+            }
+          }
+        });
+
+        document.getElementById("profile-edit-cancel")?.addEventListener("click", closeProfileEditModal);
+        document.getElementById("profile-edit-backdrop")?.addEventListener("click", closeProfileEditModal);
+        document.getElementById("profile-edit-save")?.addEventListener("click", async () => {
+          const modal = document.getElementById("profile-edit-modal");
+          const handler = modal && modal._saveHandler;
+          if (typeof handler !== "function") return;
+          const saveBtn = document.getElementById("profile-edit-save");
+          if (saveBtn) saveBtn.disabled = true;
+          try {
+            await handler();
+          } catch (err) {
+            profileFlash(err.message || "Something went wrong", true);
+          } finally {
+            if (saveBtn) saveBtn.disabled = false;
+          }
+        });
+      })();
 
       // =====================================================================
       //  HISTORY FETCHING
@@ -5774,8 +6617,27 @@
     document.getElementById("upload-welcome-btn").onclick = () => {
       const inputEl = document.getElementById("upload-input-welcome");
       const statusEl = document.getElementById("upload-welcome-status");
+      if (!inputEl) return;
+      if (!inputEl.files || !inputEl.files[0]) {
+        inputEl.click();
+        return;
+      }
       readTextFile(inputEl, statusEl);
     };
+
+    document.getElementById("upload-input-welcome")?.addEventListener("change", async () => {
+      const inputEl = document.getElementById("upload-input-welcome");
+      const statusEl = document.getElementById("upload-welcome-status");
+      if (!inputEl || !inputEl.files || !inputEl.files[0]) return;
+      const file = inputEl.files[0];
+      const nameLower = (file.name || "").toLowerCase();
+      const isImage = (file.type || "").startsWith("image/") || /\.(jpe?g|png|webp|gif)$/i.test(nameLower);
+      if (isImage) {
+        await finishOcrAndPrefillChat(file);
+      } else {
+        readTextFile(inputEl, statusEl);
+      }
+    });
 
     const ocrSaveNbBtn = document.getElementById("ocr-save-notebook-btn");
     if (ocrSaveNbBtn) {
@@ -6335,7 +7197,24 @@
     // restaurant — you don't stand at the counter staring; you sit down
     // and wait for your food to arrive.
 
-    async function sendMessage(text) {
+    async function sendMessage(text, options = {}) {
+      let contentForModel = text;
+      // If user asks to "refer" / answer case-study questions and Notes Mode has OCR,
+      // attach the page text to the model payload (UI still shows their short message).
+      const ocrNow = (window.__lastOcrText || notesContent || "").trim();
+      const asksToRefer = /\b(refer|case\s*study|answer the questions?|from (the )?(page|notes|image|photo|upload))\b/i.test(text || "");
+      if (
+        ocrNow &&
+        asksToRefer &&
+        !options.skipAutoAttachNotes &&
+        !/--- EXTRACTED PAGE TEXT ---/i.test(text || "")
+      ) {
+        const body = ocrNow.length > 14000 ? `${ocrNow.slice(0, 14000)}\n…[truncated]` : ocrNow;
+        contentForModel =
+          `${text}\n\nUse the uploaded page text below as the source of truth. ` +
+          `Find Case Study / passage / numbered questions and answer them.\n\n` +
+          `--- EXTRACTED PAGE TEXT ---\n${body}\n--- END PAGE TEXT ---`;
+      }
 
       // ── Hide the welcome screen ──
       if (welcomeEl.parentElement) welcomeEl.remove();
@@ -6343,10 +7222,14 @@
       //   .parentElement checks if it's attached to the page.
 
       // ── Show the user's message as a chat bubble ──
-      appendBubble("user", text);
+      // options.displayText: shorter UI label while history keeps full text (page OCR referrals)
+      // options.skipUserBubble: image card already shown
+      if (!options.skipUserBubble) {
+        appendBubble("user", options.displayText || text);
+      }
       // ^ This creates a chat bubble on the right side (user style)
 
-      history.push({ role: "user", content: text });
+      history.push({ role: "user", content: contentForModel });
       // ^ Add this message to our conversation history.
       //   .push() adds an item to the end of an array.
       //   We track roles so the AI knows who said what.
@@ -6432,9 +7315,10 @@
         // ^ Get the reply text from the server's response.
         //   If for some reason it's empty, show "(no response)".
 
-        appendBubble("ai", reply, text);
+        appendBubble("ai", reply, text, data.sources || null);
         // ^ Show the AI's reply as a chat bubble on the left side.
         //   'text' is passed so the bubble can decide which action buttons to show.
+        //   sources = live web search links when smart routing used the internet.
 
         history.push({ role: "assistant", content: reply });
         // ^ Add the AI's reply to our conversation history
@@ -6961,7 +7845,29 @@
       return MATH_PHYS_USER_RE.test(userMsg || "") || MATH_PHYS_REPLY_RE.test(replyText || "");
     }
 
-    function appendBubble(role, text, lastUserMsg) {
+    function appendChatSources(bubble, sources, extraStyle) {
+      if (!bubble || !Array.isArray(sources) || !sources.length) return;
+      const wrap = document.createElement("div");
+      wrap.className = "chat-sources";
+      if (extraStyle) wrap.style.cssText = extraStyle;
+      const title = document.createElement("div");
+      title.className = "chat-sources-title";
+      title.textContent = "🌐 Sources";
+      wrap.appendChild(title);
+      sources.forEach((s) => {
+        const url = (s && s.url) || "";
+        if (!url) return;
+        const a = document.createElement("a");
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = (s.title && String(s.title).trim()) || url;
+        wrap.appendChild(a);
+      });
+      if (wrap.querySelectorAll("a").length) bubble.appendChild(wrap);
+    }
+
+    function appendBubble(role, text, lastUserMsg, sources) {
       const isAI = (role === "ai" || role === "assistant");
       const roleClass = isAI ? "ai" : "user";
 
@@ -6972,7 +7878,21 @@
       // Create the avatar:
       const avatar = document.createElement("div");
       avatar.className = "avatar";
-      avatar.textContent = isAI ? "🤖" : "🧑";
+      if (isAI) {
+        avatar.textContent = "🤖";
+      } else {
+        const src = typeof avatarSrcFromB64 === "function"
+          ? avatarSrcFromB64(currentUser?.avatarB64)
+          : "";
+        if (src) {
+          avatar.textContent = "";
+          avatar.style.backgroundImage = `url("${src}")`;
+          avatar.style.backgroundSize = "cover";
+          avatar.style.backgroundPosition = "center";
+        } else {
+          avatar.textContent = "🧑";
+        }
+      }
 
       // Create the bubble:
       const bubble = document.createElement("div");
@@ -7008,6 +7928,8 @@
             if (chartEl) bubble.appendChild(chartEl);
           });
         }
+
+        appendChatSources(bubble, sources);
       } else {
         bubble.innerHTML = renderMarkdown(text);
       }
@@ -7726,6 +8648,7 @@
         output.appendChild(statusEl);
 
         renderCollapsiblePodcastScript(output, rawText);
+        appendChatSources(output, data.sources);
 
         // Step 2: TTS only (separate request — avoids proxy timeouts)
         let audioData = null;
@@ -7877,6 +8800,7 @@
         if (output.children.length === 0) {
           output.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent2);">Could not parse flashcards. Here's the raw response:<div style="margin-top: 16px; background: var(--surface); padding: 12px; border-radius: 8px; white-space: pre-wrap;">${escapeHtml(data.reply)}</div></div>`;
         }
+        appendChatSources(output, data.sources, "grid-column: 1 / -1;");
       } catch (err) {
         output.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
@@ -7985,6 +8909,7 @@
           submitBtn.style.display = "none";
         });
         output.appendChild(submitBtn);
+        appendChatSources(output, data.sources);
       } catch (err) {
         output.innerHTML = `<div style="color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
@@ -8079,6 +9004,7 @@
         if (output.children.length === 0) {
           output.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent2);">Could not parse flashcards. Here's the raw response:<div style="margin-top: 16px; background: var(--surface); padding: 12px; border-radius: 8px; white-space: pre-wrap;">${escapeHtml(data.reply)}</div></div>`;
         }
+        appendChatSources(output, data.sources, "grid-column: 1 / -1;");
       } catch (err) {
         output.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
@@ -8198,6 +9124,7 @@
         });
 
         output.appendChild(submitBtn);
+        appendChatSources(output, data.sources);
       } catch (err) {
         output.innerHTML = `<div style="color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
@@ -10935,12 +11862,19 @@
 
     async function finishOcrAndPrefillChat(file) {
       const statusEl = document.getElementById("upload-welcome-status");
-      await runOcrOnFile(file, statusEl || { style: {}, textContent: "" });
-      const excerpt = (notesContent || "").trim().slice(0, 500);
-      if (excerpt && userInputEl) {
-        userInputEl.value = `I uploaded a page photo. Here is the extracted text:\n\n${excerpt}${(notesContent || "").length > 500 ? "…" : ""}\n\nPlease explain the key points.`;
-        userInputEl.focus();
-      }
+      const text = await runOcrOnFile(file, statusEl || { style: {}, textContent: "" });
+      if (!text) return;
+      await rememberPageImage(file);
+      appendUserPageImageBubble(lastPageImageUrl, lastPageImageName || file.name);
+      updateReferPageChip();
+      // Immediately refer the full page to the AI (image shown above; full OCR in history + notes)
+      await referUploadedPageToChat({
+        autoSend: true,
+        skipUserBubble: true,
+        extraAsk:
+          "I'm referring to this page photo I just uploaded. Read the extracted page text and answer all questions on it " +
+          "(including any Case Study / passage questions).",
+      });
     }
 
     function stopCameraStream() {
@@ -11040,6 +11974,23 @@
         await finishOcrAndPrefillChat(file);
       });
     }
+
+    document.getElementById("refer-page-chip")?.addEventListener("click", () => {
+      referUploadedPageToChat({ autoSend: true });
+    });
+
+    document.getElementById("header-notes-badge")?.addEventListener("click", () => {
+      if (!(window.__lastOcrText || notesContent)) return;
+      referUploadedPageToChat({ autoSend: true });
+    });
+    const headerNotesBadge = document.getElementById("header-notes-badge");
+    if (headerNotesBadge) {
+      headerNotesBadge.style.cursor = "pointer";
+      headerNotesBadge.title = "Click to refer uploaded notes/page to the AI";
+    }
+
+    // Restore refer chip if notes were already in localStorage
+    updateReferPageChip();
     if (cameraOcrCapture) cameraOcrCapture.addEventListener("click", () => captureCameraFrame());
     if (cameraOcrCancel) cameraOcrCancel.addEventListener("click", () => closeCameraModal());
     if (cameraOcrClose) cameraOcrClose.addEventListener("click", () => closeCameraModal());
@@ -11740,7 +12691,13 @@
           localStorage.removeItem("sb_notes_filename");
         } catch (_) {}
         window.__lastOcrText = "";
+        try {
+          if (lastPageImageUrl) URL.revokeObjectURL(lastPageImageUrl);
+        } catch (_) {}
+        lastPageImageUrl = null;
+        lastPageImageName = "";
         if (typeof updateNotesIndicators === "function") updateNotesIndicators();
+        if (typeof updateReferPageChip === "function") updateReferPageChip();
         const welcomeInput = document.getElementById("upload-input-welcome");
         if (welcomeInput) welcomeInput.value = "";
         const welcomeStatus = document.getElementById("upload-welcome-status");
