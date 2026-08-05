@@ -113,18 +113,30 @@ def get_gemini_client():
     return genai.Client(api_key=GEMINI_API_KEY)
 
 DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
-GROQ_VISION_MODEL = os.getenv(
-    "GROQ_VISION_MODEL",
+# Groq vision models (llama-3.2-*-vision-preview were decommissioned)
+DEFAULT_GROQ_VISION_MODEL = "qwen/qwen3.6-27b"
+_DECOMMISSIONED_VISION_MODELS = {
+    "llama-3.2-11b-vision-preview",
+    "llama-3.2-90b-vision-preview",
+    "llama-3.2-90b-vision",
+    "llama-3.2-11b-vision",
+}
+GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL", DEFAULT_GROQ_VISION_MODEL).strip()
+if GROQ_VISION_MODEL in _DECOMMISSIONED_VISION_MODELS:
+    print(
+        f"[OCR] GROQ_VISION_MODEL={GROQ_VISION_MODEL!r} is decommissioned; "
+        f"using {DEFAULT_GROQ_VISION_MODEL!r} instead."
+    )
+    GROQ_VISION_MODEL = DEFAULT_GROQ_VISION_MODEL
+GROQ_VISION_FALLBACKS = []
+for m in [
+    GROQ_VISION_MODEL,
+    DEFAULT_GROQ_VISION_MODEL,
     "meta-llama/llama-4-scout-17b-16e-instruct",
-).strip()
-GROQ_VISION_FALLBACKS = [
-    m for m in [
-        GROQ_VISION_MODEL,
-        "llama-3.2-11b-vision-preview",
-        "llama-3.2-90b-vision-preview",
-    ]
-    if m
-]
+    "meta-llama/llama-4-maverick-17b-128e-instruct",
+]:
+    if m and m not in _DECOMMISSIONED_VISION_MODELS and m not in GROQ_VISION_FALLBACKS:
+        GROQ_VISION_FALLBACKS.append(m)
 
 def resolve_groq_model(model_name: str) -> str:
     return model_name if model_name else DEFAULT_GROQ_MODEL
