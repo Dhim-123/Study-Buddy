@@ -3336,10 +3336,10 @@
     .refer-page-chip {
       display: none;
       align-items: center;
-      gap: 8px;
+      gap: 4px;
       width: fit-content;
       max-width: 100%;
-      padding: 6px 10px;
+      padding: 4px 6px 4px 8px;
       border-radius: 999px;
       border: 1px solid rgba(59, 130, 246, 0.45);
       background: rgba(59, 130, 246, 0.12);
@@ -3347,12 +3347,30 @@
       font-family: var(--font-ui);
       font-size: 0.78rem;
       font-weight: 700;
-      cursor: pointer;
       text-align: left;
     }
 
     .refer-page-chip:not([hidden]) {
       display: inline-flex;
+    }
+
+    .refer-page-chip-main {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      border: none;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 999px;
+    }
+
+    .refer-page-chip-main:hover {
+      color: var(--accent);
     }
 
     .refer-page-chip:hover {
@@ -3366,6 +3384,27 @@
       border-radius: 6px;
       object-fit: cover;
       flex-shrink: 0;
+    }
+
+    .refer-page-chip-x {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--muted, #94a3b8);
+      font-size: 0.95rem;
+      line-height: 1;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      padding: 0;
+    }
+
+    .refer-page-chip-x:hover {
+      background: rgba(244, 63, 94, 0.2);
+      color: #fb7185;
     }
 
     .msg.user .page-image-card {
@@ -3989,8 +4028,8 @@
       <span id="header-notes-badge" style="display:none; background: rgba(82, 232, 160, 0.15); color: var(--accent3); border: 1px solid var(--accent3); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; margin-right: 10px; font-weight: bold; align-items: center; gap: 4px;">📝 Notes Mode</span>
       <button class="btn-icon" id="auth-btn">🚪 Login / Register</button>
       <div class="profile-menu-wrap" id="profile-menu-wrap" hidden>
-        <button type="button" class="profile-avatar-btn" id="profile-avatar-btn" title="Profile" aria-haspopup="menu" aria-expanded="false">
-          <img id="profile-avatar-img" alt="Profile" hidden />
+        <button type="button" class="profile-avatar-btn" id="profile-avatar-btn" title="" aria-label="Account" aria-haspopup="menu" aria-expanded="false">
+          <img id="profile-avatar-img" alt="" hidden />
           <span id="profile-avatar-fallback" class="profile-avatar-fallback">👤</span>
         </button>
         <div class="profile-dropdown" id="profile-dropdown" role="menu">
@@ -4254,10 +4293,13 @@
         <button id="attach-ocr-btn" type="button" title="Take or upload page photo (OCR)" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--text); cursor:pointer; font-size:1.1rem;">📷</button>
         <button id="mic-btn" type="button" title="Voice message" style="flex-shrink:0; width:42px; height:42px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); color:var(--text); cursor:pointer; font-size:1.1rem;">🎤</button>
         <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:6px;">
-          <button type="button" id="refer-page-chip" class="refer-page-chip" hidden title="Click to refer this page to the AI again">
-            <img id="refer-page-chip-img" alt="" hidden />
-            <span id="refer-page-chip-label">📎 Refer uploaded page</span>
-          </button>
+          <div id="refer-page-chip" class="refer-page-chip" hidden>
+            <button type="button" class="refer-page-chip-main" id="refer-page-chip-main" title="Click to refer this page to the AI again">
+              <img id="refer-page-chip-img" alt="" hidden />
+              <span id="refer-page-chip-label">📎 Refer uploaded page</span>
+            </button>
+            <button type="button" class="refer-page-chip-x" id="refer-page-chip-dismiss" title="Stop referring to this page" aria-label="Remove page referral">×</button>
+          </div>
           <textarea id="user-input" placeholder="Ask me anything… (or use 📷 to snap a page / 🎤 to speak)" rows="1"></textarea>
         </div>
         <button id="send-btn" title="Send (Enter)">➤</button>
@@ -5454,6 +5496,30 @@
       }
     }
 
+    function clearPageReferral(silent) {
+      notesContent = "";
+      notesFileName = "";
+      window.__lastOcrText = "";
+      try {
+        if (lastPageImageUrl) URL.revokeObjectURL(lastPageImageUrl);
+      } catch (_) {}
+      lastPageImageUrl = null;
+      lastPageImageName = "";
+      try {
+        localStorage.removeItem("sb_notes_content");
+        localStorage.removeItem("sb_notes_filename");
+      } catch (_) {}
+      if (typeof updateNotesIndicators === "function") updateNotesIndicators();
+      updateReferPageChip();
+      const welcomeInput = document.getElementById("upload-input-welcome");
+      if (welcomeInput) welcomeInput.value = "";
+      const saveBtn = document.getElementById("ocr-save-notebook-btn");
+      if (saveBtn) saveBtn.style.display = "none";
+      if (!silent && typeof profileFlash === "function") {
+        profileFlash("Stopped referring to the page photo");
+      }
+    }
+
     function buildPageReferralPrompt(extraAsk) {
       const ocr = (window.__lastOcrText || notesContent || "").trim();
       const ask = (extraAsk || "").trim();
@@ -5461,8 +5527,10 @@
         ? ask
         : "I'm referring to the page photo I uploaded. Use the extracted page text below (Notes Mode) as the source of truth.";
       const guidance =
-        "Find any case studies, passages, or numbered questions on that page and answer them completely. " +
-        "Do not say the case study is missing if it appears in the text.";
+        "Best effort on blurry OCR: recover every readable Case Study, passage, Q1/Q2/numbered/lettered question and answer those. " +
+        "If some words are unclear, use the surrounding context and mark uncertain words with (?). " +
+        "Clearly say which parts were unreadable — do NOT invent long missing paragraphs. " +
+        "Do not claim a case study/question is missing if any matching text appears below.";
       if (!ocr) return `${header}\n\n${guidance}`;
       const body = ocr.length > 14000 ? `${ocr.slice(0, 14000)}\n…[truncated]` : ocr;
       return `${header}\n\n${guidance}\n\n--- EXTRACTED PAGE TEXT ---\n${body}\n--- END PAGE TEXT ---`;
@@ -7212,7 +7280,8 @@
         const body = ocrNow.length > 14000 ? `${ocrNow.slice(0, 14000)}\n…[truncated]` : ocrNow;
         contentForModel =
           `${text}\n\nUse the uploaded page text below as the source of truth. ` +
-          `Find Case Study / passage / numbered questions and answer them.\n\n` +
+          `Best effort on blurry OCR: answer every recoverable Case Study / passage / numbered question. ` +
+          `Mark unclear words with (?). Say what was unreadable — do not invent missing paragraphs.\n\n` +
           `--- EXTRACTED PAGE TEXT ---\n${body}\n--- END PAGE TEXT ---`;
       }
 
@@ -8583,6 +8652,19 @@
       }
     }
 
+    function getSelectedPodcastHosts() {
+      const sel = document.getElementById("podcast-voice-preset");
+      const preset = (sel && sel.value) || "alex_maya_us";
+      const map = {
+        alex_maya_us: { a: "Alex", b: "Maya", label: "Alex & Maya" },
+        oliver_sonia_uk: { a: "Oliver", b: "Sonia", label: "Oliver & Sonia" },
+        prabhat_neerja_in: { a: "Prabhat", b: "Neerja", label: "Prabhat & Neerja" },
+        guy_aria_us: { a: "Guy", b: "Aria", label: "Guy & Aria" },
+        davis_emma_us: { a: "Davis", b: "Emma", label: "Davis & Emma" },
+      };
+      return { preset, ...(map[preset] || map.alex_maya_us) };
+    }
+
     async function generatePodcast(customTopic, switchToTab = true) {
       if (switchToTab) {
         document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -8615,6 +8697,7 @@
           messagesToSend.push({ role: "user", content: "Generate a podcast based on our entire conversation above." });
         }
 
+        const hosts = getSelectedPodcastHosts();
         const res = await fetch("/api/podcast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -8622,6 +8705,7 @@
             messages: messagesToSend,
             model: cfg.model,
             notes: notesContent,
+            voice_preset: hosts.preset,
           }),
         });
 
@@ -8643,7 +8727,7 @@
         output.innerHTML = "";
         const statusEl = document.createElement("div");
         statusEl.style.cssText = "margin-bottom:10px; font-weight:700; display:flex; align-items:center; gap:10px;";
-        statusEl.innerHTML = `<div class="loading-spinner"></div> Script ready in ${scriptSec}s — voicing Alex & Maya…`;
+        statusEl.innerHTML = `<div class="loading-spinner"></div> Script ready in ${scriptSec}s — voicing ${hosts.label}…`;
         statusEl.style.color = "var(--accent3)";
         output.appendChild(statusEl);
 
@@ -8658,7 +8742,7 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               script: rawText,
-              voice_preset: (document.getElementById("podcast-voice-preset") || {}).value || "alex_maya_us",
+              voice_preset: hosts.preset,
             }),
           });
           audioData = await readJsonResponse(ttsRes);
@@ -8687,7 +8771,7 @@
 
           const meta = document.createElement("div");
           meta.style.cssText = "margin-bottom:10px; color:var(--muted); font-size:0.82rem;";
-          meta.textContent = `Alex & Maya · ${audioData.tts_turns || "?"} turns · ${engine} · ${elapsedSec}s`;
+          meta.textContent = `${hosts.label} · ${audioData.tts_turns || "?"} turns · ${engine} · ${elapsedSec}s`;
           playerWrap.appendChild(meta);
 
           const audio = document.createElement("audio");
@@ -11872,8 +11956,8 @@
         autoSend: true,
         skipUserBubble: true,
         extraAsk:
-          "I'm referring to this page photo I just uploaded. Read the extracted page text and answer all questions on it " +
-          "(including any Case Study / passage questions).",
+          "I'm referring to this page photo I just uploaded. Even if OCR is blurry, recover and answer every readable " +
+          "Case Study / passage / numbered question. Mark unclear words with (?). Say what was unreadable — do not invent text.",
       });
     }
 
@@ -11975,8 +12059,13 @@
       });
     }
 
-    document.getElementById("refer-page-chip")?.addEventListener("click", () => {
+    document.getElementById("refer-page-chip-main")?.addEventListener("click", () => {
       referUploadedPageToChat({ autoSend: true });
+    });
+    document.getElementById("refer-page-chip-dismiss")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearPageReferral(false);
     });
 
     document.getElementById("header-notes-badge")?.addEventListener("click", () => {
@@ -12684,26 +12773,18 @@
       }
 
       async function clearUploads() {
-        notesContent = "";
-        notesFileName = "";
-        try {
-          localStorage.removeItem("sb_notes_content");
-          localStorage.removeItem("sb_notes_filename");
-        } catch (_) {}
-        window.__lastOcrText = "";
-        try {
-          if (lastPageImageUrl) URL.revokeObjectURL(lastPageImageUrl);
-        } catch (_) {}
-        lastPageImageUrl = null;
-        lastPageImageName = "";
-        if (typeof updateNotesIndicators === "function") updateNotesIndicators();
-        if (typeof updateReferPageChip === "function") updateReferPageChip();
-        const welcomeInput = document.getElementById("upload-input-welcome");
-        if (welcomeInput) welcomeInput.value = "";
+        if (typeof clearPageReferral === "function") clearPageReferral(true);
+        else {
+          notesContent = "";
+          notesFileName = "";
+          window.__lastOcrText = "";
+          try {
+            localStorage.removeItem("sb_notes_content");
+            localStorage.removeItem("sb_notes_filename");
+          } catch (_) {}
+        }
         const welcomeStatus = document.getElementById("upload-welcome-status");
         if (welcomeStatus) welcomeStatus.style.display = "none";
-        const saveBtn = document.getElementById("ocr-save-notebook-btn");
-        if (saveBtn) saveBtn.style.display = "none";
       }
 
       async function clearDna() {

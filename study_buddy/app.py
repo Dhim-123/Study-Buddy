@@ -164,34 +164,73 @@ PODCAST_VOICE_PRESETS = [
     {
         "id": "alex_maya_us",
         "label": "Alex & Maya (US)",
+        "host_a_name": "Alex",
+        "host_b_name": "Maya",
         "host_a": "en-US-BrianNeural",
         "host_b": "en-US-JennyNeural",
     },
     {
         "id": "oliver_sonia_uk",
         "label": "Oliver & Sonia (UK)",
+        "host_a_name": "Oliver",
+        "host_b_name": "Sonia",
         "host_a": "en-GB-RyanNeural",
         "host_b": "en-GB-SoniaNeural",
     },
     {
         "id": "prabhat_neerja_in",
         "label": "Prabhat & Neerja (India EN)",
+        "host_a_name": "Prabhat",
+        "host_b_name": "Neerja",
         "host_a": "en-IN-PrabhatNeural",
         "host_b": "en-IN-NeerjaNeural",
     },
     {
         "id": "guy_aria_us",
         "label": "Guy & Aria (US)",
+        "host_a_name": "Guy",
+        "host_b_name": "Aria",
         "host_a": "en-US-GuyNeural",
         "host_b": "en-US-AriaNeural",
     },
     {
         "id": "davis_emma_us",
         "label": "Davis & Emma (US)",
+        "host_a_name": "Davis",
+        "host_b_name": "Emma",
         "host_a": "en-US-DavisNeural",
         "host_b": "en-US-EmmaNeural",
     },
 ]
+
+
+def get_podcast_voice_preset(preset_id: str = None):
+    """Return a voice preset dict; defaults to Alex & Maya (US)."""
+    pid = (preset_id or "").strip() or "alex_maya_us"
+    for p in PODCAST_VOICE_PRESETS:
+        if p["id"] == pid:
+            return p
+    return PODCAST_VOICE_PRESETS[0]
+
+
+def _podcast_host_name_map():
+    """Map host display names (lower) → A/B for script parsing."""
+    mapping = {
+        "alex": "A",
+        "maya": "B",
+        "hosta": "A",
+        "hostb": "B",
+        "a": "A",
+        "b": "B",
+    }
+    for p in PODCAST_VOICE_PRESETS:
+        a = (p.get("host_a_name") or "").strip().lower()
+        b = (p.get("host_b_name") or "").strip().lower()
+        if a:
+            mapping[a] = "A"
+        if b:
+            mapping[b] = "B"
+    return mapping
 
 # Per-host baseline prosody (personality, before emotion overlays)
 _HOST_PROSODY = {
@@ -248,14 +287,18 @@ _EMOTION_PROSODY = {
 
 
 def _parse_podcast_turns(script: str):
-    """Split named-host (Alex/Maya) or Host A/B script into ordered speaker turns."""
+    """Split named-host script (Alex/Maya, Prabhat/Neerja, etc.) into ordered speaker turns."""
     turns = []
     current = None
     buf = []
-    # Preferred: Alex / Maya. Fallback: Host A / Host B / A / B.
-    # Also accept leading vocal tags: "[cheerful] Alex: ..."
+    name_map = _podcast_host_name_map()
+    # Build alternation of known host names + Host A/B + A/B
+    name_alts = sorted(name_map.keys(), key=len, reverse=True)
+    # Escape for regex; allow spaces in "Host A"
+    name_pattern = "|".join(re.escape(n) for n in name_alts)
+    name_pattern = name_pattern + r"|Host\s*[AB]"
     label_re = re.compile(
-        r"^(?:\[([a-zA-Z]+)\]\s*)?(Alex|Maya|Host\s*[AB]|A|B)\s*[:\-—]\s*(.*)$",
+        rf"^(?:\[([a-zA-Z]+)\]\s*)?({name_pattern})\s*[:\-—]\s*(.*)$",
         re.IGNORECASE,
     )
     for raw in (script or "").splitlines():
@@ -267,11 +310,8 @@ def _parse_podcast_turns(script: str):
             if current and buf:
                 turns.append((current, " ".join(buf).strip()))
             leading_tag = m.group(1)
-            label = m.group(2).upper().replace(" ", "")
-            if label in ("ALEX", "A", "HOSTA"):
-                current = "A"
-            else:
-                current = "B"
+            label_key = re.sub(r"\s+", "", (m.group(2) or "")).lower()
+            current = name_map.get(label_key, "B" if current == "A" else "A")
             rest = (m.group(3) or "").strip()
             # Preserve leading tag if the model put it before the name
             if leading_tag and not rest.startswith("["):
@@ -2790,16 +2830,20 @@ def chat():
             "as a prompt for the user. The interface provides those buttons automatically."
         )
     elif endpoint == "podcast":
+        preset = get_podcast_voice_preset(data.get("voice_preset"))
+        host_a_name = preset.get("host_a_name") or "Alex"
+        host_b_name = preset.get("host_b_name") or "Maya"
         system_prompt = (
             f"{system_prompt}\n\n"
             "You write a student-friendly educational podcast with TWO named hosts.\n"
-            "Alex = energetic lead teacher who explains clearly.\n"
-            "Maya = curious co-host who asks the questions a confused student would ask.\n\n"
-            "FORMAT (strict — every line MUST start with Alex: or Maya: — never Host A/B):\n"
-            "Alex: [tag] spoken line\n"
-            "Maya: [tag] spoken line\n"
-            "Do NOT put the tag before the name. Wrong: [cheerful] Alex: hello\n"
-            "Correct: Alex: [cheerful] hello\n\n"
+            f"{host_a_name} = energetic lead teacher who explains clearly.\n"
+            f"{host_b_name} = curious co-host who asks the questions a confused student would ask.\n\n"
+            f"FORMAT (strict — every line MUST start with {host_a_name}: or {host_b_name}: — never Host A/B):\n"
+            f"{host_a_name}: [tag] spoken line\n"
+            f"{host_b_name}: [tag] spoken line\n"
+            f"Do NOT put the tag before the name. Wrong: [cheerful] {host_a_name}: hello\n"
+            f"Correct: {host_a_name}: [cheerful] hello\n"
+            f"Do NOT use Alex/Maya unless those are the selected host names.\n\n"
             "LENGTH:\n"
             "- Exactly 10 dialogue turns total.\n"
             "- About 280 words in the entire script (~2 minutes spoken).\n"
@@ -2810,12 +2854,12 @@ def chat():
             "3) Step-by-step explanation with one concrete everyday example.\n"
             "4) Common mistake / 'don't confuse this with…'.\n"
             "5) Short recap students can remember.\n"
-            "Maya asks clarifying questions; Alex answers with detail and examples.\n\n"
+            f"{host_b_name} asks clarifying questions; {host_a_name} answers with detail and examples.\n\n"
             "VOCAL TAGS (at start of spoken text):\n"
             "Use one of: [cheerful] [excited] [curious] [surprised] [thoughtful] "
             "[encouraging] [sympathetic] [confident] [laugh]\n"
             "Vary tags. English only. No markdown, bullets, or stage directions outside [tags].\n"
-            "Return ONLY the Alex / Maya script."
+            f"Return ONLY the {host_a_name} / {host_b_name} script."
         )
     elif endpoint == "flashcards":
         system_prompt = (
@@ -3044,7 +3088,14 @@ def _ocr_with_groq_vision(image_bytes: bytes, mime: str, extra_prompt: str = "")
     data_url = f"data:{mime};base64,{b64}"
     prompt = (
         "You are an OCR engine for students. Extract ALL readable text from this study material image. "
-        "Preserve structure: headings, bullet points, numbered lists, equations, and labels. "
+        "The photo may be blurry or low quality — still do your best.\n"
+        "PRIORITY (in order):\n"
+        "1) Headings like Case Study 1/2, Passage, Exercise\n"
+        "2) Numbered/lettered questions (Q1, Q2, 1., 2., a), b))\n"
+        "3) Question prompts and marks if visible\n"
+        "4) Body paragraphs and labels\n"
+        "Preserve structure. For unclear words keep a best guess and mark with (?). "
+        "Never invent long missing paragraphs. "
         "Return plain text only — no commentary, no markdown fences."
     )
     if extra_prompt:
