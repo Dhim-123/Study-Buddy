@@ -1155,22 +1155,51 @@ def fs_push_all_notebook_entries(user_id):
         print(f"[Firestore] push all notebook failed: {e}")
 
 
-def _fs_conversation_ref(db, user_id, conv_id):
+def _fs_owner_key_for_user_id(user_id):
+    """Stable Firestore user doc id (not recycled SQLite autoincrement)."""
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT identifier, firebase_uid FROM users WHERE id=?",
+                (user_id,),
+            ).fetchone()
+        if row:
+            try:
+                fb = (row["firebase_uid"] or "").strip()
+            except (KeyError, IndexError, TypeError):
+                fb = ""
+            if fb:
+                return f"fb:{fb}"
+            ident = (row["identifier"] or "").strip()
+            if ident:
+                # Sanitize path segment
+                safe = re.sub(r"[/\\]", "_", ident)[:120]
+                if safe:
+                    return f"local:{safe}"
+    except Exception as e:
+        print(f"[Firestore] owner key lookup failed: {e}")
+    return f"uid:{user_id}"
+
+
+def _fs_conversation_ref(db, user_id, conv_id, owner_key=None):
+    key = owner_key or _fs_owner_key_for_user_id(user_id)
     return (
         db.collection("users")
-        .document(str(user_id))
+        .document(str(key))
         .collection("conversations")
         .document(str(conv_id))
     )
 
 
-def _fs_message_ref(db, user_id, conv_id, msg_id):
-    return _fs_conversation_ref(db, user_id, conv_id).collection("messages").document(str(msg_id))
+def _fs_message_ref(db, user_id, conv_id, msg_id, owner_key=None):
+    return _fs_conversation_ref(db, user_id, conv_id, owner_key=owner_key).collection("messages").document(str(msg_id))
 
 
-def _conv_to_fs_payload(user_id, conv):
+def _conv_to_fs_payload(user_id, conv, owner_key=None):
+    key = owner_key or _fs_owner_key_for_user_id(user_id)
     return {
         "user_id": int(user_id),
+        "owner_key": key,
         "title": (conv.get("title") or "New Chat")[:100],
         "pinned": 1 if conv.get("pinned") else 0,
         "archived": 1 if conv.get("archived") else 0,
@@ -1200,8 +1229,9 @@ def fs_upsert_conversation(user_id, conv):
         conv_id = conv.get("id")
         if conv_id is None:
             return
-        _fs_conversation_ref(db, user_id, conv_id).set(
-            _conv_to_fs_payload(user_id, conv),
+        owner_key = _fs_owner_key_for_user_id(user_id)
+        _fs_conversation_ref(db, user_id, conv_id, owner_key=owner_key).set(
+            _conv_to_fs_payload(user_id, conv, owner_key=owner_key),
             merge=True,
         )
     except Exception as e:
@@ -1219,7 +1249,8 @@ def fs_upsert_message(user_id, conv_id, msg):
             return
         payload = _msg_to_fs_payload(msg)
         payload["conversation_id"] = int(conv_id)
-        _fs_message_ref(db, user_id, conv_id, msg_id).set(payload, merge=True)
+        owner_key = _fs_owner_key_for_user_id(user_id)
+        _fs_message_ref(db, user_id, conv_id, msg_id, owner_key=owner_key).set(payload, merge=True)
     except Exception as e:
         print(f"[Firestore] upsert message failed: {e}")
 
@@ -1230,12 +1261,45 @@ def fs_delete_conversation(user_id, conv_id):
     if not db or conv_id is None:
         return
     try:
-        conv_ref = _fs_conversation_ref(db, user_id, conv_id)
+        owner_key = _fs_owner_key_for_user_id(user_id)
+        conv_ref = _fs_conversation_ref(db, user_id, conv_id, owner_key=owner_key)
         for msg_doc in conv_ref.collection("messages").stream():
             msg_doc.reference.delete()
         conv_ref.delete()
     except Exception as e:
         print(f"[Firestore] delete conversation failed: {e}")
+
+
+def _fs_stream_conversations(db, user_id, owner_key):
+    """Yield conversation docs from stable path; migrate legacy numeric path once if needed."""
+    stable_ref = db.collection("users").document(owner_key).collection("conversations")
+    docs = list(stable_ref.stream())
+    if docs:
+        return docs, owner_key
+
+    # Legacy path used raw SQLite id — only migrate into stable key for this user
+    legacy_key = str(user_id)
+    if legacy_key == owner_key:
+        return [], owner_key
+    legacy_ref = db.collection("users").document(legacy_key).collection("conversations")
+    legacy_docs = list(legacy_ref.stream())
+    if not legacy_docs:
+        return [], owner_key
+
+    # Copy legacy → stable, then leave legacy (soft; avoid deleting others' data if id reuse)
+    for conv_doc in legacy_docs:
+        data = conv_doc.to_dict() or {}
+        # Skip if another owner's data leaked into this numeric bucket
+        remote_owner = (data.get("owner_key") or "").strip()
+        if remote_owner and remote_owner != owner_key and remote_owner != legacy_key:
+            continue
+        data["owner_key"] = owner_key
+        data["user_id"] = int(user_id)
+        new_conv = stable_ref.document(conv_doc.id)
+        new_conv.set(data, merge=True)
+        for msg_doc in conv_doc.reference.collection("messages").stream():
+            new_conv.collection("messages").document(msg_doc.id).set(msg_doc.to_dict() or {}, merge=True)
+    return list(stable_ref.stream()), owner_key
 
 
 def fs_pull_conversations_into_sqlite(user_id):
@@ -1244,15 +1308,14 @@ def fs_pull_conversations_into_sqlite(user_id):
     if not db:
         return
     try:
-        conv_docs = (
-            db.collection("users")
-            .document(str(user_id))
-            .collection("conversations")
-            .stream()
-        )
+        owner_key = _fs_owner_key_for_user_id(user_id)
+        conv_docs, owner_key = _fs_stream_conversations(db, user_id, owner_key)
         with get_db() as conn:
             for conv_doc in conv_docs:
                 data = conv_doc.to_dict() or {}
+                remote_owner = (data.get("owner_key") or "").strip()
+                if remote_owner and remote_owner != owner_key:
+                    continue
                 try:
                     remote_conv_id = int(conv_doc.id)
                 except (TypeError, ValueError):
@@ -1296,16 +1359,16 @@ def fs_pull_conversations_into_sqlite(user_id):
                             "SELECT * FROM conversations WHERE id=?", (local_conv_id,)
                         ).fetchone()
                         try:
-                            _fs_conversation_ref(db, user_id, local_conv_id).set(
-                                _conv_to_fs_payload(user_id, dict(row)),
+                            _fs_conversation_ref(db, user_id, local_conv_id, owner_key=owner_key).set(
+                                _conv_to_fs_payload(user_id, dict(row), owner_key=owner_key),
                                 merge=True,
                             )
                             # Move messages under new id, then delete old remote conv
-                            for msg_doc in _fs_conversation_ref(db, user_id, remote_conv_id).collection("messages").stream():
+                            for msg_doc in _fs_conversation_ref(db, user_id, remote_conv_id, owner_key=owner_key).collection("messages").stream():
                                 msg_data = msg_doc.to_dict() or {}
-                                _fs_message_ref(db, user_id, local_conv_id, msg_doc.id).set(msg_data, merge=True)
+                                _fs_message_ref(db, user_id, local_conv_id, msg_doc.id, owner_key=owner_key).set(msg_data, merge=True)
                                 msg_doc.reference.delete()
-                            _fs_conversation_ref(db, user_id, remote_conv_id).delete()
+                            _fs_conversation_ref(db, user_id, remote_conv_id, owner_key=owner_key).delete()
                         except Exception as e:
                             print(f"[Firestore] re-key conversation failed: {e}")
                     else:
@@ -1334,7 +1397,7 @@ def fs_pull_conversations_into_sqlite(user_id):
                 # Messages live under the local conversation id in Firestore after any re-key
                 try:
                     msg_docs = list(
-                        _fs_conversation_ref(db, user_id, local_conv_id)
+                        _fs_conversation_ref(db, user_id, local_conv_id, owner_key=owner_key)
                         .collection("messages")
                         .stream()
                     )
@@ -1987,6 +2050,7 @@ def auth_me():
         "avatarB64": _row_get(row, "avatar_b64"),
         "hasPassword": bool(pw) and not str(pw).startswith("firebase_only:"),
         "email": _row_get(row, "email"),
+        "userId": row["id"],
     })
 
 
@@ -2023,13 +2087,17 @@ def auth_register():
                 (identifier, ph, buddy_name)
             )
             row = conn.execute("SELECT * FROM users WHERE identifier=?", (identifier,)).fetchone()
+        session.clear()
         session.permanent = True
         session["user_id"] = row["id"]
+        session["identifier"] = row["identifier"]
         return jsonify({
             "identifier": row["identifier"],
             "buddyName": row["buddy_name"],
             "avatarB64": _row_get(row, "avatar_b64"),
             "hasPassword": True,
+            "userId": row["id"],
+            "email": _row_get(row, "email"),
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2055,13 +2123,17 @@ def auth_login():
     if not row:
         return jsonify({"error": "Incorrect username or password"}), 401
 
+    session.clear()
     session.permanent = True
     session["user_id"] = row["id"]
+    session["identifier"] = row["identifier"]
     return jsonify({
         "identifier": row["identifier"],
         "buddyName": row["buddy_name"],
         "avatarB64": _row_get(row, "avatar_b64"),
         "hasPassword": True,
+        "userId": row["id"],
+        "email": _row_get(row, "email"),
     })
 
 @app.route("/api/auth/update_buddy", methods=["POST"])
@@ -2128,7 +2200,7 @@ def auth_update_password():
             return jsonify({"error": "User not found."}), 404
         # Google-only accounts may have a random hash; still require current password match
         if row["password_hash"] != hash_password(current_pw):
-            return jsonify({"error": "Current password is incorrect."}), 401
+            return jsonify({"error": "Old password is incorrect."}), 401
         conn.execute(
             "UPDATE users SET password_hash=? WHERE id=?",
             (hash_password(new_pw), uid),
@@ -2258,8 +2330,10 @@ def auth_firebase():
                     "SELECT * FROM users WHERE id=?", (row["id"],)
                 ).fetchone()
 
+        session.clear()
         session.permanent = True
         session["user_id"] = row["id"]
+        session["identifier"] = row["identifier"]
         pw = row["password_hash"] or ""
         return jsonify({
             "identifier": row["identifier"],
@@ -2267,6 +2341,7 @@ def auth_firebase():
             "avatarB64": _row_get(row, "avatar_b64"),
             "hasPassword": bool(pw) and not str(pw).startswith("firebase_only:"),
             "email": _row_get(row, "email") or email or None,
+            "userId": row["id"],
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

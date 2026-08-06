@@ -13,7 +13,7 @@ from flask import jsonify, request
 # ── Constants ─────────────────────────────────────────────────────────
 
 XP_AWARDS = {
-    "chat": 10,
+    "chat": 5,  # educational chat questions only (frontend filters greetings)
     "quiz": 30,
     "flashcards": 20,
     "mock": 50,
@@ -22,10 +22,10 @@ XP_AWARDS = {
     "notes_upload": 20,
     "podcast": 20,
     "notes_read": 10,
-    "planner": 10,
+    "planner": 10,  # unused for now (Study Planner scrapped)
 }
 
-CHAT_XP_DAILY_CAP = 20  # max chat XP awards per local day (streak still once)
+CHAT_XP_DAILY_CAP = 40  # max chat XP awards per local day (streak still once)
 
 PUZZLE_SUBJECTS = [
     "Math", "Physics", "Chemistry", "Biology", "English",
@@ -45,7 +45,7 @@ SHOP_CATALOG = [
         "id": "streak_freeze",
         "name": "Streak Freeze",
         "icon": "🧊",
-        "cost": 500,
+        "cost": 350,
         "category": "utility",
         "max_owned": 3,
         "description": "Protects your streak if you miss one day.",
@@ -54,7 +54,7 @@ SHOP_CATALOG = [
         "id": "theme_aurora",
         "name": "Aurora Theme",
         "icon": "🎨",
-        "cost": 800,
+        "cost": 550,
         "category": "themes",
         "max_owned": 1,
         "description": "Unlock the Aurora accent theme.",
@@ -63,7 +63,7 @@ SHOP_CATALOG = [
         "id": "theme_forest",
         "name": "Forest Theme",
         "icon": "🌲",
-        "cost": 800,
+        "cost": 550,
         "category": "themes",
         "max_owned": 1,
         "description": "Calm green study theme.",
@@ -72,7 +72,7 @@ SHOP_CATALOG = [
         "id": "avatar_pack_1",
         "name": "Avatar Pack",
         "icon": "👤",
-        "cost": 400,
+        "cost": 280,
         "category": "avatars",
         "max_owned": 1,
         "description": "Extra profile avatar frames.",
@@ -81,7 +81,7 @@ SHOP_CATALOG = [
         "id": "badge_scholar",
         "name": "Scholar Badge",
         "icon": "🎖️",
-        "cost": 600,
+        "cost": 400,
         "category": "badges",
         "max_owned": 1,
         "description": "Show off your scholar status.",
@@ -90,7 +90,7 @@ SHOP_CATALOG = [
         "id": "voice_premium",
         "name": "Premium Voices",
         "icon": "🎵",
-        "cost": 1000,
+        "cost": 700,
         "category": "voices",
         "max_owned": 1,
         "description": "Unlock extra podcast voice presets.",
@@ -99,7 +99,7 @@ SHOP_CATALOG = [
         "id": "chat_sparkle",
         "name": "Chat Sparkles",
         "icon": "✨",
-        "cost": 700,
+        "cost": 480,
         "category": "effects",
         "max_owned": 1,
         "description": "Subtle sparkle effects on AI replies.",

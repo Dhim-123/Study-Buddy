@@ -537,83 +537,19 @@
     }
   }
 
-  // ── Planner ───────────────────────────────────────────────────────
-  async function loadPlanner() {
-    const list = document.getElementById("planner-task-list");
-    if (!list || !isLoggedIn()) {
-      if (list) list.innerHTML = `<li class="planner-empty">Log in to use Study Planner</li>`;
-      return;
-    }
-    try {
-      const data = await api("/api/planner");
-      const tasks = data.tasks || [];
-      if (!tasks.length) {
-        list.innerHTML = `<li class="planner-empty">No tasks yet — add one for today.</li>`;
-        return;
-      }
-      list.innerHTML = tasks
-        .map(
-          (t) => `
-        <li class="planner-task ${t.done ? "done" : ""}" data-id="${t.id}">
-          <label>
-            <input type="checkbox" ${t.done ? "checked" : ""} data-planner-toggle />
-            <span>${escape(t.title)}</span>
-          </label>
-          <button type="button" class="planner-del" data-planner-del aria-label="Delete task">×</button>
-        </li>`
-        )
-        .join("");
-      list.querySelectorAll("[data-planner-toggle]").forEach((cb) => {
-        cb.addEventListener("change", async () => {
-          const li = cb.closest(".planner-task");
-          const id = li?.dataset.id;
-          try {
-            await api(`/api/planner/${id}`, {
-              method: "PATCH",
-              body: JSON.stringify({ done: cb.checked }),
-            });
-            if (cb.checked) await awardAction("planner");
-            loadPlanner();
-          } catch (e) {
-            toast(e.message, "warn");
-          }
-        });
-      });
-      list.querySelectorAll("[data-planner-del]").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const id = btn.closest(".planner-task")?.dataset.id;
-          try {
-            await api(`/api/planner/${id}`, { method: "DELETE" });
-            loadPlanner();
-          } catch (e) {
-            toast(e.message, "warn");
-          }
-        });
-      });
-    } catch (e) {
-      list.innerHTML = `<li class="planner-empty">${escape(e.message)}</li>`;
-    }
-  }
+  // Study Planner scrapped for now — no UI / XP wiring
 
-  async function addPlannerTask() {
-    const input = document.getElementById("planner-new-title");
-    const title = (input?.value || "").trim();
-    if (!title) return;
-    if (!isLoggedIn()) {
-      toast("Log in to save planner tasks", "warn");
-      return;
+  function isEducationalQuestion(text) {
+    const t = String(text || "").trim();
+    if (!t) return false;
+    const lower = t.toLowerCase();
+    // Pure greetings / acknowledgements — no XP
+    if (/^(hi|hello|hey|thanks|thank you|ok|okay|bye|good morning|good night|yo|sup)[\s!.?]*$/i.test(lower)) {
+      return false;
     }
-    try {
-      await api("/api/planner", {
-        method: "POST",
-        body: JSON.stringify({ title, dueDate: localDate() }),
-      });
-      if (input) input.value = "";
-      await awardAction("planner");
-      loadPlanner();
-    } catch (e) {
-      toast(e.message, "warn");
-    }
+    if (t.length >= 12) return true;
+    if (t.includes("?")) return true;
+    return /\b(solve|explain|what|why|how|derive|formula|chapter|define|prove|calculate|mean|difference|example)\b/i.test(t);
   }
 
   async function savePrefsFromSettings() {
@@ -660,11 +596,6 @@
     Focus.restore();
     Focus.syncUi();
 
-    document.getElementById("planner-add-btn")?.addEventListener("click", addPlannerTask);
-    document.getElementById("planner-new-title")?.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") addPlannerTask();
-    });
-
     document.getElementById("settings-save-prefs")?.addEventListener("click", savePrefsFromSettings);
     ["settings-high-contrast", "settings-reduced-motion", "settings-font-scale"].forEach((id) => {
       document.getElementById(id)?.addEventListener("change", () => {
@@ -691,9 +622,9 @@
   window.SBGame = {
     award: awardAction,
     refresh: () => loadSummary(true),
+    isEducationalQuestion,
     onLogin() {
       loadSummary(true);
-      loadPlanner();
     },
     onLogout() {
       summary = null;
@@ -710,7 +641,6 @@
     const tryRefresh = () => {
       if (typeof window.currentUser !== "undefined" && window.currentUser?.loggedIn) {
         loadSummary(true);
-        loadPlanner();
       } else {
         renderNavbar();
       }

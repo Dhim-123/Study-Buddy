@@ -4300,7 +4300,6 @@
             <div class="profile-actions">
               <button type="button" class="profile-action-btn" id="profile-change-pic-btn">🖼️ Change Profile Picture</button>
               <input type="file" id="profile-pic-input" accept="image/*" hidden />
-              <button type="button" class="profile-action-btn" id="profile-change-username-btn">✏️ Change Username</button>
               <button type="button" class="profile-action-btn" id="profile-change-password-btn">🔑 Change Password</button>
               <button type="button" class="profile-action-btn" id="profile-open-settings-btn">⚙️ Open Settings</button>
               <button type="button" class="profile-action-btn danger" id="profile-logout-btn">🚪 Logout</button>
@@ -4416,7 +4415,13 @@
       <div class="settings-divider"></div>
       <div class="settings-block">
         <div class="settings-section-label">Account</div>
-        <p class="settings-hint">Edit buddy name and username in the left sidebar. Change password from your profile menu.</p>
+        <p class="settings-hint">Buddy name can still be edited in the left sidebar. Change password from your profile menu.</p>
+        <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;">
+          <label for="settings-username-input" style="font-size:0.82rem;font-weight:700;">Username</label>
+          <input type="text" id="settings-username-input" class="input" placeholder="New username" autocomplete="username" style="width:100%;padding:8px 10px;" />
+          <button type="button" class="btn-primary" id="settings-change-username-btn" style="width:100%;padding:10px;">Save username</button>
+          <p id="settings-username-msg" class="settings-hint" style="margin:0;display:none;"></p>
+        </div>
       </div>
 
       <div class="settings-divider"></div>
@@ -4584,16 +4589,6 @@
                   <button id="timer-toggle-btn" class="btn-primary" type="button" style="padding: 3px 10px; font-size: 0.75rem; font-weight: 700;">▶ Start</button>
                   <button id="timer-reset-btn" class="btn-icon" type="button" style="padding: 3px 6px; font-size: 0.75rem;" title="Reset Timer">🔄</button>
                 </div>
-              </div>
-
-              <!-- Minimal Study Planner -->
-              <div class="planner-box logged-in-only" id="study-planner-box" style="display:none;">
-                <h4>📋 Study Planner</h4>
-                <div class="planner-add">
-                  <input type="text" id="planner-new-title" class="input" placeholder="Today's task…" maxlength="200" />
-                  <button type="button" class="btn-primary" id="planner-add-btn" style="padding:6px 10px;font-size:0.75rem;">Add</button>
-                </div>
-                <ul id="planner-task-list"></ul>
               </div>
 
               <!-- 2. Clean Horizontal Divider -->
@@ -5639,6 +5634,8 @@
           const profileWrap = document.getElementById("profile-menu-wrap");
           if (profileWrap) profileWrap.hidden = false;
           if (typeof syncProfileMenuUI === "function") syncProfileMenuUI();
+          const settingsUser = document.getElementById("settings-username-input");
+          if (settingsUser) settingsUser.value = currentUser.identifier || "";
           updateWelcomeGreeting();
         } else {
           if (authModeTitle) authModeTitle.textContent = "Login";
@@ -5704,6 +5701,7 @@
               avatarB64,
               hasPassword: !!data.hasPassword,
               email: data.email || null,
+              userId: data.userId || null,
             };
             // Fetch and display chat history if logged in
             await fetchChatHistory();
@@ -6352,6 +6350,7 @@
               avatarB64,
               hasPassword: data.hasPassword !== false,
               email: data.email || null,
+              userId: data.userId || null,
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || identifier);
             let successMsg = `Login successful. Welcome, ${data.buddyName}!`;
@@ -6453,6 +6452,7 @@
               avatarB64: data.avatarB64 || null,
               hasPassword: !!data.hasPassword,
               email: data.email || null,
+              userId: data.userId || null,
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || "");
             updateAuthUI({ clearMessage: false });
@@ -6568,6 +6568,13 @@
         if (btn) btn.setAttribute("aria-expanded", "false");
       }
 
+      function closeRightSidebarIfOpen() {
+        const dictEl = document.getElementById("dict-sidebar");
+        if (!dictEl || dictEl.classList.contains("hidden")) return;
+        dictEl.classList.add("hidden");
+        if (typeof updateRightSidebarState === "function") updateRightSidebarState();
+      }
+
       function toggleProfileMenu() {
         const wrap = document.getElementById("profile-menu-wrap");
         const btn = document.getElementById("profile-avatar-btn");
@@ -6575,7 +6582,10 @@
         const open = !wrap.classList.contains("open");
         wrap.classList.toggle("open", open);
         if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
-        if (open) syncProfileMenuUI();
+        if (open) {
+          closeRightSidebarIfOpen();
+          syncProfileMenuUI();
+        }
       }
 
       function closeProfileEditModal() {
@@ -6738,10 +6748,6 @@
           }
         }
 
-        document.getElementById("profile-change-username-btn")?.addEventListener("click", () => {
-          openSidebarAccountSettings();
-        });
-
         document.getElementById("profile-change-password-btn")?.addEventListener("click", () => {
           if (currentUser?.hasPassword === false) {
             profileFlash("This account uses Google Sign-In — no password to change.", true);
@@ -6751,7 +6757,7 @@
           openProfileEditModal(
             "Change Password",
             `<div class="profile-edit-field">
-              <label for="profile-edit-current-pw">Current (old) password</label>
+              <label for="profile-edit-current-pw">Old password</label>
               <input id="profile-edit-current-pw" type="password" autocomplete="current-password" />
             </div>
             <div class="profile-edit-field">
@@ -6766,12 +6772,16 @@
               const currentPassword = document.getElementById("profile-edit-current-pw")?.value || "";
               const newPassword = document.getElementById("profile-edit-new-pw")?.value || "";
               const confirmPassword = document.getElementById("profile-edit-confirm-pw")?.value || "";
-              if (!currentPassword || !newPassword) {
-                profileFlash("Current and new password are required.", true);
+              if (!currentPassword || !newPassword || !confirmPassword) {
+                profileFlash("Old password, new password, and confirmation are required.", true);
                 return false;
               }
               if (newPassword !== confirmPassword) {
                 profileFlash("New password and confirmation do not match.", true);
+                return false;
+              }
+              if (newPassword.length < 6) {
+                profileFlash("New password must be at least 6 characters.", true);
                 return false;
               }
               const res = await fetch("/api/auth/update_password", {
@@ -6791,6 +6801,55 @@
               return true;
             }
           );
+        });
+
+        // Settings → Account: change username
+        const settingsUserInput = document.getElementById("settings-username-input");
+        const settingsUserBtn = document.getElementById("settings-change-username-btn");
+        const settingsUserMsg = document.getElementById("settings-username-msg");
+        function showSettingsUsernameMsg(text, isError) {
+          if (!settingsUserMsg) return;
+          settingsUserMsg.style.display = "block";
+          settingsUserMsg.textContent = text;
+          settingsUserMsg.style.color = isError ? "var(--accent2)" : "var(--accent3)";
+        }
+        if (settingsUserInput && currentUser?.identifier) {
+          settingsUserInput.value = currentUser.identifier;
+        }
+        settingsUserBtn?.addEventListener("click", async () => {
+          if (!currentUser?.loggedIn) {
+            showSettingsUsernameMsg("Log in to change username.", true);
+            return;
+          }
+          const identifier = (settingsUserInput?.value || "").trim();
+          if (!identifier) {
+            showSettingsUsernameMsg("Username is required.", true);
+            return;
+          }
+          if (identifier.includes("@")) {
+            showSettingsUsernameMsg("Please use a username, not an email.", true);
+            return;
+          }
+          try {
+            const res = await fetch("/api/auth/update_username", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ identifier }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              showSettingsUsernameMsg(data.error || "Failed to update username.", true);
+              return;
+            }
+            currentUser.identifier = data.identifier || identifier;
+            if (typeof syncProfileMenuUI === "function") syncProfileMenuUI();
+            const sidebarUser = document.getElementById("username-input");
+            if (sidebarUser) sidebarUser.value = currentUser.identifier;
+            showSettingsUsernameMsg("Username updated.", false);
+          } catch (err) {
+            showSettingsUsernameMsg(err.message || "Network error.", true);
+          }
         });
 
         document.getElementById("profile-open-settings-btn")?.addEventListener("click", () => {
@@ -6853,17 +6912,43 @@
       //  HISTORY FETCHING
       // =====================================================================
 
+      function sbResetChatState() {
+        history = [];
+        currentConvId = null;
+        conversations = [];
+        if (typeof sbRenderConversations === "function") sbRenderConversations();
+        if (messagesEl) {
+          messagesEl.innerHTML = "";
+          if (welcomeEl) {
+            try { messagesEl.appendChild(welcomeEl); } catch (_) {}
+            welcomeEl.style.display = "flex";
+          }
+        }
+        if (typeof updateWelcomeGreeting === "function") {
+          try { updateWelcomeGreeting(); } catch (_) {}
+        }
+      }
+
       async function sbLoadConversations() {
-        if (!currentUser?.loggedIn) return;
+        if (!currentUser?.loggedIn) {
+          sbResetChatState();
+          return false;
+        }
         try {
-          const res = await fetch("/api/conversations");
-          const data = await res.json();
+          const res = await fetch("/api/conversations", { credentials: "include" });
+          const data = await res.json().catch(() => ({}));
           if (res.ok) {
             conversations = data.conversations || [];
             sbRenderConversations();
+            return true;
           }
+          console.error("Error loading conversations", data?.error || res.status);
+          sbResetChatState();
+          return false;
         } catch (e) {
           console.error("Error loading conversations", e);
+          sbResetChatState();
+          return false;
         }
       }
 
@@ -7056,8 +7141,8 @@
         currentConvId = id;
         sbRenderConversations();
         try {
-          const res = await fetch(`/api/conversations/${id}/messages`);
-          const data = await res.json();
+          const res = await fetch(`/api/conversations/${id}/messages`, { credentials: "include" });
+          const data = await res.json().catch(() => ({}));
           if (res.ok) {
             history = data.messages || [];
             messagesEl.innerHTML = "";
@@ -7069,12 +7154,24 @@
               history.forEach(msg => appendBubble(msg.role, msg.content));
               scrollBottom();
             }
+            return true;
           }
-        } catch (e) { console.error(e); }
+          console.error("Error loading messages", data?.error || res.status);
+          sbNewChat();
+          return false;
+        } catch (e) {
+          console.error(e);
+          sbNewChat();
+          return false;
+        }
       }
 
       async function fetchChatHistory() {
-        await sbLoadConversations();
+        // Always clear previous account's in-memory chat before loading
+        sbResetChatState();
+        if (!currentUser?.loggedIn) return;
+        const ok = await sbLoadConversations();
+        if (!ok) return;
         if (conversations.length > 0) {
           const first = conversations.find(c => !c.archived) || conversations[0];
           await sbLoadMessages(first.id);
@@ -7776,7 +7873,13 @@
           maybeGenerateChatDiagram(text);
         }
 
-        try { if (window.SBGame) window.SBGame.award("chat"); } catch (_) {}
+        try {
+          if (window.SBGame && typeof window.SBGame.isEducationalQuestion === "function") {
+            if (window.SBGame.isEducationalQuestion(text)) window.SBGame.award("chat");
+          } else if (window.SBGame) {
+            window.SBGame.award("chat");
+          }
+        } catch (_) {}
 
       } catch (err) {
         // ── If something went REALLY wrong (like the server is off) ──
