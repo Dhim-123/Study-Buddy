@@ -1366,23 +1366,85 @@ def _fs_meta_ref(db, user_id, owner_key=None):
     return db.collection("users").document(str(key)).collection("meta").document("sync")
 
 
+# #region agent log
+def _agent_dbg(hypothesis_id, location, message, data=None):
+    """Debug-mode NDJSON logger (file + local ingest). Soft-fails."""
+    try:
+        import time
+        import urllib.request
+        payload = {
+            "sessionId": "8b73b3",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data or {},
+            "timestamp": int(time.time() * 1000),
+        }
+        line = json.dumps(payload, ensure_ascii=True) + "\n"
+        log_path = os.path.join(os.path.dirname(_APP_DIR), "debug-8b73b3.log")
+        try:
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(line)
+        except Exception:
+            pass
+        try:
+            req = urllib.request.Request(
+                "http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710",
+                data=line.encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Debug-Session-Id": "8b73b3",
+                },
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=0.8)
+        except Exception:
+            pass
+        print(f"[DBG8b73b3] {hypothesis_id} {location}: {message} {payload.get('data')}")
+    except Exception:
+        pass
+# #endregion
+
+
 def fs_mark_chats_wiped(user_id):
     """Record a wipe timestamp so stale remote chats cannot be pulled back."""
     db = get_firestore()
     if not db:
-        return
+        # #region agent log
+        _agent_dbg("B", "app.py:fs_mark_chats_wiped", "no firestore client", {"user_id": user_id})
+        # #endregion
+        return {"ok": False, "reason": "no_firestore", "owner_key": None, "wiped_at": None}
     try:
         owner_key = _fs_owner_key_for_user_id(user_id)
         from datetime import datetime as _dt
+        wiped_at = _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         _fs_meta_ref(db, user_id, owner_key=owner_key).set(
             {
                 "owner_key": owner_key,
-                "chat_wiped_at": _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "chat_wiped_at": wiped_at,
             },
             merge=True,
         )
+        # #region agent log
+        _agent_dbg(
+            "B",
+            "app.py:fs_mark_chats_wiped",
+            "tombstone written",
+            {"user_id": user_id, "owner_key": owner_key, "wiped_at": wiped_at},
+        )
+        # #endregion
+        return {"ok": True, "owner_key": owner_key, "wiped_at": wiped_at}
     except Exception as e:
         print(f"[Firestore] mark chats wiped failed: {e}")
+        # #region agent log
+        _agent_dbg(
+            "B",
+            "app.py:fs_mark_chats_wiped",
+            "tombstone failed",
+            {"user_id": user_id, "error": str(e)[:200]},
+        )
+        # #endregion
+        return {"ok": False, "reason": str(e)[:200], "owner_key": None, "wiped_at": None}
 
 
 def fs_get_chat_wiped_at(user_id):
@@ -1662,14 +1724,33 @@ def _fs_stream_conversations(db, user_id, owner_key):
 
 
 def fs_pull_conversations_into_sqlite(user_id):
-    """Pull remote conversations + messages into local SQLite. Soft-fails."""
+    """Pull remote conversations + messages into local SQLite. Soft-fails.
+
+    Returns a small stats dict for debug (safe to ignore).
+    """
+    stats = {
+        "firestore": False,
+        "owner_key": None,
+        "wiped_at": None,
+        "remote_docs": 0,
+        "skipped_wiped": 0,
+        "imported": 0,
+        "skipped_owner": 0,
+    }
     db = get_firestore()
     if not db:
-        return
+        # #region agent log
+        _agent_dbg("A", "app.py:fs_pull", "no firestore on pull", {"user_id": user_id})
+        # #endregion
+        return stats
     try:
         owner_key = _fs_owner_key_for_user_id(user_id)
         wiped_at = fs_get_chat_wiped_at(user_id)
         conv_docs, owner_key = _fs_stream_conversations(db, user_id, owner_key)
+        stats["firestore"] = True
+        stats["owner_key"] = owner_key
+        stats["wiped_at"] = wiped_at
+        stats["remote_docs"] = len(conv_docs)
         with get_db() as conn:
             for conv_doc in conv_docs:
                 data = conv_doc.to_dict() or {}
@@ -1678,6 +1759,7 @@ def fs_pull_conversations_into_sqlite(user_id):
                 # pre-migration docs already under this user's stable path.
                 # Legacy numeric-path migration is disabled to stop ID-recycle leaks.
                 if remote_owner and remote_owner != owner_key:
+                    stats["skipped_owner"] += 1
                     continue
                 try:
                     remote_conv_id = int(conv_doc.id)
@@ -1699,6 +1781,7 @@ def fs_pull_conversations_into_sqlite(user_id):
                     stamp_n = _norm_ts(updated_at or created_at)
                     wiped_n = _norm_ts(wiped_at)
                     if not stamp_n or (wiped_n and stamp_n <= wiped_n):
+                        stats["skipped_wiped"] += 1
                         try:
                             for msg_doc in conv_doc.reference.collection("messages").stream():
                                 msg_doc.reference.delete()
@@ -1706,7 +1789,22 @@ def fs_pull_conversations_into_sqlite(user_id):
                         except Exception:
                             pass
                         continue
+                    # #region agent log
+                    _agent_dbg(
+                        "C",
+                        "app.py:fs_pull",
+                        "tombstone bypass — importing despite wiped_at",
+                        {
+                            "conv_id": remote_conv_id,
+                            "stamp_n": stamp_n,
+                            "wiped_n": wiped_n,
+                            "updated_at": updated_at,
+                            "created_at": created_at,
+                        },
+                    )
+                    # #endregion
 
+                stats["imported"] += 1
                 local_conv_id = None
                 owned = conn.execute(
                     "SELECT id FROM conversations WHERE id=? AND user_id=?",
@@ -1850,8 +1948,21 @@ def fs_pull_conversations_into_sqlite(user_id):
                                 """,
                                 (remote_msg_id, local_conv_id, role, content),
                             )
+        # #region agent log
+        _agent_dbg("A", "app.py:fs_pull", "pull finished", {"user_id": user_id, **stats})
+        # #endregion
+        return stats
     except Exception as e:
         print(f"[Firestore] pull conversations failed: {e}")
+        # #region agent log
+        _agent_dbg(
+            "A",
+            "app.py:fs_pull",
+            "pull exception",
+            {"user_id": user_id, "error": str(e)[:200], **stats},
+        )
+        # #endregion
+        return stats
 
 
 def fs_push_all_conversations(user_id):
@@ -2753,7 +2864,12 @@ def list_conversations():
     if err:
         return err
 
-    fs_pull_conversations_into_sqlite(user["id"])
+    pull_stats = fs_pull_conversations_into_sqlite(user["id"]) or {}
+    with get_db() as conn:
+        before_push = conn.execute(
+            "SELECT COUNT(*) AS c FROM conversations WHERE user_id=?",
+            (user["id"],),
+        ).fetchone()["c"]
     fs_push_all_conversations(user["id"])
 
     with get_db() as conn:
@@ -2765,7 +2881,28 @@ def list_conversations():
             ORDER BY c.pinned DESC, c.updated_at DESC
         """, (user["id"],)).fetchall()
 
-    return jsonify({"conversations": [dict(r) for r in rows]})
+    # #region agent log
+    _agent_dbg(
+        "D",
+        "app.py:list_conversations",
+        "list after pull+push",
+        {
+            "user_id": user["id"],
+            "local_count": len(rows),
+            "before_push": int(before_push or 0),
+            "pull": pull_stats,
+            "pushed": int(before_push or 0) > 0,
+        },
+    )
+    # #endregion
+    return jsonify({
+        "conversations": [dict(r) for r in rows],
+        "_debug": {
+            "local_count": len(rows),
+            "before_push": int(before_push or 0),
+            "pull": pull_stats,
+        },
+    })
 
 
 @app.route("/api/conversations", methods=["POST"])
@@ -2974,7 +3111,15 @@ def clear_everything_api():
         return err
 
     uid = user["id"]
-    fs_mark_chats_wiped(uid)
+    tombstone = fs_mark_chats_wiped(uid) or {}
+    # #region agent log
+    _agent_dbg(
+        "E",
+        "app.py:clear_everything",
+        "clear start",
+        {"user_id": uid, "tombstone": tombstone},
+    )
+    # #endregion
 
     with get_db() as conn:
         chats = conn.execute(
@@ -2994,9 +3139,9 @@ def clear_everything_api():
 
     def _bg_all():
         try:
-            fs_wipe_all_conversations(uid)
-            fs_wipe_all_notebook_entries(uid)
-            fs_wipe_all_mistakes(uid)
+            n_chat = fs_wipe_all_conversations(uid)
+            n_nb = fs_wipe_all_notebook_entries(uid)
+            n_mist = fs_wipe_all_mistakes(uid)
             db = get_firestore()
             if db:
                 try:
@@ -3019,8 +3164,29 @@ def clear_everything_api():
                 except Exception:
                     pass
             print(f"[Firestore] background clear_everything done for user {uid}")
+            # #region agent log
+            _agent_dbg(
+                "A",
+                "app.py:clear_everything:bg",
+                "background wipe finished",
+                {
+                    "user_id": uid,
+                    "wiped_chats": n_chat,
+                    "wiped_notebook": n_nb,
+                    "wiped_mistakes": n_mist,
+                },
+            )
+            # #endregion
         except Exception as e:
             print(f"[Firestore] background clear_everything failed: {e}")
+            # #region agent log
+            _agent_dbg(
+                "A",
+                "app.py:clear_everything:bg",
+                "background wipe failed",
+                {"user_id": uid, "error": str(e)[:200]},
+            )
+            # #endregion
 
     threading.Thread(
         target=_bg_all, name=f"fs-clear-all-{uid}", daemon=True
@@ -3032,6 +3198,10 @@ def clear_everything_api():
             "chats": int(chats or 0),
             "notebook": int(notes or 0),
             "mistakes": int(mistakes or 0),
+        },
+        "_debug": {
+            "tombstone": tombstone,
+            "bg_wipe_started": True,
         },
     })
 

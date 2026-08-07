@@ -6975,6 +6975,9 @@
           const data = await res.json().catch(() => ({}));
           if (res.ok) {
             conversations = data.conversations || [];
+            // #region agent log
+            fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8b73b3'},body:JSON.stringify({sessionId:'8b73b3',location:'index.html:sbLoadConversations',message:'conversations loaded',data:{status:res.status,count:(conversations||[]).length,titles:(conversations||[]).slice(0,8).map(c=>c.title),debug:data._debug||null},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
             sbRenderConversations();
             return true;
           }
@@ -13549,8 +13552,11 @@
           headers: { "Content-Type": "application/json" },
           body: "{}",
         });
+        const data = await res.json().catch(() => ({}));
+        // #region agent log
+        fetch('http://127.0.0.1:7613/ingest/0f80c60b-8596-461c-a668-f7ec3e21a710',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8b73b3'},body:JSON.stringify({sessionId:'8b73b3',location:'index.html:clearEverything',message:'clear_everything response',data:{status:res.status,ok:!!res.ok,deleted:data.deleted||null,debug:data._debug||null,error:data.error||null},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
           throw new Error(data.error || "Failed to clear everything");
         }
         try {
