@@ -4267,9 +4267,9 @@
         <span class="nav-chip-value" id="nav-streak-count">0</span>
         <span class="nav-chip-label">Day Streak</span>
       </button>
-      <button type="button" class="nav-chip" id="nav-puzzle-chip" aria-label="Open Daily Puzzle">
+      <button type="button" class="nav-chip" id="nav-puzzle-chip" aria-label="Open Daily Puzzle Grade 9">
         <span class="nav-chip-icon" aria-hidden="true">🧩</span>
-        <span class="nav-chip-label">Daily Puzzle</span>
+        <span class="nav-chip-label">Grade 9</span>
       </button>
       <button type="button" class="nav-chip" id="nav-focus-chip" aria-label="Toggle Focus timer">
         <span class="nav-chip-icon" aria-hidden="true">⏱️</span>
@@ -4372,7 +4372,7 @@
           <span>Grade</span>
           <select id="settings-grade" class="input" style="padding:6px 8px;width:auto;">
             <option value="6">6</option><option value="7">7</option><option value="8">8</option>
-            <option value="9">9</option><option value="10" selected>10</option>
+            <option value="9" selected>9</option><option value="10">10</option>
             <option value="11">11</option><option value="12">12</option>
           </select>
         </div>
@@ -4386,6 +4386,7 @@
           <select id="settings-language" class="input" style="padding:6px 8px;width:auto;">
             <option value="en">English</option>
             <option value="hi">Hindi</option>
+            <option value="te">Telugu</option>
             <option value="es">Spanish</option>
             <option value="fr">French</option>
           </select>
@@ -5372,6 +5373,7 @@
     let lastPageImageUrl = null;
     let lastPageImageName = "";
     window.__lastOcrText = notesContent || "";
+    let pageReferralActive = !!(notesContent || window.__lastOcrText);
 
 
     // =====================================================================
@@ -5883,6 +5885,7 @@
     }
 
     function clearPageReferral(silent) {
+      pageReferralActive = false;
       notesContent = "";
       notesFileName = "";
       window.__lastOcrText = "";
@@ -5971,6 +5974,8 @@
         else alert("Upload a page photo first (📷).");
         return;
       }
+      pageReferralActive = true;
+      updateReferPageChip();
       const prompt = buildPageReferralPrompt(extraAsk);
       const labelName = lastPageImageName || notesFileName || "uploaded page";
       const displayText = `📎 Referring to: ${labelName}\n\nUse the extracted page text (Notes Mode) and answer all questions on that page.`;
@@ -6025,6 +6030,7 @@
         updateNotesIndicators();
         if (saveBtn) saveBtn.style.display = "inline-flex";
         window.__lastOcrText = text;
+        pageReferralActive = true;
         await rememberPageImage(file);
         updateReferPageChip();
         try { if (window.SBGame) window.SBGame.award("notes_upload"); } catch (_) {}
@@ -7768,16 +7774,19 @@
 
     async function sendMessage(text, options = {}) {
       let contentForModel = text;
-      // If user asks to "refer" / answer case-study questions and Notes Mode has OCR,
-      // attach the page text to the model payload (UI still shows their short message).
+      // Active page photo: mainly attach OCR. After ×, only when user explicitly asks.
       const ocrNow = (window.__lastOcrText || notesContent || "").trim();
       const asksToRefer = /\b(refer|case\s*study|answer the questions?|from (the )?(page|notes|image|photo|upload))\b/i.test(text || "");
-      if (
-        ocrNow &&
-        asksToRefer &&
+      const casualMsg = typeof isCasualConversation === "function"
+        ? isCasualConversation(text)
+        : (typeof isGreeting === "function" && isGreeting(text));
+      const shouldAttachPage =
+        !!ocrNow &&
         !options.skipAutoAttachNotes &&
-        !/--- EXTRACTED PAGE TEXT ---/i.test(text || "")
-      ) {
+        !/--- EXTRACTED PAGE TEXT ---/i.test(text || "") &&
+        !casualMsg &&
+        (pageReferralActive || asksToRefer);
+      if (shouldAttachPage) {
         const body = ocrNow.length > 14000 ? `${ocrNow.slice(0, 14000)}\n…[truncated]` : ocrNow;
         contentForModel =
           `${text}\n\nUse the uploaded page text below as the source of truth. ` +
@@ -7829,14 +7838,19 @@
             return;
           }
 
+          const replyLang = (document.getElementById("settings-language")?.value
+            || localStorage.getItem("sb_reply_language")
+            || "en").trim();
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify({
               messages: history,
               model: cfg.model,
               notes: notesContent,
-              conversation_id: currentConvId
+              conversation_id: currentConvId,
+              language: replyLang,
             }),
           });
         // ^ fetch() sends an HTTP request to our server.
@@ -7910,10 +7924,13 @@
         }
 
         try {
-          if (window.SBGame && typeof window.SBGame.isEducationalQuestion === "function") {
-            if (window.SBGame.isEducationalQuestion(text)) window.SBGame.award("chat");
-          } else if (window.SBGame) {
-            window.SBGame.award("chat");
+          const casual = typeof isCasualConversation === "function" && isCasualConversation(text);
+          if (window.SBGame && !casual) {
+            if (typeof window.SBGame.isEducationalQuestion === "function") {
+              if (window.SBGame.isEducationalQuestion(text)) window.SBGame.award("chat");
+            } else {
+              window.SBGame.award("chat");
+            }
           }
         } catch (_) {}
 
@@ -8387,16 +8404,49 @@
     // number-like character.
     const GREETING_RE = /^\s*(hi+|hello+|hey+|howdy|good\s*(morning|afternoon|evening|night)|greetings|what'?s\s*up|whats\s*up|wassup|wazzup|how\s*are\s*you(\s*doing)?|how'?s\s*it\s*going|sup|yo|hiya|thanks?|thank\s*you|ty|thx|cheers|ok(ay)?|great|awesome|cool|nice|bye+|goodbye|see\s*ya|later|cya|got\s*it|sure|no\s*problem|np|alright|ok+|nm|not\s*much|lol|haha+)\s*[!?.]*\s*$/i;
 
+    const STUDY_INTENT_RE = /\b(solve|explain|define|derive|prove|calculate|compute|formula|chapter|homework|exam|revise|revision|photosynthesis|newton|algebra|geometry|trigonometry|calculus|velocity|acceleration|molecule|atom|cell|equation|theorem|prove|differentiate|integrate|gravity|force|ohm|voltage|resistance|quiz|test|notes?|law of|class\s*\d+|grade\s*\d+|math|physics|chemistry|biology|history|geography|english grammar|what is|why is|how do|how does|how to|mean by|difference between|example of)\b/i;
+
     function isGreeting(userMsg) {
-      const t = (userMsg || "").trim();
+      return isCasualConversation(userMsg);
+    }
+
+    function isCasualConversation(userMsg) {
+      const t = String(userMsg || "").trim();
       if (!t) return true;
-      if (GREETING_RE.test(t)) return true;
-      // Short casual chat with no study intent
-      if (t.length <= 24 && !/[?]/.test(t) && !/\b(solve|explain|what|why|how|derive|formula|chapter|define|prove|calculate|law|photosynthesis|newton|math|physics|chemistry|biology)\b/i.test(t)) {
-        return /^(hi|hello|hey|yo|sup|wassup|whats?\s*up)\b/i.test(t);
+      // Strip referral wrapper for intent check
+      const core = t.replace(/--- EXTRACTED PAGE TEXT ---[\s\S]*$/i, "").trim();
+      if (GREETING_RE.test(core)) return true;
+      if (STUDY_INTENT_RE.test(core)) return false;
+      // Homework-like: numbers + operators / units
+      if (/\d+\s*[\+\-\u00d7\u00f7\*\/=]/.test(core) || /\d+\s*(m\/s|kg|n|j|w|mol|cm|mm)\b/i.test(core)) {
+        return false;
+      }
+      // Explicit study question mark with short academic cue
+      if (/\?/.test(core) && /\b(what|why|how|when|where|which|who)\b/i.test(core) && core.length < 160) {
+        // "what song is this" style chitchat still casual if no study words
+        if (!/\b(mean|definition|formula|chapter|law|force|cell|atom|equation|prove|solve)\b/i.test(core)) {
+          if (/song|lyrics|movie|meme|joke|nod if you can hear|anybody (home|in there)|comfortably numb/i.test(core)) {
+            return true;
+          }
+        }
+      }
+      // Lyrics / chitchat: starts with hello/hey and no study intent
+      if (/^(hi|hello|hey|yo|sup)\b/i.test(core) && !STUDY_INTENT_RE.test(core)) {
+        return true;
+      }
+      // Long messages with no study keywords → casual (song lyrics, banter)
+      if (core.length >= 40 && !STUDY_INTENT_RE.test(core) && !/\d+\s*[\+\-\*\/=]/.test(core)) {
+        return true;
+      }
+      // Short non-study without ?
+      if (core.length <= 48 && !/\?/.test(core) && !STUDY_INTENT_RE.test(core)) {
+        return true;
       }
       return false;
     }
+
+    // Expose for XP gating
+    window.isCasualConversation = isCasualConversation;
 
     // Mode 3 detector — reply contains explicit "Step N:" walkthrough labels.
     // Deliberately strict: only matches "Step 1:" / "Step 2:" etc.
@@ -12548,13 +12598,14 @@
       const statusEl = document.getElementById("upload-welcome-status");
       const text = await runOcrOnFile(file, statusEl || { style: {}, textContent: "" });
       if (!text) return;
+      pageReferralActive = true;
       await rememberPageImage(file);
       appendUserPageImageBubble(lastPageImageUrl, lastPageImageName || file.name);
       updateReferPageChip();
-      // Keep image/OCR in memory + chip; do not auto-send until the user asks to refer
+      // Keep image/OCR active for chat context; do not auto-send a refer message
       showUploadStatus(
         statusEl || { style: {}, textContent: "" },
-        "Page saved. Ask me to refer to it when you want answers from this photo."
+        "Page saved in chat. I'll use it for your questions until you dismiss it (×)."
       );
     }
 

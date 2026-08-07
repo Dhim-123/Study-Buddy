@@ -2994,6 +2994,7 @@ def chat():
     model_name = data.get("model", "llama-3.3-70b-versatile")
     notes      = data.get("notes", "")
     conv_id    = data.get("conversation_id")   # may be None (first message)
+    lang_code  = (data.get("language") or "en").strip().lower()[:10] or "en"
     system_prompt = SYSTEM_PROMPT
 
     # Clean messages (support both 'assistant' and 'ai' roles)
@@ -3005,12 +3006,24 @@ def chat():
         and msg["content"].strip()
     ]
 
+    LANG_NAMES = {
+        "en": "English",
+        "hi": "Hindi",
+        "te": "Telugu",
+        "es": "Spanish",
+        "fr": "French",
+    }
+    reply_lang_name = LANG_NAMES.get(lang_code, "English")
+
     # Endpoint-specific system prompt enhancement
     if endpoint == "chat":
         system_prompt = (
             f"{system_prompt}\n\n"
+            f"OUTPUT LANGUAGE (mandatory): Reply entirely in {reply_lang_name}. "
+            f"Even if the student writes in another language, answer in {reply_lang_name}. "
+            "Keep math expressions/formulas readable.\n\n"
             "RESPONSE STYLE RULES — follow these precisely:\n\n"
-            "1. GREETINGS & SMALL TALK (e.g. 'Hello', 'Hi', 'Thanks', 'Good morning', 'Bye'):\n"
+            "1. GREETINGS & SMALL TALK (e.g. 'Hello', 'Hi', 'Thanks', 'Good morning', 'Bye', song lyrics, banter):\n"
             "   → Reply warmly in ONE or TWO natural sentences. Stop there.\n"
             "   → Do NOT add steps, numbered lists, or any instruction like 'say move to next step'.\n\n"
             "2. EDUCATIONAL QUESTIONS (explanations, definitions, history, biology, literature, geography):\n"

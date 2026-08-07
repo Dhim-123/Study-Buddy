@@ -119,9 +119,12 @@
     document.documentElement.classList.toggle("sb-high-contrast", !!prefs.highContrast);
     document.documentElement.classList.toggle("sb-reduced-motion", !!prefs.reducedMotion);
     const gradeEl = document.getElementById("settings-grade");
-    if (gradeEl) gradeEl.value = String(prefs.grade || 10);
+    if (gradeEl) gradeEl.value = String(prefs.grade || 9);
     const langEl = document.getElementById("settings-language");
-    if (langEl) langEl.value = prefs.language || "en";
+    if (langEl) {
+      langEl.value = prefs.language || "en";
+      try { localStorage.setItem("sb_reply_language", langEl.value); } catch (_) {}
+    }
     const ns = document.getElementById("settings-notify-streak");
     if (ns) ns.checked = !!prefs.notifyStreak;
     const np = document.getElementById("settings-notify-puzzle");
@@ -387,7 +390,10 @@
     if (body) body.innerHTML = `<div class="sb-skel">Loading today's puzzle…</div>`;
     try {
       if (puzzleInflight) await puzzleInflight;
-      puzzleInflight = api(`/api/daily_puzzle?localDate=${encodeURIComponent(localDate())}`);
+      // UI chip shows Grade 9; generate grade-10 difficulty questions
+      puzzleInflight = api(
+        `/api/daily_puzzle?localDate=${encodeURIComponent(localDate())}&grade=10`
+      );
       lastPuzzle = await puzzleInflight;
       puzzleInflight = null;
       renderPuzzle(lastPuzzle);
@@ -404,7 +410,7 @@
       <div class="puzzle-meta">
         <span class="puzzle-pill">${escape(p.subject)}</span>
         <span class="puzzle-pill">${escape(p.difficulty)}</span>
-        <span class="puzzle-pill">Grade ${p.grade}</span>
+        <span class="puzzle-pill">Grade 9</span>
         <span class="puzzle-pill xp">+${p.xpReward} XP</span>
       </div>
       <p class="puzzle-prompt">${escape(p.prompt)}</p>
@@ -547,16 +553,19 @@
   // Study Planner scrapped for now — no UI / XP wiring
 
   function isEducationalQuestion(text) {
+    // Prefer shared casual detector from index.html when available
+    if (typeof window.isCasualConversation === "function") {
+      return !window.isCasualConversation(text);
+    }
     const t = String(text || "").trim();
     if (!t) return false;
-    const lower = t.toLowerCase();
-    // Pure greetings / acknowledgements — no XP
-    if (/^(hi|hello|hey|thanks|thank you|ok|okay|bye|good morning|good night|yo|sup)[\s!.?]*$/i.test(lower)) {
-      return false;
-    }
-    if (t.length >= 12) return true;
-    if (t.includes("?")) return true;
-    return /\b(solve|explain|what|why|how|derive|formula|chapter|define|prove|calculate|mean|difference|example)\b/i.test(t);
+    if (/^(hi|hello|hey|thanks|thank you|ok|okay|bye|yo|sup)[\s!.?]*$/i.test(t)) return false;
+    if (/^(hi|hello|hey)\b/i.test(t) && t.length > 20) return false; // lyrics / banter
+    const study =
+      /\b(solve|explain|define|derive|prove|calculate|formula|chapter|homework|exam|photosynthesis|newton|math|physics|chemistry|biology|what is|why is|how do|how to|difference between)\b/i.test(
+        t
+      );
+    return study;
   }
 
   async function savePrefsFromSettings() {
@@ -604,6 +613,9 @@
     Focus.syncUi();
 
     document.getElementById("settings-save-prefs")?.addEventListener("click", savePrefsFromSettings);
+    document.getElementById("settings-language")?.addEventListener("change", (e) => {
+      try { localStorage.setItem("sb_reply_language", e.target.value || "en"); } catch (_) {}
+    });
     ["settings-high-contrast", "settings-reduced-motion", "settings-font-scale"].forEach((id) => {
       document.getElementById(id)?.addEventListener("change", () => {
         const prefs = {
