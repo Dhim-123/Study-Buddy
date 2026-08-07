@@ -7842,7 +7842,7 @@
 
           const replyLang = (document.getElementById("settings-language")?.value
             || localStorage.getItem("sb_reply_language")
-            || "en").trim();
+            || "multi").trim();
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -7890,6 +7890,10 @@
           //   If it's false, something went wrong (bad key, server error, etc.)
 
           const msg = data?.error || `Server error ${res.status}`;
+          if (res.status === 401) {
+            currentUser = { loggedIn: false };
+            try { if (typeof updateAuthUI === "function") updateAuthUI(); } catch (_) {}
+          }
           appendBubble("ai", `❌ **Error:** ${msg}`);
           history.pop();
           userInputEl.value = text;

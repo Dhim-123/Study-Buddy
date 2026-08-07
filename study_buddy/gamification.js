@@ -122,7 +122,10 @@
     if (gradeEl) gradeEl.value = String(prefs.grade || 9);
     const langEl = document.getElementById("settings-language");
     if (langEl) {
-      langEl.value = prefs.language || "en";
+      const lang = prefs.language || localStorage.getItem("sb_reply_language") || "multi";
+      langEl.value = lang;
+      // If server sent an unknown/empty value, fall back so Multilingual stays selected
+      if (langEl.value !== lang) langEl.value = "multi";
       try { localStorage.setItem("sb_reply_language", langEl.value); } catch (_) {}
     }
     const ns = document.getElementById("settings-notify-streak");
@@ -568,11 +571,12 @@
     return study;
   }
 
-  async function savePrefsFromSettings() {
+  async function savePrefsFromSettings(opts) {
     if (!isLoggedIn()) return;
+    const quiet = !!(opts && opts.quiet);
     const payload = {
       grade: parseInt(document.getElementById("settings-grade")?.value || "10", 10),
-      language: document.getElementById("settings-language")?.value || "en",
+      language: document.getElementById("settings-language")?.value || "multi",
       notifyStreak: !!document.getElementById("settings-notify-streak")?.checked,
       notifyPuzzle: !!document.getElementById("settings-notify-puzzle")?.checked,
       highContrast: !!document.getElementById("settings-high-contrast")?.checked,
@@ -581,11 +585,29 @@
     };
     try {
       const data = await api("/api/prefs", { method: "POST", body: JSON.stringify(payload) });
-      applyPrefsToDom(data.prefs);
-      toast("Preferences saved", "success");
-      await loadSummary(true);
+      if (data.prefs) {
+        // Keep select/localStorage in sync without clobbering a just-chosen language
+        const langEl = document.getElementById("settings-language");
+        const savedLang = data.prefs.language || payload.language;
+        if (langEl && savedLang) {
+          langEl.value = savedLang;
+          try { localStorage.setItem("sb_reply_language", savedLang); } catch (_) {}
+        }
+        applyPrefsToDom({
+          ...data.prefs,
+          language: savedLang,
+          fontScale: data.prefs.font_scale ?? data.prefs.fontScale,
+          highContrast: data.prefs.high_contrast ?? data.prefs.highContrast,
+          reducedMotion: data.prefs.reduced_motion ?? data.prefs.reducedMotion,
+          notifyStreak: data.prefs.notify_streak ?? data.prefs.notifyStreak,
+          notifyPuzzle: data.prefs.notify_puzzle ?? data.prefs.notifyPuzzle,
+          grade: data.prefs.grade,
+        });
+      }
+      if (!quiet) toast("Preferences saved", "success");
+      if (!quiet) await loadSummary(true);
     } catch (e) {
-      toast(e.message, "warn");
+      if (!quiet) toast(e.message, "warn");
     }
   }
 
@@ -614,7 +636,12 @@
 
     document.getElementById("settings-save-prefs")?.addEventListener("click", savePrefsFromSettings);
     document.getElementById("settings-language")?.addEventListener("change", (e) => {
-      try { localStorage.setItem("sb_reply_language", e.target.value || "en"); } catch (_) {}
+      const v = e.target.value || "multi";
+      try { localStorage.setItem("sb_reply_language", v); } catch (_) {}
+      // Persist immediately so Multilingual is not overwritten by a later prefs reload
+      if (isLoggedIn()) {
+        savePrefsFromSettings({ quiet: true }).catch(() => {});
+      }
     });
     ["settings-high-contrast", "settings-reduced-motion", "settings-font-scale"].forEach((id) => {
       document.getElementById(id)?.addEventListener("change", () => {

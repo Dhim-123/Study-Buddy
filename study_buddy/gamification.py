@@ -183,7 +183,7 @@ def migrate_gamification_tables(conn):
         CREATE TABLE IF NOT EXISTS user_prefs (
             user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
             grade INTEGER NOT NULL DEFAULT 10,
-            language TEXT NOT NULL DEFAULT 'en',
+            language TEXT NOT NULL DEFAULT 'multi',
             notify_streak INTEGER NOT NULL DEFAULT 1,
             notify_puzzle INTEGER NOT NULL DEFAULT 1,
             high_contrast INTEGER NOT NULL DEFAULT 0,
@@ -217,6 +217,9 @@ def _parse_local_date(data) -> str:
 
 
 def _ensure_xp_streak(conn, uid: int):
+    # Guard against stale session ids after DB wipe (FK → users.id)
+    if not conn.execute("SELECT id FROM users WHERE id=?", (uid,)).fetchone():
+        return
     conn.execute(
         "INSERT OR IGNORE INTO user_xp (user_id, balance, lifetime) VALUES (?,0,0)",
         (uid,),
@@ -226,7 +229,7 @@ def _ensure_xp_streak(conn, uid: int):
         (uid,),
     )
     conn.execute(
-        "INSERT OR IGNORE INTO user_prefs (user_id) VALUES (?)",
+        "INSERT OR IGNORE INTO user_prefs (user_id, language) VALUES (?, 'multi')",
         (uid,),
     )
 
@@ -235,7 +238,7 @@ def _get_prefs(conn, uid: int) -> dict:
     _ensure_xp_streak(conn, uid)
     row = conn.execute("SELECT * FROM user_prefs WHERE user_id=?", (uid,)).fetchone()
     if not row:
-        return {"grade": 10, "language": "en", "font_scale": 1.0}
+        return {"grade": 10, "language": "multi", "font_scale": 1.0}
     d = dict(row)
     try:
         d["preferred_subjects"] = json.loads(d.get("preferred_subjects") or "[]")
@@ -506,7 +509,7 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
             "studiedToday": studied_today,
             "prefs": {
                 "grade": int(prefs.get("grade") or 10),
-                "language": prefs.get("language") or "en",
+                "language": prefs.get("language") or "multi",
                 "notifyStreak": bool(prefs.get("notify_streak", 1)),
                 "notifyPuzzle": bool(prefs.get("notify_puzzle", 1)),
                 "highContrast": bool(prefs.get("high_contrast", 0)),
@@ -659,9 +662,9 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
                 grade = max(1, min(12, int(grade)))
             except Exception:
                 grade = 10
-            language = (data.get("language") or "en").strip().lower()[:12] or "en"
+            language = (data.get("language") or "multi").strip().lower()[:20] or "multi"
             if language not in ("en", "hi", "te", "es", "fr", "multi", "auto", "multilingual"):
-                language = "en"
+                language = "multi"
             if language in ("auto", "multilingual"):
                 language = "multi"
             subjects = data.get("preferredSubjects") or data.get("preferred_subjects") or []

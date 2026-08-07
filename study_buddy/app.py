@@ -1945,8 +1945,25 @@ def require_auth():
         row = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
     if not row:
         session.clear()
-        return None, (jsonify({"error": "User not found."}), 401)
+        return None, (jsonify({"error": "Session expired. Please log in again."}), 401)
     return row, None
+
+
+def resolve_session_user_id():
+    """Return a valid users.id from the session, or None.
+
+    Clears a stale session cookie when the SQLite user row is gone
+    (common after Render free-tier disk wipes). Prevents FK failures on insert.
+    """
+    uid = current_user_id()
+    if not uid:
+        return None
+    with get_db() as conn:
+        row = conn.execute("SELECT id FROM users WHERE id=?", (uid,)).fetchone()
+    if not row:
+        session.clear()
+        return None
+    return int(row["id"])
 
 
 def save_mistake_to_vault(user_id: int, subject: str, topic: str, question: str, 
@@ -2994,8 +3011,12 @@ def chat():
     model_name = data.get("model", "llama-3.3-70b-versatile")
     notes      = data.get("notes", "")
     conv_id    = data.get("conversation_id")   # may be None (first message)
-    lang_code  = (data.get("language") or "en").strip().lower()[:10] or "en"
+    lang_code  = (data.get("language") or "multi").strip().lower()[:20] or "multi"
     system_prompt = SYSTEM_PROMPT
+
+    # Stale session cookie (user row wiped) → clear + ask to re-login before burning tokens
+    if endpoint == "chat" and current_user_id() and not resolve_session_user_id():
+        return jsonify({"error": "Session expired. Please log in again."}), 401
 
     # Clean messages (support both 'assistant' and 'ai' roles)
     messages = [
@@ -3016,13 +3037,46 @@ def chat():
     multilingual = lang_code in ("multi", "auto", "multilingual")
     reply_lang_name = LANG_NAMES.get(lang_code, "English")
 
+    def _script_language_hint(text: str) -> str:
+        """Stronger multilingual cue from the latest user message script."""
+        t = text or ""
+        if re.search(r"[\u0C00-\u0C7F]", t):
+            return "The student's latest message uses Telugu script — reply in Telugu."
+        if re.search(r"[\u0900-\u097F]", t):
+            return "The student's latest message uses Devanagari — reply in Hindi."
+        if re.search(r"[\u0B80-\u0BFF]", t):
+            return "The student's latest message uses Tamil script — reply in Tamil."
+        if re.search(r"[\u0C80-\u0CFF]", t):
+            return "The student's latest message uses Kannada script — reply in Kannada."
+        if re.search(r"[\u0D00-\u0D7F]", t):
+            return "The student's latest message uses Malayalam script — reply in Malayalam."
+        if re.search(r"[\u0980-\u09FF]", t):
+            return "The student's latest message uses Bengali script — reply in Bengali."
+        if re.search(r"[\u0600-\u06FF]", t):
+            return "The student's latest message uses Arabic script — reply in that language."
+        if re.search(r"[\u4E00-\u9FFF]", t):
+            return "The student's latest message uses Chinese characters — reply in Chinese."
+        # Latin / mixed: match whatever language they are writing (Hindi roman, Spanish, etc.)
+        return (
+            "Match the language of the student's latest message "
+            "(including Hinglish/romanized Hindi, Spanish, French, etc.). "
+            "Do not switch to English unless they wrote in English."
+        )
+
     # Endpoint-specific system prompt enhancement
     if endpoint == "chat":
+        last_user_text = ""
+        for m in reversed(messages):
+            if m.get("role") == "user":
+                last_user_text = m.get("content") or ""
+                break
         if multilingual:
             lang_rule = (
-                "OUTPUT LANGUAGE (mandatory): Match the language the student is writing in. "
-                "If they write in Hindi, reply in Hindi; if Telugu, reply in Telugu; if English, reply in English; "
-                "and so on for any language. Keep math expressions/formulas readable.\n\n"
+                "OUTPUT LANGUAGE (mandatory): Reply in the SAME language as the student's latest message. "
+                "If they write in Hindi, reply in Hindi; Telugu → Telugu; English → English; "
+                "any other language → that language. Never translate into English unless they used English. "
+                "Keep math expressions/formulas readable.\n"
+                f"{_script_language_hint(last_user_text)}\n\n"
             )
         else:
             lang_rule = (
@@ -3032,7 +3086,6 @@ def chat():
             )
         system_prompt = (
             f"{system_prompt}\n\n"
-            f"{lang_rule}"
             "RESPONSE STYLE RULES — follow these precisely:\n\n"
             "1. GREETINGS & SMALL TALK (e.g. 'Hello', 'Hi', 'Thanks', 'Good morning', 'Bye', song lyrics, banter):\n"
             "   → Reply warmly in ONE or TWO natural sentences. Stop there.\n"
@@ -3046,7 +3099,8 @@ def chat():
             "   → Do NOT instruct the user to type anything — the UI handles progression.\n\n"
             "IMPORTANT: Never end any response with 'say move to next step', "
             "'type move to next step', 'hint for next step', or 'explain in simpler terms' "
-            "as a prompt for the user. The interface provides those buttons automatically."
+            "as a prompt for the user. The interface provides those buttons automatically.\n\n"
+            f"{lang_rule}"
         )
     elif endpoint == "podcast":
         preset = get_podcast_voice_preset(data.get("voice_preset"))
@@ -3175,81 +3229,85 @@ def chat():
 
         # --- Persist to DB (only for /api/chat when user is logged in) ---
         if endpoint == "chat":
-            uid = current_user_id()
+            uid = resolve_session_user_id()
             if uid:
-                with get_db() as conn:
-                    # Auto-create conversation if no conv_id given
-                    if not conv_id:
-                        smart_title = generate_smart_title(client, last_message, target_model)
-                        title = smart_title if smart_title else "New Chat"
-                        cur = conn.execute(
-                            "INSERT INTO conversations (user_id, title) VALUES (?,?)",
-                            (uid, title)
-                        )
-                        conv_id = cur.lastrowid
-                    else:
-                        # If conversation exists and title is still default 'New Chat', attempt smart title generation on first meaningful question
-                        conv_row = conn.execute("SELECT id, title FROM conversations WHERE id=? AND user_id=?", (conv_id, uid)).fetchone()
-                        if conv_row and conv_row["title"] == "New Chat":
+                try:
+                    with get_db() as conn:
+                        # Ensure conversation row exists for this user (stale/cleared ids get a new chat)
+                        conv_row = None
+                        if conv_id:
+                            conv_row = conn.execute(
+                                "SELECT id, title FROM conversations WHERE id=? AND user_id=?",
+                                (conv_id, uid),
+                            ).fetchone()
+
+                        if not conv_row:
+                            smart_title = generate_smart_title(client, last_message, target_model)
+                            title = smart_title if smart_title else "New Chat"
+                            cur = conn.execute(
+                                "INSERT INTO conversations (user_id, title) VALUES (?,?)",
+                                (uid, title),
+                            )
+                            conv_id = cur.lastrowid
+                            conv_row = conn.execute(
+                                "SELECT id, title FROM conversations WHERE id=? AND user_id=?",
+                                (conv_id, uid),
+                            ).fetchone()
+                        elif conv_row["title"] == "New Chat":
                             smart_title = generate_smart_title(client, last_message, target_model)
                             if smart_title:
-                                conn.execute("UPDATE conversations SET title=?, updated_at=datetime('now') WHERE id=?", (smart_title, conv_id))
+                                conn.execute(
+                                    "UPDATE conversations SET title=?, updated_at=datetime('now') WHERE id=?",
+                                    (smart_title, conv_id),
+                                )
 
-                    # Always verify conv belongs to user before writing
-                    conv_row = conn.execute(
-                        "SELECT id FROM conversations WHERE id=? AND user_id=?",
-                        (conv_id, uid)
-                    ).fetchone()
+                        if conv_row:
+                            user_msg = messages[-1]["content"]
+                            last_db = conn.execute(
+                                "SELECT content, role FROM messages WHERE conversation_id=? ORDER BY created_at DESC LIMIT 1",
+                                (conv_id,),
+                            ).fetchone()
+                            if not last_db or last_db["role"] != "user" or last_db["content"] != user_msg:
+                                conn.execute(
+                                    "INSERT INTO messages (conversation_id, role, content) VALUES (?,?,?)",
+                                    (conv_id, "user", user_msg),
+                                )
 
-                    if conv_row:
-                        # Save the last user message
-                        user_msg = messages[-1]["content"]
-                        # Check if already saved (idempotency: only insert if not already the last msg)
-                        last_db = conn.execute(
-                            "SELECT content, role FROM messages WHERE conversation_id=? ORDER BY created_at DESC LIMIT 1",
-                            (conv_id,)
-                        ).fetchone()
-                        if not last_db or last_db["role"] != "user" or last_db["content"] != user_msg:
                             conn.execute(
                                 "INSERT INTO messages (conversation_id, role, content) VALUES (?,?,?)",
-                                (conv_id, "user", user_msg)
+                                (conv_id, "assistant", reply),
                             )
-
-                        # Save AI reply
-                        conn.execute(
-                            "INSERT INTO messages (conversation_id, role, content) VALUES (?,?,?)",
-                            (conv_id, "assistant", reply)
-                        )
-
-                        conn.execute(
-                            "UPDATE conversations SET updated_at=datetime('now') WHERE id=?",
-                            (conv_id,)
-                        )
+                            conn.execute(
+                                "UPDATE conversations SET updated_at=datetime('now') WHERE id=?",
+                                (conv_id,),
+                            )
+                except sqlite3.IntegrityError as e:
+                    # Never fail the AI reply on a persistence FK/unique race
+                    print(f"[Chat] persist IntegrityError (ignored): {e}")
+                    conv_id = None
 
                 # Mirror chat persistence to Firestore
-                if endpoint == "chat":
-                    uid_fs = current_user_id()
-                    if uid_fs and conv_id:
-                        try:
-                            with get_db() as conn_fs:
-                                conv_full = conn_fs.execute(
-                                    "SELECT * FROM conversations WHERE id=? AND user_id=?",
-                                    (conv_id, uid_fs),
-                                ).fetchone()
-                                recent_msgs = conn_fs.execute(
-                                    """
-                                    SELECT * FROM messages
-                                    WHERE conversation_id=?
-                                    ORDER BY id DESC LIMIT 4
-                                    """,
-                                    (conv_id,),
-                                ).fetchall()
-                            if conv_full:
-                                fs_upsert_conversation(uid_fs, dict(conv_full))
-                            for msg in reversed(list(recent_msgs or [])):
-                                fs_upsert_message(uid_fs, conv_id, dict(msg))
-                        except Exception as e:
-                            print(f"[Firestore] chat persist mirror failed: {e}")
+                if uid and conv_id:
+                    try:
+                        with get_db() as conn_fs:
+                            conv_full = conn_fs.execute(
+                                "SELECT * FROM conversations WHERE id=? AND user_id=?",
+                                (conv_id, uid),
+                            ).fetchone()
+                            recent_msgs = conn_fs.execute(
+                                """
+                                SELECT * FROM messages
+                                WHERE conversation_id=?
+                                ORDER BY id DESC LIMIT 4
+                                """,
+                                (conv_id,),
+                            ).fetchall()
+                        if conv_full:
+                            fs_upsert_conversation(uid, dict(conv_full))
+                        for msg in reversed(list(recent_msgs or [])):
+                            fs_upsert_message(uid, conv_id, dict(msg))
+                    except Exception as e:
+                        print(f"[Firestore] chat persist mirror failed: {e}")
 
         # Podcast script only — TTS is a separate /api/podcast/tts call (avoids proxy timeouts)
         payload = {"reply": reply, "conversation_id": conv_id}
