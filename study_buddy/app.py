@@ -1271,34 +1271,12 @@ def fs_delete_conversation(user_id, conv_id):
 
 
 def _fs_stream_conversations(db, user_id, owner_key):
-    """Yield conversation docs from stable path; migrate legacy numeric path once if needed."""
+    """Yield conversation docs from the stable owner path only.
+
+    Never migrate legacy users/{sqlite_id} buckets — on Render, SQLite IDs
+    recycle after redeploy and that path mixes accounts.
+    """
     stable_ref = db.collection("users").document(owner_key).collection("conversations")
-    docs = list(stable_ref.stream())
-    if docs:
-        return docs, owner_key
-
-    # Legacy path used raw SQLite id — only migrate into stable key for this user
-    legacy_key = str(user_id)
-    if legacy_key == owner_key:
-        return [], owner_key
-    legacy_ref = db.collection("users").document(legacy_key).collection("conversations")
-    legacy_docs = list(legacy_ref.stream())
-    if not legacy_docs:
-        return [], owner_key
-
-    # Copy legacy → stable, then leave legacy (soft; avoid deleting others' data if id reuse)
-    for conv_doc in legacy_docs:
-        data = conv_doc.to_dict() or {}
-        # Skip if another owner's data leaked into this numeric bucket
-        remote_owner = (data.get("owner_key") or "").strip()
-        if remote_owner and remote_owner != owner_key and remote_owner != legacy_key:
-            continue
-        data["owner_key"] = owner_key
-        data["user_id"] = int(user_id)
-        new_conv = stable_ref.document(conv_doc.id)
-        new_conv.set(data, merge=True)
-        for msg_doc in conv_doc.reference.collection("messages").stream():
-            new_conv.collection("messages").document(msg_doc.id).set(msg_doc.to_dict() or {}, merge=True)
     return list(stable_ref.stream()), owner_key
 
 
@@ -1314,6 +1292,9 @@ def fs_pull_conversations_into_sqlite(user_id):
             for conv_doc in conv_docs:
                 data = conv_doc.to_dict() or {}
                 remote_owner = (data.get("owner_key") or "").strip()
+                # Skip only explicit mismatches. Missing owner_key is allowed for
+                # pre-migration docs already under this user's stable path.
+                # Legacy numeric-path migration is disabled to stop ID-recycle leaks.
                 if remote_owner and remote_owner != owner_key:
                     continue
                 try:
@@ -2552,15 +2533,26 @@ def get_history():
 
 @app.route("/api/history", methods=["DELETE"])
 def clear_history():
-    """Legacy: delete all conversations for the current user."""
+    """Delete all conversations for the current user (SQLite + Firestore)."""
     user, err = require_auth()
     if err:
         return err
 
+    uid = user["id"]
     with get_db() as conn:
-        conn.execute("DELETE FROM conversations WHERE user_id=?", (user["id"],))
+        rows = conn.execute(
+            "SELECT id FROM conversations WHERE user_id=?", (uid,)
+        ).fetchall()
+        conv_ids = [int(r["id"]) for r in rows]
+        conn.execute("DELETE FROM conversations WHERE user_id=?", (uid,))
 
-    return jsonify({"ok": True})
+    for cid in conv_ids:
+        try:
+            fs_delete_conversation(uid, cid)
+        except Exception as e:
+            print(f"[Firestore] clear_history delete conv {cid} failed: {e}")
+
+    return jsonify({"ok": True, "deleted": len(conv_ids)})
 
 
 GREETING_TITLE_RE = re.compile(

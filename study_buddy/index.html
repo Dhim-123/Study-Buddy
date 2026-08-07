@@ -3739,13 +3739,14 @@
       display: none;
     }
 
-    /* Desktop fly-out (opens to the right of left-aligned Settings) */
+    /* Desktop fly-out (opens below Clear History so it stays visible in Settings) */
     .clear-history-flyout {
       position: absolute;
-      top: 0;
-      left: calc(100% + 10px);
+      top: calc(100% + 8px);
+      left: 0;
       right: auto;
-      width: min(300px, calc(100vw - 48px));
+      width: 100%;
+      min-width: 220px;
       background: var(--settings-glass);
       backdrop-filter: blur(18px) saturate(1.2);
       -webkit-backdrop-filter: blur(18px) saturate(1.2);
@@ -3755,7 +3756,7 @@
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
-      transform: translateX(-8px);
+      transform: translateY(-6px);
       transition: opacity 250ms ease, transform 250ms ease, visibility 250ms ease;
       z-index: 2100;
     }
@@ -3767,7 +3768,7 @@
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
-        transform: translateX(0);
+        transform: translateY(0);
       }
       .clear-history-sheet { display: none !important; }
     }
@@ -4171,7 +4172,18 @@
     .sb-game-toast.success { border-color: rgba(82, 232, 160, 0.45); }
     .sb-game-toast.warn { border-color: rgba(249, 115, 22, 0.45); }
 
-    .settings-panel-card { max-height: min(80vh, 640px); overflow-y: auto; }
+    .settings-panel-card {
+      max-height: min(80vh, 640px);
+      overflow-y: auto;
+      overflow-x: visible;
+    }
+    .settings-clear-wrap {
+      position: relative;
+      overflow: visible;
+    }
+    .clear-history-flyout {
+      z-index: 1300;
+    }
     .settings-block { margin-top: 14px; }
     .settings-row {
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -4300,7 +4312,6 @@
             <div class="profile-actions">
               <button type="button" class="profile-action-btn" id="profile-change-pic-btn">🖼️ Change Profile Picture</button>
               <input type="file" id="profile-pic-input" accept="image/*" hidden />
-              <button type="button" class="profile-action-btn" id="profile-change-password-btn">🔑 Change Password</button>
               <button type="button" class="profile-action-btn" id="profile-open-settings-btn">⚙️ Open Settings</button>
               <button type="button" class="profile-action-btn danger" id="profile-logout-btn">🚪 Logout</button>
             </div>
@@ -4415,12 +4426,24 @@
       <div class="settings-divider"></div>
       <div class="settings-block">
         <div class="settings-section-label">Account</div>
-        <p class="settings-hint">Buddy name can still be edited in the left sidebar. Change password from your profile menu.</p>
+        <p class="settings-hint">Buddy name can still be edited in the left sidebar.</p>
         <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;">
           <label for="settings-username-input" style="font-size:0.82rem;font-weight:700;">Username</label>
           <input type="text" id="settings-username-input" class="input" placeholder="New username" autocomplete="username" style="width:100%;padding:8px 10px;" />
           <button type="button" class="btn-primary" id="settings-change-username-btn" style="width:100%;padding:10px;">Save username</button>
           <p id="settings-username-msg" class="settings-hint" style="margin:0;display:none;"></p>
+        </div>
+        <div class="settings-divider" style="margin:14px 0;"></div>
+        <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;">
+          <div class="settings-section-label" style="margin-bottom:0;">Change password</div>
+          <label for="settings-old-password" style="font-size:0.78rem;font-weight:700;">Old password</label>
+          <input type="password" id="settings-old-password" class="input" autocomplete="current-password" style="width:100%;padding:8px 10px;" />
+          <label for="settings-new-password" style="font-size:0.78rem;font-weight:700;">New password</label>
+          <input type="password" id="settings-new-password" class="input" autocomplete="new-password" style="width:100%;padding:8px 10px;" />
+          <label for="settings-confirm-password" style="font-size:0.78rem;font-weight:700;">Confirm new password</label>
+          <input type="password" id="settings-confirm-password" class="input" autocomplete="new-password" style="width:100%;padding:8px 10px;" />
+          <button type="button" class="btn-primary" id="settings-change-password-btn" style="width:100%;padding:10px;">Update password</button>
+          <p id="settings-password-msg" class="settings-hint" style="margin:0;display:none;"></p>
         </div>
       </div>
 
@@ -5528,14 +5551,8 @@
         return;
       }
 
-      const username = (currentUser.identifier || "").trim();
-      if (username) {
-        welcomeTitle.textContent = `Hey ${username}! I'm ${buddyName}.`;
-        welcomeDesc.textContent = "What would you like to learn today?";
-      } else {
-        welcomeTitle.textContent = `Hi! 👋 I'm ${buddyName}.`;
-        welcomeDesc.textContent = "Please set your username in Settings. What would you like to learn today?";
-      }
+      welcomeTitle.textContent = `Welcome, ${buddyName}!`;
+      welcomeDesc.textContent = "What would you like to learn today?";
     }
 
 
@@ -6401,13 +6418,24 @@
           if (res.ok) {
             currentUser = { loggedIn: false };
             try { localStorage.removeItem("sb_avatar_b64"); } catch (_) {}
-            history = []; // Clear chat history on logout
-            currentConvId = null;
-            conversations = [];
-            sbRenderConversations();
-            messagesEl.innerHTML = "";
-            messagesEl.appendChild(welcomeEl);
-            welcomeEl.style.display = "flex";
+            try {
+              localStorage.removeItem("sb_notes_content");
+              localStorage.removeItem("sb_notes_filename");
+            } catch (_) {}
+            notesContent = "";
+            notesFileName = "";
+            try { if (typeof clearPageReferral === "function") clearPageReferral(); } catch (_) {}
+            if (typeof sbResetChatState === "function") sbResetChatState();
+            else {
+              history = [];
+              currentConvId = null;
+              conversations = [];
+              sbRenderConversations();
+              messagesEl.innerHTML = "";
+              messagesEl.appendChild(welcomeEl);
+              welcomeEl.style.display = "flex";
+            }
+            try { if (window.SBGame) window.SBGame.onLogout(); } catch (_) {}
             updateAuthUI({ clearMessage: false });
             showAuthMessage("Logged out successfully.");
           } else {
@@ -6748,61 +6776,6 @@
           }
         }
 
-        document.getElementById("profile-change-password-btn")?.addEventListener("click", () => {
-          if (currentUser?.hasPassword === false) {
-            profileFlash("This account uses Google Sign-In — no password to change.", true);
-            return;
-          }
-          closeProfileMenu();
-          openProfileEditModal(
-            "Change Password",
-            `<div class="profile-edit-field">
-              <label for="profile-edit-current-pw">Old password</label>
-              <input id="profile-edit-current-pw" type="password" autocomplete="current-password" />
-            </div>
-            <div class="profile-edit-field">
-              <label for="profile-edit-new-pw">New password</label>
-              <input id="profile-edit-new-pw" type="password" autocomplete="new-password" />
-            </div>
-            <div class="profile-edit-field">
-              <label for="profile-edit-confirm-pw">Confirm new password</label>
-              <input id="profile-edit-confirm-pw" type="password" autocomplete="new-password" />
-            </div>`,
-            async () => {
-              const currentPassword = document.getElementById("profile-edit-current-pw")?.value || "";
-              const newPassword = document.getElementById("profile-edit-new-pw")?.value || "";
-              const confirmPassword = document.getElementById("profile-edit-confirm-pw")?.value || "";
-              if (!currentPassword || !newPassword || !confirmPassword) {
-                profileFlash("Old password, new password, and confirmation are required.", true);
-                return false;
-              }
-              if (newPassword !== confirmPassword) {
-                profileFlash("New password and confirmation do not match.", true);
-                return false;
-              }
-              if (newPassword.length < 6) {
-                profileFlash("New password must be at least 6 characters.", true);
-                return false;
-              }
-              const res = await fetch("/api/auth/update_password", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
-              });
-              const data = await res.json();
-              if (!res.ok) {
-                profileFlash(data.error || "Failed to change password.", true);
-                return false;
-              }
-              currentUser.hasPassword = true;
-              profileFlash("Password updated");
-              closeProfileEditModal();
-              return true;
-            }
-          );
-        });
-
         // Settings → Account: change username
         const settingsUserInput = document.getElementById("settings-username-input");
         const settingsUserBtn = document.getElementById("settings-change-username-btn");
@@ -6816,6 +6789,61 @@
         if (settingsUserInput && currentUser?.identifier) {
           settingsUserInput.value = currentUser.identifier;
         }
+        // Settings → Account: change password
+        const settingsPwMsg = document.getElementById("settings-password-msg");
+        function showSettingsPasswordMsg(text, isError) {
+          if (!settingsPwMsg) return;
+          settingsPwMsg.style.display = "block";
+          settingsPwMsg.textContent = text;
+          settingsPwMsg.style.color = isError ? "var(--accent2)" : "var(--accent3)";
+        }
+        document.getElementById("settings-change-password-btn")?.addEventListener("click", async () => {
+          if (!currentUser?.loggedIn) {
+            showSettingsPasswordMsg("Log in to change password.", true);
+            return;
+          }
+          if (currentUser?.hasPassword === false) {
+            showSettingsPasswordMsg("This account uses Google Sign-In — no password to change.", true);
+            return;
+          }
+          const currentPassword = document.getElementById("settings-old-password")?.value || "";
+          const newPassword = document.getElementById("settings-new-password")?.value || "";
+          const confirmPassword = document.getElementById("settings-confirm-password")?.value || "";
+          if (!currentPassword || !newPassword || !confirmPassword) {
+            showSettingsPasswordMsg("Old password, new password, and confirmation are required.", true);
+            return;
+          }
+          if (newPassword !== confirmPassword) {
+            showSettingsPasswordMsg("New password and confirmation do not match.", true);
+            return;
+          }
+          if (newPassword.length < 6) {
+            showSettingsPasswordMsg("New password must be at least 6 characters.", true);
+            return;
+          }
+          try {
+            const res = await fetch("/api/auth/update_password", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              showSettingsPasswordMsg(data.error || "Failed to change password.", true);
+              return;
+            }
+            currentUser.hasPassword = true;
+            ["settings-old-password", "settings-new-password", "settings-confirm-password"].forEach((id) => {
+              const el = document.getElementById(id);
+              if (el) el.value = "";
+            });
+            showSettingsPasswordMsg("Password updated.", false);
+          } catch (err) {
+            showSettingsPasswordMsg(err.message || "Network error.", true);
+          }
+        });
+
         settingsUserBtn?.addEventListener("click", async () => {
           if (!currentUser?.loggedIn) {
             showSettingsUsernameMsg("Log in to change username.", true);
@@ -6872,17 +6900,16 @@
               }
               await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
               currentUser = { loggedIn: false };
-              history = [];
-              currentConvId = null;
-              conversations = [];
-              if (typeof sbRenderConversations === "function") sbRenderConversations();
-              if (messagesEl) {
-                messagesEl.innerHTML = "";
-                if (welcomeEl) {
-                  messagesEl.appendChild(welcomeEl);
-                  welcomeEl.style.display = "flex";
-                }
-              }
+              try {
+                localStorage.removeItem("sb_avatar_b64");
+                localStorage.removeItem("sb_notes_content");
+                localStorage.removeItem("sb_notes_filename");
+              } catch (_) {}
+              notesContent = "";
+              notesFileName = "";
+              try { if (typeof clearPageReferral === "function") clearPageReferral(); } catch (_) {}
+              if (typeof sbResetChatState === "function") sbResetChatState();
+              try { if (window.SBGame) window.SBGame.onLogout(); } catch (_) {}
               updateAuthUI({ clearMessage: false });
             } catch (err) {
               profileFlash(err.message || "Logout failed", true);
@@ -7151,7 +7178,16 @@
               welcomeEl.style.display = "flex";
             } else {
               welcomeEl.remove();
-              history.forEach(msg => appendBubble(msg.role, msg.content));
+              let prevUserMsg = "";
+              history.forEach((msg) => {
+                const role = msg.role === "ai" ? "assistant" : msg.role;
+                if (role === "user") {
+                  prevUserMsg = msg.content || "";
+                  appendBubble("user", msg.content);
+                } else {
+                  appendBubble("ai", msg.content, prevUserMsg);
+                }
+              });
               scrollBottom();
             }
             return true;
@@ -8349,10 +8385,17 @@
     // Checks the USER message (not the reply) because we want to suppress
     // ALL buttons even if the AI's polite reply accidentally contains a
     // number-like character.
-    const GREETING_RE = /^\s*(hi+|hello+|hey+|howdy|good\s*(morning|afternoon|evening|night)|greetings|what'?s\s*up|sup|yo|hiya|thanks?|thank\s*you|ty|thx|cheers|ok(ay)?|great|awesome|cool|nice|bye+|goodbye|see\s*ya|later|cya|got\s*it|sure|no\s*problem|np|alright|ok+)\s*[!?.]*\s*$/i;
+    const GREETING_RE = /^\s*(hi+|hello+|hey+|howdy|good\s*(morning|afternoon|evening|night)|greetings|what'?s\s*up|whats\s*up|wassup|wazzup|how\s*are\s*you(\s*doing)?|how'?s\s*it\s*going|sup|yo|hiya|thanks?|thank\s*you|ty|thx|cheers|ok(ay)?|great|awesome|cool|nice|bye+|goodbye|see\s*ya|later|cya|got\s*it|sure|no\s*problem|np|alright|ok+|nm|not\s*much|lol|haha+)\s*[!?.]*\s*$/i;
 
     function isGreeting(userMsg) {
-      return GREETING_RE.test((userMsg || "").trim());
+      const t = (userMsg || "").trim();
+      if (!t) return true;
+      if (GREETING_RE.test(t)) return true;
+      // Short casual chat with no study intent
+      if (t.length <= 24 && !/[?]/.test(t) && !/\b(solve|explain|what|why|how|derive|formula|chapter|define|prove|calculate|law|photosynthesis|newton|math|physics|chemistry|biology)\b/i.test(t)) {
+        return /^(hi|hello|hey|yo|sup|wassup|whats?\s*up)\b/i.test(t);
+      }
+      return false;
     }
 
     // Mode 3 detector — reply contains explicit "Step N:" walkthrough labels.
@@ -12508,14 +12551,11 @@
       await rememberPageImage(file);
       appendUserPageImageBubble(lastPageImageUrl, lastPageImageName || file.name);
       updateReferPageChip();
-      // Immediately refer the full page to the AI (image shown above; full OCR in history + notes)
-      await referUploadedPageToChat({
-        autoSend: true,
-        skipUserBubble: true,
-        extraAsk:
-          "I'm referring to this page photo I just uploaded. Even if OCR is blurry, recover and answer every readable " +
-          "Case Study / passage / numbered question. Mark unclear words with (?). Say what was unreadable — do not invent text.",
-      });
+      // Keep image/OCR in memory + chip; do not auto-send until the user asks to refer
+      showUploadStatus(
+        statusEl || { style: {}, textContent: "" },
+        "Page saved. Ask me to refer to it when you want answers from this photo."
+      );
     }
 
     function stopCameraStream() {
@@ -13277,20 +13317,26 @@
 
       async function clearChatHistoryOnly() {
         if (!(await requireLoginForCloud())) throw new Error("login");
-        const res = await fetch("/api/history", { method: "DELETE" });
+        const res = await fetch("/api/history", { method: "DELETE", credentials: "include" });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || "Failed to clear chat");
         }
-        history = [];
-        currentConvId = null;
-        if (messagesEl) {
-          messagesEl.innerHTML = "";
-          if (welcomeEl) {
-            welcomeEl.style.display = "flex";
-            messagesEl.appendChild(welcomeEl);
+        if (typeof sbResetChatState === "function") sbResetChatState();
+        else {
+          history = [];
+          currentConvId = null;
+          conversations = [];
+          if (typeof sbRenderConversations === "function") sbRenderConversations();
+          if (messagesEl) {
+            messagesEl.innerHTML = "";
+            if (welcomeEl) {
+              welcomeEl.style.display = "flex";
+              messagesEl.appendChild(welcomeEl);
+            }
           }
         }
+        // Reload after Firestore+SQLite wipe — should stay empty
         if (typeof sbLoadConversations === "function") await sbLoadConversations();
       }
 

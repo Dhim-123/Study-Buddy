@@ -11,6 +11,7 @@
 
   let summary = null;
   let summaryInflight = null;
+  let summaryGen = 0; // ignore stale responses after logout / account switch
   let puzzleInflight = null;
   let lastPuzzle = null;
   const actionTimers = {};
@@ -74,12 +75,18 @@
   async function loadSummary(force) {
     if (!isLoggedIn()) {
       summary = null;
-      renderNavbar();
+      renderNavbarGuest();
       return null;
     }
     if (summaryInflight && !force) return summaryInflight;
+    const gen = ++summaryGen;
+    if (force) {
+      summary = null;
+      renderNavbarGuest();
+    }
     summaryInflight = api(`/api/gamification/summary?localDate=${encodeURIComponent(localDate())}`)
       .then((data) => {
+        if (gen !== summaryGen || !isLoggedIn()) return null;
         summary = data;
         if (data.reconcile && data.reconcile.protected) {
           toast("🧊 Streak Protected — freeze used!", "success");
@@ -91,11 +98,11 @@
         return data;
       })
       .catch(() => {
-        renderNavbarGuest();
+        if (gen === summaryGen) renderNavbarGuest();
         return null;
       })
       .finally(() => {
-        summaryInflight = null;
+        if (gen === summaryGen) summaryInflight = null;
       });
     return summaryInflight;
   }
@@ -624,10 +631,16 @@
     refresh: () => loadSummary(true),
     isEducationalQuestion,
     onLogin() {
+      summaryGen++;
+      summary = null;
+      summaryInflight = null;
+      renderNavbarGuest();
       loadSummary(true);
     },
     onLogout() {
+      summaryGen++;
       summary = null;
+      summaryInflight = null;
       renderNavbarGuest();
     },
     Focus,
