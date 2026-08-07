@@ -10412,15 +10412,21 @@
     }
 
     // Background heartbeat to track study pings automatically
+    let dnaHeartbeatPausedUntil = 0;
+    function pauseDnaHeartbeat(ms) {
+      dnaHeartbeatPausedUntil = Date.now() + Math.max(0, ms || 0);
+    }
     function startDnaHeartbeat() {
       if (dnaStudyTimer) clearInterval(dnaStudyTimer);
       // Send a study ping every 2 minutes of active use
       dnaStudyTimer = setInterval(async () => {
+        if (Date.now() < dnaHeartbeatPausedUntil) return;
         if (currentUser && currentUser.loggedIn) {
           try {
             await fetch("/api/learning_dna/track", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
+              credentials: "include",
               body: JSON.stringify({ studyMinutes: 2, subject: "General" })
             });
           } catch (e) {}
@@ -13302,7 +13308,7 @@
         { id: "search", icon: "🗂️", label: "Clear Search History", toast: "Search history cleared" },
         { id: "cache", icon: "🧹", label: "Clear Cache", toast: "Cache cleared" },
         { id: "streak", icon: "🔥", label: "Reset Study Streak", toast: "Study streak reset" },
-        { id: "everything", icon: "🚨", label: "Clear Everything", toast: "All history cleared", danger: true },
+        { id: "everything", icon: "🚨", label: "Clear Everything", toast: "History cleared (XP, streak & daily puzzle kept)", danger: true },
       ];
 
       const wrap = document.getElementById("settings-clear-wrap");
@@ -13455,7 +13461,7 @@
         modalCard.classList.toggle("danger", isEverything);
         modalTitle.textContent = isEverything ? "🚨 Clear Everything?" : item.label + "?";
         modalMsg.textContent = isEverything
-          ? "This permanently deletes chat, notebook, mistakes, Learning DNA, uploads, session outputs, search history, and cache. XP, streak, puzzle progress, theme, and login are kept. This cannot be undone."
+          ? "This permanently deletes chat, notebook, mistakes, Learning DNA, uploads, session outputs, search history, and cache. XP, streak, and daily puzzle are kept (daily puzzle cannot be reset). Theme and login stay. This cannot be undone."
           : `This will permanently clear ${item.label.replace(/^Clear |^Reset /, "").toLowerCase()}. This cannot be undone.`;
         if (deleteGate) deleteGate.style.display = "none";
         if (deleteInput) deleteInput.value = "";
@@ -13620,7 +13626,8 @@
       }
 
       async function clearEverything() {
-        // Instant local UI clears + one server call (cloud wipe continues in background)
+        // Clears chat/notebook/mistakes/DNA. Keeps XP, streak, daily puzzle.
+        if (typeof pauseDnaHeartbeat === "function") pauseDnaHeartbeat(5 * 60 * 1000);
         clearPodcast();
         clearQuiz();
         clearFlashcards();
@@ -13653,8 +13660,10 @@
         if (!res.ok) {
           throw new Error(data.error || "Failed to clear everything");
         }
+        // Do NOT reload conversations / DNA from cloud here — that was resurrecting data.
+        // XP / streak / daily puzzle are intentionally kept server-side.
         try {
-          if (typeof renderLearningDnaDashboard === "function") renderLearningDnaDashboard();
+          if (typeof sbResetChatState === "function") sbResetChatState();
         } catch (_) {}
       }
 

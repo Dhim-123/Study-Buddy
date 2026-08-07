@@ -1076,6 +1076,9 @@ def _fs_notebook_ref(db, user_id, entry_id):
 
 
 def _entry_to_fs_payload(user_id, entry):
+    from datetime import datetime as _dt
+
+    wipe_meta = fs_get_content_wipe_meta(user_id)
     return {
         "user_id": int(user_id),
         "subject": entry.get("subject") or "General",
@@ -1084,6 +1087,8 @@ def _entry_to_fs_payload(user_id, entry):
         "position": int(entry.get("position") or 0),
         "created_at": entry.get("created_at") or "",
         "updated_at": entry.get("updated_at") or "",
+        "written_at": _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "content_wipe_gen": int(wipe_meta.get("wipe_gen") or 0),
     }
 
 
@@ -1122,7 +1127,8 @@ def fs_pull_notebook_into_sqlite(user_id):
         return
     try:
         key = _fs_owner_key_for_user_id(user_id)
-        docs = (
+        wipe_meta = fs_get_content_wipe_meta(user_id)
+        docs = list(
             db.collection("users")
             .document(str(key))
             .collection("notebook")
@@ -1135,6 +1141,14 @@ def fs_pull_notebook_into_sqlite(user_id):
                     entry_id = int(doc.id)
                 except (TypeError, ValueError):
                     continue
+                created_at = data.get("created_at") or None
+                updated_at = data.get("updated_at") or None
+                if not fs_doc_survives_wipe(data, wipe_meta):
+                    try:
+                        doc.reference.delete()
+                    except Exception:
+                        pass
+                    continue
                 subject = (data.get("subject") or "General")[:50]
                 category = data.get("category") or "Key Points"
                 if category not in VALID_NOTEBOOK_CATEGORIES:
@@ -1143,8 +1157,6 @@ def fs_pull_notebook_into_sqlite(user_id):
                 if not str(content).strip():
                     continue
                 position = int(data.get("position") or 0)
-                created_at = data.get("created_at") or None
-                updated_at = data.get("updated_at") or None
 
                 owned = conn.execute(
                     "SELECT id FROM living_notebook WHERE id=? AND user_id=?",
@@ -1269,7 +1281,10 @@ def _fs_message_ref(db, user_id, conv_id, msg_id, owner_key=None):
 
 
 def _conv_to_fs_payload(user_id, conv, owner_key=None):
+    from datetime import datetime as _dt
+
     key = owner_key or _fs_owner_key_for_user_id(user_id)
+    wipe_meta = fs_get_content_wipe_meta(user_id)
     return {
         "user_id": int(user_id),
         "owner_key": key,
@@ -1278,6 +1293,9 @@ def _conv_to_fs_payload(user_id, conv, owner_key=None):
         "archived": 1 if conv.get("archived") else 0,
         "created_at": conv.get("created_at") or "",
         "updated_at": conv.get("updated_at") or "",
+        # Always UTC — used to allow post-wipe sync without resurrecting old chats
+        "written_at": _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "content_wipe_gen": int(wipe_meta.get("wipe_gen") or 0),
     }
 
 
@@ -1456,60 +1474,132 @@ def _agent_dbg(hypothesis_id, location, message, data=None):
     return
 
 
-def fs_mark_chats_wiped(user_id):
-    """Record a wipe timestamp so stale remote chats cannot be pulled back."""
+def _fs_parse_ts(value):
+    """Parse Firestore/SQLite timestamps to a comparable UTC datetime (naive)."""
+    from datetime import datetime as _dt
+
+    if value is None:
+        return None
+    if isinstance(value, _dt):
+        return value.replace(tzinfo=None)
+    s = str(value).strip()
+    if not s:
+        return None
+    s = s.replace("T", " ").replace("Z", "").split("+")[0].strip()
+    if "." in s:
+        s = s.split(".", 1)[0]
+    s = s[:19]
+    try:
+        if len(s) >= 19:
+            return _dt.strptime(s[:19], "%Y-%m-%d %H:%M:%S")
+        if len(s) >= 10:
+            return _dt.strptime(s[:10], "%Y-%m-%d")
+    except Exception:
+        return None
+    return None
+
+
+def _fs_is_after_wipe(stamp, wiped_at):
+    """True only when stamp is strictly after wipe (UTC-normalized)."""
+    st = _fs_parse_ts(stamp)
+    wt = _fs_parse_ts(wiped_at)
+    if not st or not wt:
+        return False
+    return st > wt
+
+
+def fs_get_content_wipe_meta(user_id):
+    """Return {wiped_at, wipe_gen} for content clears. Soft-fails → empty."""
     db = get_firestore()
     if not db:
-        # #region agent log
-        _agent_dbg("B", "app.py:fs_mark_chats_wiped", "no firestore client", {"user_id": user_id})
-        # #endregion
+        return {"wiped_at": None, "wipe_gen": 0}
+    try:
+        owner_key = _fs_owner_key_for_user_id(user_id)
+        snap = _fs_meta_ref(db, user_id, owner_key=owner_key).get()
+        if not snap.exists:
+            return {"wiped_at": None, "wipe_gen": 0}
+        data = snap.to_dict() or {}
+        wiped_at = data.get("content_wiped_at") or data.get("chat_wiped_at") or None
+        try:
+            wipe_gen = int(data.get("content_wipe_gen") or 0)
+        except Exception:
+            wipe_gen = 0
+        return {"wiped_at": wiped_at, "wipe_gen": max(0, wipe_gen)}
+    except Exception as e:
+        print(f"[Firestore] get content wipe meta failed: {e}")
+        return {"wiped_at": None, "wipe_gen": 0}
+
+
+def fs_mark_chats_wiped(user_id):
+    """Tombstone content wipe (chats/notebook/mistakes/DNA). XP/streak/puzzle untouched."""
+    db = get_firestore()
+    if not db:
         return {"ok": False, "reason": "no_firestore", "owner_key": None, "wiped_at": None}
     try:
         owner_key = _fs_owner_key_for_user_id(user_id)
         from datetime import datetime as _dt
         wiped_at = _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        prev = fs_get_content_wipe_meta(user_id)
+        wipe_gen = int(prev.get("wipe_gen") or 0) + 1
         _fs_meta_ref(db, user_id, owner_key=owner_key).set(
             {
                 "owner_key": owner_key,
                 "chat_wiped_at": wiped_at,
+                "content_wiped_at": wiped_at,
+                "content_wipe_gen": wipe_gen,
             },
             merge=True,
         )
-        # #region agent log
-        _agent_dbg(
-            "B",
-            "app.py:fs_mark_chats_wiped",
-            "tombstone written",
-            {"user_id": user_id, "owner_key": owner_key, "wiped_at": wiped_at},
-        )
-        # #endregion
-        return {"ok": True, "owner_key": owner_key, "wiped_at": wiped_at}
+        return {
+            "ok": True,
+            "owner_key": owner_key,
+            "wiped_at": wiped_at,
+            "wipe_gen": wipe_gen,
+        }
     except Exception as e:
         print(f"[Firestore] mark chats wiped failed: {e}")
-        # #region agent log
-        _agent_dbg(
-            "B",
-            "app.py:fs_mark_chats_wiped",
-            "tombstone failed",
-            {"user_id": user_id, "error": str(e)[:200]},
-        )
-        # #endregion
         return {"ok": False, "reason": str(e)[:200], "owner_key": None, "wiped_at": None}
 
 
 def fs_get_chat_wiped_at(user_id):
-    db = get_firestore()
-    if not db:
-        return None
+    """Return content wipe tombstone timestamp."""
+    return fs_get_content_wipe_meta(user_id).get("wiped_at")
+
+
+def fs_doc_survives_wipe(data, wipe_meta):
+    """
+    True if a remote doc is allowed after a content wipe.
+    Requires content_wipe_gen >= current wipe gen (timezone-proof).
+    Legacy docs without gen are treated as pre-wipe and purged.
+    """
+    if not wipe_meta:
+        return True
+    wiped_at = wipe_meta.get("wiped_at")
+    wipe_gen = int(wipe_meta.get("wipe_gen") or 0)
+    if not wiped_at and wipe_gen <= 0:
+        return True
+    data = data or {}
     try:
-        owner_key = _fs_owner_key_for_user_id(user_id)
-        snap = _fs_meta_ref(db, user_id, owner_key=owner_key).get()
-        if not snap.exists:
-            return None
-        return (snap.to_dict() or {}).get("chat_wiped_at") or None
-    except Exception as e:
-        print(f"[Firestore] get chat wiped_at failed: {e}")
-        return None
+        raw_gen = data.get("content_wipe_gen")
+        doc_gen = int(raw_gen) if raw_gen is not None and str(raw_gen).strip() != "" else None
+    except Exception:
+        doc_gen = None
+    if wipe_gen > 0:
+        # Only docs written after this wipe (stamped with gen) may return
+        return doc_gen is not None and doc_gen >= wipe_gen
+    # Timestamp-only fallback for very old tombstones without gen
+    stamp = data.get("written_at") or data.get("created_at") or data.get("updated_at")
+    return _fs_is_after_wipe(stamp, wiped_at)
+
+
+def fs_purge_remote_conversation_doc(conv_doc):
+    """Delete one remote conversation + messages. Soft-fails."""
+    try:
+        for msg_doc in conv_doc.reference.collection("messages").stream():
+            msg_doc.reference.delete()
+        conv_doc.reference.delete()
+    except Exception:
+        pass
 
 
 def _fs_gamification_ref(db, user_id, owner_key=None):
@@ -1795,11 +1885,13 @@ def fs_pull_conversations_into_sqlite(user_id):
         return stats
     try:
         owner_key = _fs_owner_key_for_user_id(user_id)
-        wiped_at = fs_get_chat_wiped_at(user_id)
+        wipe_meta = fs_get_content_wipe_meta(user_id)
+        wiped_at = wipe_meta.get("wiped_at")
         conv_docs, owner_key = _fs_stream_conversations(db, user_id, owner_key)
         stats["firestore"] = True
         stats["owner_key"] = owner_key
         stats["wiped_at"] = wiped_at
+        stats["wipe_gen"] = wipe_meta.get("wipe_gen")
         stats["remote_docs"] = len(conv_docs)
         with get_db() as conn:
             for conv_doc in conv_docs:
@@ -1822,37 +1914,13 @@ def fs_pull_conversations_into_sqlite(user_id):
                 created_at = data.get("created_at") or None
                 updated_at = data.get("updated_at") or None
 
-                # After Clear History, never resurrect older cloud chats
-                if wiped_at:
-                    def _norm_ts(s):
-                        s = (s or "").strip().replace("T", " ").replace("Z", "")
-                        return s[:19]
-
-                    stamp_n = _norm_ts(updated_at or created_at)
-                    wiped_n = _norm_ts(wiped_at)
-                    if not stamp_n or (wiped_n and stamp_n <= wiped_n):
+                # After Clear: only import docs stamped with current wipe gen
+                # (or strictly post-wipe timestamps for legacy docs).
+                if wiped_at or int(wipe_meta.get("wipe_gen") or 0) > 0:
+                    if not fs_doc_survives_wipe(data, wipe_meta):
                         stats["skipped_wiped"] += 1
-                        try:
-                            for msg_doc in conv_doc.reference.collection("messages").stream():
-                                msg_doc.reference.delete()
-                            conv_doc.reference.delete()
-                        except Exception:
-                            pass
+                        fs_purge_remote_conversation_doc(conv_doc)
                         continue
-                    # #region agent log
-                    _agent_dbg(
-                        "C",
-                        "app.py:fs_pull",
-                        "tombstone bypass — importing despite wiped_at",
-                        {
-                            "conv_id": remote_conv_id,
-                            "stamp_n": stamp_n,
-                            "wiped_n": wiped_n,
-                            "updated_at": updated_at,
-                            "created_at": created_at,
-                        },
-                    )
-                    # #endregion
 
                 stats["imported"] += 1
                 local_conv_id = None
@@ -2067,6 +2135,8 @@ def fs_upsert_learning_dna(user_id, profile):
     if not db or not profile:
         return
     try:
+        from datetime import datetime as _dt
+        wipe_meta = fs_get_content_wipe_meta(user_id)
         payload = {
             "user_id": int(user_id),
             "total_study_minutes": int(profile.get("total_study_minutes") or 0),
@@ -2076,6 +2146,8 @@ def fs_upsert_learning_dna(user_id, profile):
             "preferred_style": profile.get("preferred_style") or "Step-by-Step",
             "learning_pace": profile.get("learning_pace") or "Steady",
             "updated_at": profile.get("updated_at") or "",
+            "written_at": _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "content_wipe_gen": int(wipe_meta.get("wipe_gen") or 0),
         }
         _fs_learning_dna_ref(db, user_id).set(payload, merge=True)
     except Exception as e:
@@ -2088,6 +2160,8 @@ def fs_upsert_subject_analytics(user_id, row):
     if not db or not row:
         return
     try:
+        from datetime import datetime as _dt
+        wipe_meta = fs_get_content_wipe_meta(user_id)
         subject = (row.get("subject") or "General").strip()[:50] or "General"
         payload = {
             "user_id": int(user_id),
@@ -2096,6 +2170,8 @@ def fs_upsert_subject_analytics(user_id, row):
             "questions_correct": int(row.get("questions_correct") or 0),
             "study_minutes": int(row.get("study_minutes") or 0),
             "updated_at": row.get("updated_at") or "",
+            "written_at": _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "content_wipe_gen": int(wipe_meta.get("wipe_gen") or 0),
         }
         _fs_subject_analytics_ref(db, user_id, subject).set(payload, merge=True)
     except Exception as e:
@@ -2108,65 +2184,85 @@ def fs_pull_learning_dna_into_sqlite(user_id):
     if not db:
         return
     try:
+        wipe_meta = fs_get_content_wipe_meta(user_id)
+        owner_key = _fs_owner_key_for_user_id(user_id)
         with get_db() as conn:
             # Profile
             snap = _fs_learning_dna_ref(db, user_id).get()
             if snap.exists:
                 data = snap.to_dict() or {}
-                get_or_create_learning_dna(conn, user_id)
-                conn.execute(
-                    """
-                    UPDATE learning_dna SET
-                      total_study_minutes=?,
-                      total_quizzes=?,
-                      total_quiz_questions=?,
-                      correct_quiz_questions=?,
-                      preferred_style=?,
-                      learning_pace=?,
-                      updated_at=COALESCE(?, updated_at)
-                    WHERE user_id=?
-                    """,
-                    (
-                        int(data.get("total_study_minutes") or 0),
-                        int(data.get("total_quizzes") or 0),
-                        int(data.get("total_quiz_questions") or 0),
-                        int(data.get("correct_quiz_questions") or 0),
-                        (data.get("preferred_style") or "Step-by-Step")[:50],
-                        (data.get("learning_pace") or "Steady")[:50],
-                        data.get("updated_at") or None,
-                        user_id,
-                    ),
-                )
+                if not fs_doc_survives_wipe(data, wipe_meta):
+                    # Pre-wipe DNA — delete remote, do not resurrect
+                    try:
+                        snap.reference.delete()
+                    except Exception:
+                        pass
+                else:
+                    get_or_create_learning_dna(conn, user_id)
+                    conn.execute(
+                        """
+                        UPDATE learning_dna SET
+                          total_study_minutes=?,
+                          total_quizzes=?,
+                          total_quiz_questions=?,
+                          correct_quiz_questions=?,
+                          preferred_style=?,
+                          learning_pace=?,
+                          updated_at=COALESCE(?, updated_at)
+                        WHERE user_id=?
+                        """,
+                        (
+                            int(data.get("total_study_minutes") or 0),
+                            int(data.get("total_quizzes") or 0),
+                            int(data.get("total_quiz_questions") or 0),
+                            int(data.get("correct_quiz_questions") or 0),
+                            (data.get("preferred_style") or "Step-by-Step")[:50],
+                            (data.get("learning_pace") or "Steady")[:50],
+                            data.get("updated_at") or None,
+                            user_id,
+                        ),
+                    )
 
-            # Subject analytics
-            for doc in (
-                db.collection("users")
-                .document(str(user_id))
-                .collection("subject_analytics")
-                .stream()
-            ):
-                data = doc.to_dict() or {}
-                subject = (data.get("subject") or doc.id or "General").strip()[:50] or "General"
-                conn.execute(
-                    """
-                    INSERT INTO subject_analytics
-                      (user_id, subject, questions_taken, questions_correct, study_minutes, updated_at)
-                    VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')))
-                    ON CONFLICT(user_id, subject) DO UPDATE SET
-                      questions_taken=excluded.questions_taken,
-                      questions_correct=excluded.questions_correct,
-                      study_minutes=excluded.study_minutes,
-                      updated_at=COALESCE(excluded.updated_at, subject_analytics.updated_at)
-                    """,
-                    (
-                        user_id,
-                        subject,
-                        int(data.get("questions_taken") or 0),
-                        int(data.get("questions_correct") or 0),
-                        int(data.get("study_minutes") or 0),
-                        data.get("updated_at") or None,
-                    ),
-                )
+            # Subject analytics (stable owner path + legacy numeric leftovers)
+            for coll_key in (owner_key, str(user_id)):
+                try:
+                    analytics_docs = list(
+                        db.collection("users")
+                        .document(str(coll_key))
+                        .collection("subject_analytics")
+                        .stream()
+                    )
+                except Exception:
+                    analytics_docs = []
+                for doc in analytics_docs:
+                    data = doc.to_dict() or {}
+                    if not fs_doc_survives_wipe(data, wipe_meta):
+                        try:
+                            doc.reference.delete()
+                        except Exception:
+                            pass
+                        continue
+                    subject = (data.get("subject") or doc.id or "General").strip()[:50] or "General"
+                    conn.execute(
+                        """
+                        INSERT INTO subject_analytics
+                          (user_id, subject, questions_taken, questions_correct, study_minutes, updated_at)
+                        VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')))
+                        ON CONFLICT(user_id, subject) DO UPDATE SET
+                          questions_taken=excluded.questions_taken,
+                          questions_correct=excluded.questions_correct,
+                          study_minutes=excluded.study_minutes,
+                          updated_at=COALESCE(excluded.updated_at, subject_analytics.updated_at)
+                        """,
+                        (
+                            user_id,
+                            subject,
+                            int(data.get("questions_taken") or 0),
+                            int(data.get("questions_correct") or 0),
+                            int(data.get("study_minutes") or 0),
+                            data.get("updated_at") or None,
+                        ),
+                    )
     except Exception as e:
         print(f"[Firestore] pull learning_dna failed: {e}")
 
@@ -2202,6 +2298,9 @@ def _fs_mistake_ref(db, user_id, mistake_id):
 
 
 def _mistake_to_fs_payload(user_id, mistake):
+    from datetime import datetime as _dt
+
+    wipe_meta = fs_get_content_wipe_meta(user_id)
     return {
         "user_id": int(user_id),
         "subject": mistake.get("subject") or "General",
@@ -2214,6 +2313,8 @@ def _mistake_to_fs_payload(user_id, mistake):
         "source_type": mistake.get("source_type") or "quiz",
         "created_at": mistake.get("created_at") or "",
         "mastered_at": mistake.get("mastered_at") or "",
+        "written_at": _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "content_wipe_gen": int(wipe_meta.get("wipe_gen") or 0),
     }
 
 
@@ -2252,7 +2353,8 @@ def fs_pull_mistakes_into_sqlite(user_id):
         return
     try:
         key = _fs_owner_key_for_user_id(user_id)
-        docs = (
+        wipe_meta = fs_get_content_wipe_meta(user_id)
+        docs = list(
             db.collection("users")
             .document(str(key))
             .collection("mistakes")
@@ -2265,6 +2367,14 @@ def fs_pull_mistakes_into_sqlite(user_id):
                     mistake_id = int(doc.id)
                 except (TypeError, ValueError):
                     continue
+                created_at = data.get("created_at") or None
+                mastered_at = data.get("mastered_at") or None
+                if not fs_doc_survives_wipe(data, wipe_meta):
+                    try:
+                        doc.reference.delete()
+                    except Exception:
+                        pass
+                    continue
                 question = (data.get("question") or "").strip()
                 correct_answer = (data.get("correct_answer") or "").strip()
                 explanation = (data.get("explanation") or "").strip()
@@ -2275,8 +2385,6 @@ def fs_pull_mistakes_into_sqlite(user_id):
                 wrong_answer = data.get("wrong_answer") or ""
                 mastered = 1 if data.get("mastered") else 0
                 source_type = (data.get("source_type") or "quiz")[:50]
-                created_at = data.get("created_at") or None
-                mastered_at = data.get("mastered_at") or None
 
                 owned = conn.execute(
                     "SELECT id FROM student_mistakes WHERE id=? AND user_id=?",
@@ -3164,12 +3272,13 @@ def clear_history():
 
 @app.route("/api/clear_everything", methods=["POST", "DELETE"])
 def clear_everything_api():
-    """Wipe chat/notebook/mistakes/DNA locally and in Firestore (sync — permanent)."""
+    """Wipe chat/notebook/mistakes/DNA (sync). Keeps XP, streak, and daily puzzle."""
     user, err = require_auth()
     if err:
         return err
 
     uid = user["id"]
+    # Tombstone FIRST so any concurrent pull cannot resurrect mid-wipe
     fs_mark_chats_wiped(uid)
 
     with get_db() as conn:
