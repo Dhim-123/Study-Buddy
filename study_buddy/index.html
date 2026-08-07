@@ -5554,7 +5554,8 @@
         return;
       }
 
-      welcomeTitle.textContent = `Welcome, ${buddyName}!`;
+      const username = (currentUser.identifier || "").trim() || "friend";
+      welcomeTitle.textContent = `Welcome, ${username}! I'm ${buddyName}.`;
       welcomeDesc.textContent = "What would you like to learn today?";
     }
 
@@ -6377,9 +6378,10 @@
               userId: data.userId || null,
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || identifier);
-            let successMsg = `Login successful. Welcome, ${data.buddyName}!`;
+            const uname = data.identifier || identifier || "friend";
+            let successMsg = `Login successful. Welcome, ${uname}!`;
             if (mode === "register") {
-              successMsg = `Registration successful. Welcome, ${data.buddyName}! You can now customize your Study Buddy's name in the settings panel.`;
+              successMsg = `Registration successful. Welcome, ${uname}! You can now customize your Study Buddy's name in the settings panel.`;
             }
             authPasswordInput.value = "";
             const confirmEl = document.getElementById("auth-password-confirm");
@@ -6491,7 +6493,7 @@
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || "");
             updateAuthUI({ clearMessage: false });
-            showAuthMessage(`Login successful. Welcome, ${data.buddyName}!`);
+            showAuthMessage(`Login successful. Welcome, ${data.identifier || "friend"}!`);
             updateWelcomeGreeting();
             await fetchChatHistory();
           } catch (err) {
