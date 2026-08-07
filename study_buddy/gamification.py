@@ -659,7 +659,11 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
                 grade = max(1, min(12, int(grade)))
             except Exception:
                 grade = 10
-            language = (data.get("language") or "en").strip()[:10] or "en"
+            language = (data.get("language") or "en").strip().lower()[:12] or "en"
+            if language not in ("en", "hi", "te", "es", "fr", "multi", "auto", "multilingual"):
+                language = "en"
+            if language in ("auto", "multilingual"):
+                language = "multi"
             subjects = data.get("preferredSubjects") or data.get("preferred_subjects") or []
             if not isinstance(subjects, list):
                 subjects = []

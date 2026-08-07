@@ -3013,15 +3013,26 @@ def chat():
         "es": "Spanish",
         "fr": "French",
     }
+    multilingual = lang_code in ("multi", "auto", "multilingual")
     reply_lang_name = LANG_NAMES.get(lang_code, "English")
 
     # Endpoint-specific system prompt enhancement
     if endpoint == "chat":
+        if multilingual:
+            lang_rule = (
+                "OUTPUT LANGUAGE (mandatory): Match the language the student is writing in. "
+                "If they write in Hindi, reply in Hindi; if Telugu, reply in Telugu; if English, reply in English; "
+                "and so on for any language. Keep math expressions/formulas readable.\n\n"
+            )
+        else:
+            lang_rule = (
+                f"OUTPUT LANGUAGE (mandatory): Reply entirely in {reply_lang_name}. "
+                f"Even if the student writes in another language, answer in {reply_lang_name}. "
+                "Keep math expressions/formulas readable.\n\n"
+            )
         system_prompt = (
             f"{system_prompt}\n\n"
-            f"OUTPUT LANGUAGE (mandatory): Reply entirely in {reply_lang_name}. "
-            f"Even if the student writes in another language, answer in {reply_lang_name}. "
-            "Keep math expressions/formulas readable.\n\n"
+            f"{lang_rule}"
             "RESPONSE STYLE RULES — follow these precisely:\n\n"
             "1. GREETINGS & SMALL TALK (e.g. 'Hello', 'Hi', 'Thanks', 'Good morning', 'Bye', song lyrics, banter):\n"
             "   → Reply warmly in ONE or TWO natural sentences. Stop there.\n"
