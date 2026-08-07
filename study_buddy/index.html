@@ -13394,8 +13394,7 @@
             }
           }
         }
-        // Reload after Firestore+SQLite wipe — should stay empty
-        if (typeof sbLoadConversations === "function") await sbLoadConversations();
+        // Skip reload — tombstone + local wipe already keep the list empty
       }
 
       async function clearPodcast() {
@@ -13456,7 +13455,10 @@
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || "Failed to clear Learning DNA");
         }
-        if (typeof renderLearningDnaDashboard === "function") await renderLearningDnaDashboard();
+        // Don't block clear on a full DNA dashboard reload
+        try {
+          if (typeof renderLearningDnaDashboard === "function") renderLearningDnaDashboard();
+        } catch (_) {}
       }
 
       async function clearMistakes() {
@@ -13518,34 +13520,42 @@
       }
 
       async function clearEverything() {
-        // Chat wipe is full-collection; skip clearRecent so it cannot re-pull mid-clear
-        const steps = [
-          clearChatHistoryOnly,
-          clearPodcast,
-          clearQuiz,
-          clearFlashcards,
-          clearMock,
-          clearNotebook,
-          clearUploads,
-          clearDna,
-          clearMistakes,
-          clearSearch,
-          clearCache,
-        ];
-        let sawLoginBlock = false;
-        for (const step of steps) {
-          try { await step(); } catch (e) {
-            if (e && e.message === "login") {
-              sawLoginBlock = true;
-              continue;
-            }
-            console.warn("[Clear Everything] step failed:", e);
-          }
-        }
+        // Instant local UI clears + one server call (cloud wipe continues in background)
+        clearPodcast();
+        clearQuiz();
+        clearFlashcards();
+        clearMock();
+        clearUploads();
+        clearSearch();
+        clearCache();
         if (typeof sbResetChatState === "function") sbResetChatState();
-        if (sawLoginBlock && !(currentUser && currentUser.loggedIn)) {
+        nbEntries = [];
+        try {
+          localStorage.removeItem(typeof nbGetStorageKey === "function" ? nbGetStorageKey() : "sb_living_notebook");
+          localStorage.removeItem("sb_living_notebook");
+        } catch (_) {}
+        if (typeof nbRender === "function") nbRender();
+        allMistakes = [];
+        currentMistakes = [];
+        if (typeof renderMistakes === "function") renderMistakes();
+
+        if (!(await requireLoginForCloud())) {
           showClearToast("Local data cleared — log in to clear cloud data");
+          return;
         }
+        const res = await fetch("/api/clear_everything", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Failed to clear everything");
+        }
+        try {
+          if (typeof renderLearningDnaDashboard === "function") renderLearningDnaDashboard();
+        } catch (_) {}
       }
 
       const runners = {
