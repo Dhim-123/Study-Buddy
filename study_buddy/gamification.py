@@ -238,7 +238,7 @@ def _get_prefs(conn, uid: int) -> dict:
     _ensure_xp_streak(conn, uid)
     row = conn.execute("SELECT * FROM user_prefs WHERE user_id=?", (uid,)).fetchone()
     if not row:
-        return {"grade": 10, "language": "multi", "font_scale": 1.0}
+        return {"grade": 9, "language": "multi", "font_scale": 1.0}
     d = dict(row)
     try:
         d["preferred_subjects"] = json.loads(d.get("preferred_subjects") or "[]")
@@ -533,7 +533,7 @@ def register_gamification_routes(
             "freezesOwned": freezes,
             "studiedToday": studied_today,
             "prefs": {
-                "grade": int(prefs.get("grade") or 10),
+                "grade": int(prefs.get("grade") or 9),
                 "language": prefs.get("language") or "multi",
                 "notifyStreak": bool(prefs.get("notify_streak", 1)),
                 "notifyPuzzle": bool(prefs.get("notify_puzzle", 1)),
@@ -685,11 +685,11 @@ def register_gamification_routes(
         data = request.get_json(force=True) or {}
         with get_db() as conn:
             _ensure_xp_streak(conn, uid)
-            grade = data.get("grade", 10)
+            grade = data.get("grade", 9)
             try:
                 grade = max(1, min(12, int(grade)))
             except Exception:
-                grade = 10
+                grade = 9
             language = (data.get("language") or "multi").strip().lower()[:20] or "multi"
             if language not in ("en", "hi", "te", "es", "fr", "multi", "auto", "multilingual"):
                 language = "multi"
@@ -851,7 +851,7 @@ def register_gamification_routes(
         _pull_game(uid)
         with get_db() as conn:
             prefs = _get_prefs(conn, uid)
-            grade = int(request.args.get("grade") or prefs.get("grade") or 10)
+            grade = int(request.args.get("grade") or prefs.get("grade") or 9)
             grade = max(1, min(12, grade))
             subject = (request.args.get("subject") or "").strip() or _subject_for_date(local_date)
             if subject not in PUZZLE_SUBJECTS:
@@ -924,7 +924,7 @@ def register_gamification_routes(
         _pull_game(uid)
         with get_db() as conn:
             prefs = _get_prefs(conn, uid)
-            grade = int(data.get("grade") or prefs.get("grade") or 10)
+            grade = int(data.get("grade") or prefs.get("grade") or 9)
             subject = (data.get("subject") or _subject_for_date(local_date)).strip()
             row = conn.execute(
                 "SELECT * FROM daily_puzzles WHERE puzzle_date=? AND grade=? AND subject=?",
@@ -1002,7 +1002,7 @@ def register_gamification_routes(
         _pull_game(uid)
         with get_db() as conn:
             prefs = _get_prefs(conn, uid)
-            grade = int(data.get("grade") or prefs.get("grade") or 10)
+            grade = int(data.get("grade") or prefs.get("grade") or 9)
             subject = (data.get("subject") or _subject_for_date(local_date)).strip()
             row = conn.execute(
                 "SELECT * FROM daily_puzzles WHERE puzzle_date=? AND grade=? AND subject=?",

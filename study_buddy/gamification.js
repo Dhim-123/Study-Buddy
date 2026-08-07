@@ -116,7 +116,10 @@
     document.documentElement.classList.toggle("sb-high-contrast", !!prefs.highContrast);
     document.documentElement.classList.toggle("sb-reduced-motion", !!prefs.reducedMotion);
     const gradeEl = document.getElementById("settings-grade");
-    if (gradeEl) gradeEl.value = String(prefs.grade || 9);
+    if (gradeEl) {
+      gradeEl.value = String(prefs.grade || localStorage.getItem("sb_grade") || 9);
+      try { localStorage.setItem("sb_grade", gradeEl.value); } catch (_) {}
+    }
     const langEl = document.getElementById("settings-language");
     if (langEl) {
       const lang = prefs.language || localStorage.getItem("sb_reply_language") || "multi";
@@ -390,9 +393,14 @@
     if (body) body.innerHTML = `<div class="sb-skel">Loading today's puzzle…</div>`;
     try {
       if (puzzleInflight) await puzzleInflight;
-      // UI chip shows Grade 9; generate grade-10 difficulty questions
+      const grade = parseInt(
+        document.getElementById("settings-grade")?.value
+          || localStorage.getItem("sb_grade")
+          || "9",
+        10
+      ) || 9;
       puzzleInflight = api(
-        `/api/daily_puzzle?localDate=${encodeURIComponent(localDate())}&grade=10`
+        `/api/daily_puzzle?localDate=${encodeURIComponent(localDate())}&grade=${grade}`
       );
       lastPuzzle = await puzzleInflight;
       puzzleInflight = null;
@@ -410,7 +418,7 @@
       <div class="puzzle-meta">
         <span class="puzzle-pill">${escape(p.subject)}</span>
         <span class="puzzle-pill">${escape(p.difficulty)}</span>
-        <span class="puzzle-pill">Grade 9</span>
+        <span class="puzzle-pill">Grade ${escape(String(p.grade || document.getElementById("settings-grade")?.value || "9"))}</span>
         <span class="puzzle-pill xp">+${p.xpReward} XP</span>
       </div>
       <p class="puzzle-prompt">${escape(p.prompt)}</p>
@@ -572,7 +580,7 @@
     if (!isLoggedIn()) return;
     const quiet = !!(opts && opts.quiet);
     const payload = {
-      grade: parseInt(document.getElementById("settings-grade")?.value || "10", 10),
+      grade: parseInt(document.getElementById("settings-grade")?.value || localStorage.getItem("sb_grade") || "9", 10),
       language: document.getElementById("settings-language")?.value || "multi",
       notifyStreak: !!document.getElementById("settings-notify-streak")?.checked,
       notifyPuzzle: !!document.getElementById("settings-notify-puzzle")?.checked,
@@ -636,6 +644,13 @@
       const v = e.target.value || "multi";
       try { localStorage.setItem("sb_reply_language", v); } catch (_) {}
       // Persist immediately so Multilingual is not overwritten by a later prefs reload
+      if (isLoggedIn()) {
+        savePrefsFromSettings({ quiet: true }).catch(() => {});
+      }
+    });
+    document.getElementById("settings-grade")?.addEventListener("change", (e) => {
+      const g = String(e.target.value || "9");
+      try { localStorage.setItem("sb_grade", g); } catch (_) {}
       if (isLoggedIn()) {
         savePrefsFromSettings({ quiet: true }).catch(() => {});
       }
