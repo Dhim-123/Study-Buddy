@@ -3501,30 +3501,114 @@ def chat():
     multilingual = lang_code in ("multi", "auto", "multilingual")
     reply_lang_name = LANG_NAMES.get(lang_code, "English")
 
-    def _script_language_hint(text: str) -> str:
-        """Stronger multilingual cue from the latest user message script."""
-        t = text or ""
+    def _text_for_lang_detect(text: str) -> str:
+        """Prefer the student's typed words; ignore appended OCR/page blocks."""
+        t = (text or "").strip()
+        if not t:
+            return ""
+        for marker in (
+            "\n\n--- EXTRACTED PAGE TEXT ---",
+            "\n--- EXTRACTED PAGE TEXT ---",
+            "Best effort on blurry OCR:",
+            "I'm referring to the page photo I uploaded",
+        ):
+            if marker in t:
+                t = t.split(marker, 1)[0].strip()
+        # Keep a short window — enough for language cues
+        return t[:800]
+
+    def _detect_message_language(text: str) -> str:
+        """Best-effort language name for the latest user message."""
+        t = _text_for_lang_detect(text)
+        if not t:
+            return ""
         if re.search(r"[\u0C00-\u0C7F]", t):
-            return "The student's latest message uses Telugu script — reply in Telugu."
+            return "Telugu"
         if re.search(r"[\u0900-\u097F]", t):
-            return "The student's latest message uses Devanagari — reply in Hindi."
+            return "Hindi"
         if re.search(r"[\u0B80-\u0BFF]", t):
-            return "The student's latest message uses Tamil script — reply in Tamil."
+            return "Tamil"
         if re.search(r"[\u0C80-\u0CFF]", t):
-            return "The student's latest message uses Kannada script — reply in Kannada."
+            return "Kannada"
         if re.search(r"[\u0D00-\u0D7F]", t):
-            return "The student's latest message uses Malayalam script — reply in Malayalam."
+            return "Malayalam"
         if re.search(r"[\u0980-\u09FF]", t):
-            return "The student's latest message uses Bengali script — reply in Bengali."
+            return "Bengali"
         if re.search(r"[\u0600-\u06FF]", t):
-            return "The student's latest message uses Arabic script — reply in that language."
+            return "Arabic"
         if re.search(r"[\u4E00-\u9FFF]", t):
-            return "The student's latest message uses Chinese characters — reply in Chinese."
-        # Latin / mixed: match whatever language they are writing (Hindi roman, Spanish, etc.)
+            return "Chinese"
+
+        low = t.lower()
+        scores = {
+            "German": 0,
+            "Spanish": 0,
+            "French": 0,
+            "English": 0,
+            "Hindi": 0,
+        }
+        if re.search(r"[äöüß]", low):
+            scores["German"] += 4
+        if re.search(r"[ñ¿¡]", low):
+            scores["Spanish"] += 4
+        if re.search(r"[àâçèéêëîïôùûüœ]", low):
+            scores["French"] += 3
+
+        def _hit(lang, words, w=1):
+            for word in words:
+                if re.search(rf"\b{re.escape(word)}\b", low):
+                    scores[lang] += w
+
+        _hit("German", [
+            "ich", "nicht", "und", "die", "der", "das", "ist", "ein", "eine",
+            "wie", "was", "warum", "kann", "können", "bitte", "danke", "hallo",
+            "erklären", "hilfe", "für", "mit", "auch", "oder", "aber", "wenn",
+            "haben", "sind", "mein", "dein", "gut", "heute", "lernen",
+        ], 2)
+        _hit("Spanish", [
+            "hola", "gracias", "qué", "que", "cómo", "como", "por", "para",
+            "está", "esta", "esto", "hola", "ayuda", "explicar", "porque",
+            "tengo", "quiero", "hacer", "dónde", "donde",
+        ], 2)
+        _hit("French", [
+            "bonjour", "merci", "je", "tu", "nous", "vous", "est", "pas",
+            "pour", "avec", "quoi", "comment", "pourquoi", "aide", "expliquer",
+            "s'il", "ça", "une", "les", "des",
+        ], 2)
+        _hit("English", [
+            "the", "what", "how", "why", "please", "thanks", "thank", "hello",
+            "hi", "explain", "help", "can", "could", "would", "does", "don't",
+            "dont", "isn't", "about", "this", "that", "with", "from", "have",
+            "there", "their", "which", "where", "when", "because",
+        ], 2)
+        _hit("Hindi", [
+            "hai", "kya", "kaise", "kyun", "kyunki", "nahi", "nahin", "mera",
+            "tera", "aap", "tum", "matlab", "samjhao", "batao", "please",
+            "haan", "ji", "aur", "par", "se",
+        ], 2)
+
+        best = max(scores.items(), key=lambda kv: kv[1])
+        if best[1] >= 2:
+            return best[0]
+        return ""
+
+    def _script_language_hint(text: str) -> str:
+        """Stronger multilingual cue from the latest user message only."""
+        detected = _detect_message_language(text)
+        sample = _text_for_lang_detect(text)
+        sample_q = (sample[:160] + "…") if len(sample) > 160 else sample
+        sample_q = sample_q.replace("\n", " ").strip()
+        if detected:
+            return (
+                f"Detected language of the LATEST student message: {detected}. "
+                f'Reply entirely in {detected}. '
+                f'Latest message sample: "{sample_q}"'
+            )
         return (
-            "Match the language of the student's latest message "
-            "(including Hinglish/romanized Hindi, Spanish, French, etc.). "
-            "Do not switch to English unless they wrote in English."
+            "Identify the language of ONLY the student's latest message "
+            "(German, English, Hindi, Spanish, French, Telugu, etc.) and reply in that language. "
+            "If they switched languages mid-chat, follow the new language immediately. "
+            f'Latest message sample: "{sample_q}"'
         )
 
     # Endpoint-specific system prompt enhancement
@@ -3535,13 +3619,19 @@ def chat():
                 last_user_text = m.get("content") or ""
                 break
         if multilingual:
+            detected_lang = _detect_message_language(last_user_text)
             lang_rule = (
-                "OUTPUT LANGUAGE (mandatory): Reply in the SAME language as the student's latest message. "
-                "If they write in Hindi, reply in Hindi; Telugu → Telugu; English → English; "
-                "any other language → that language. Never translate into English unless they used English. "
-                "Keep math expressions/formulas readable.\n"
-                f"{_script_language_hint(last_user_text)}\n\n"
+                "OUTPUT LANGUAGE (mandatory — overrides earlier chat language):\n"
+                "- Reply in the SAME language as the student's MOST RECENT message only.\n"
+                "- If earlier turns were German/Hindi/etc. but the latest message is English, reply in English.\n"
+                "- If the latest message is German, reply in German — even if earlier turns were English.\n"
+                "- Do NOT keep using a previous reply language out of habit from chat history.\n"
+                "- Keep math expressions/formulas readable.\n"
+                f"{_script_language_hint(last_user_text)}\n"
             )
+            if detected_lang:
+                lang_rule += f"- Final check: your entire answer must be in {detected_lang}.\n"
+            lang_rule += "\n"
         else:
             lang_rule = (
                 f"OUTPUT LANGUAGE (mandatory): Reply entirely in {reply_lang_name}. "
