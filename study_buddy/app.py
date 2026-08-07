@@ -1329,6 +1329,296 @@ def fs_wipe_all_mistakes(user_id):
         return 0
 
 
+def _fs_meta_ref(db, user_id, owner_key=None):
+    key = owner_key or _fs_owner_key_for_user_id(user_id)
+    return db.collection("users").document(str(key)).collection("meta").document("sync")
+
+
+def fs_mark_chats_wiped(user_id):
+    """Record a wipe timestamp so stale remote chats cannot be pulled back."""
+    db = get_firestore()
+    if not db:
+        return
+    try:
+        owner_key = _fs_owner_key_for_user_id(user_id)
+        from datetime import datetime as _dt
+        _fs_meta_ref(db, user_id, owner_key=owner_key).set(
+            {
+                "owner_key": owner_key,
+                "chat_wiped_at": _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            },
+            merge=True,
+        )
+    except Exception as e:
+        print(f"[Firestore] mark chats wiped failed: {e}")
+
+
+def fs_get_chat_wiped_at(user_id):
+    db = get_firestore()
+    if not db:
+        return None
+    try:
+        owner_key = _fs_owner_key_for_user_id(user_id)
+        snap = _fs_meta_ref(db, user_id, owner_key=owner_key).get()
+        if not snap.exists:
+            return None
+        return (snap.to_dict() or {}).get("chat_wiped_at") or None
+    except Exception as e:
+        print(f"[Firestore] get chat wiped_at failed: {e}")
+        return None
+
+
+def _fs_gamification_ref(db, user_id, owner_key=None):
+    key = owner_key or _fs_owner_key_for_user_id(user_id)
+    return (
+        db.collection("users")
+        .document(str(key))
+        .collection("gamification")
+        .document("state")
+    )
+
+
+def fs_push_gamification(user_id):
+    """Mirror XP / streak / prefs / inventory / puzzle attempts to Firestore (stable owner key)."""
+    db = get_firestore()
+    if not db:
+        return
+    try:
+        owner_key = _fs_owner_key_for_user_id(user_id)
+        with get_db() as conn:
+            xp = conn.execute("SELECT * FROM user_xp WHERE user_id=?", (user_id,)).fetchone()
+            st = conn.execute("SELECT * FROM user_streaks WHERE user_id=?", (user_id,)).fetchone()
+            prefs = conn.execute("SELECT * FROM user_prefs WHERE user_id=?", (user_id,)).fetchone()
+            inv = conn.execute(
+                "SELECT item_id, qty FROM user_inventory WHERE user_id=?", (user_id,)
+            ).fetchall()
+            milestones = conn.execute(
+                "SELECT milestone_id, unlocked_at FROM user_milestones WHERE user_id=?",
+                (user_id,),
+            ).fetchall()
+            attempts = conn.execute(
+                """
+                SELECT puzzle_date, grade, subject, attempted, correct, skipped,
+                       xp_awarded, user_answer
+                FROM daily_puzzle_attempts WHERE user_id=?
+                ORDER BY puzzle_date DESC LIMIT 90
+                """,
+                (user_id,),
+            ).fetchall()
+            ledger = conn.execute(
+                """
+                SELECT action, amount, meta, local_date, created_at
+                FROM xp_ledger WHERE user_id=?
+                ORDER BY id DESC LIMIT 200
+                """,
+                (user_id,),
+            ).fetchall()
+
+        from datetime import datetime as _dt
+        payload = {
+            "owner_key": owner_key,
+            "user_id": int(user_id),
+            "updated_at": _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "xp": {
+                "balance": int(xp["balance"] or 0) if xp else 0,
+                "lifetime": int(xp["lifetime"] or 0) if xp else 0,
+            },
+            "streak": {
+                "current_streak": int(st["current_streak"] or 0) if st else 0,
+                "best_streak": int(st["best_streak"] or 0) if st else 0,
+                "last_study_date": st["last_study_date"] if st else None,
+                "freezes_owned": int(st["freezes_owned"] or 0) if st else 0,
+            },
+            "prefs": {
+                "grade": int(prefs["grade"] or 10) if prefs else 10,
+                "language": (prefs["language"] if prefs else None) or "multi",
+                "notify_streak": int(prefs["notify_streak"] or 1) if prefs else 1,
+                "notify_puzzle": int(prefs["notify_puzzle"] or 1) if prefs else 1,
+                "high_contrast": int(prefs["high_contrast"] or 0) if prefs else 0,
+                "font_scale": float(prefs["font_scale"] or 1.0) if prefs else 1.0,
+                "reduced_motion": int(prefs["reduced_motion"] or 0) if prefs else 0,
+                "preferred_subjects": (prefs["preferred_subjects"] if prefs else None) or "[]",
+            },
+            "inventory": {r["item_id"]: int(r["qty"] or 0) for r in inv},
+            "milestones": [
+                {"id": m["milestone_id"], "unlocked_at": m["unlocked_at"]} for m in milestones
+            ],
+            "puzzle_attempts": [dict(a) for a in attempts],
+            "xp_ledger": [dict(r) for r in ledger],
+        }
+        _fs_gamification_ref(db, user_id, owner_key=owner_key).set(payload, merge=True)
+    except Exception as e:
+        print(f"[Firestore] push gamification failed: {e}")
+
+
+def fs_pull_gamification(user_id):
+    """Restore XP / streak / puzzle progress from Firestore into SQLite. Soft-fails."""
+    db = get_firestore()
+    if not db:
+        return
+    try:
+        owner_key = _fs_owner_key_for_user_id(user_id)
+        snap = _fs_gamification_ref(db, user_id, owner_key=owner_key).get()
+        if not snap.exists:
+            return
+        data = snap.to_dict() or {}
+        remote_owner = (data.get("owner_key") or "").strip()
+        if remote_owner and remote_owner != owner_key:
+            return
+
+        xp = data.get("xp") or {}
+        st = data.get("streak") or {}
+        prefs = data.get("prefs") or {}
+        inv = data.get("inventory") or {}
+        milestones = data.get("milestones") or []
+        attempts = data.get("puzzle_attempts") or []
+        ledger = data.get("xp_ledger") or []
+
+        with get_db() as conn:
+            # Ensure parent user + empty rows exist
+            if not conn.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone():
+                return
+            conn.execute(
+                "INSERT OR IGNORE INTO user_xp (user_id, balance, lifetime) VALUES (?,0,0)",
+                (user_id,),
+            )
+            conn.execute(
+                "INSERT OR IGNORE INTO user_streaks (user_id, current_streak, best_streak, freezes_owned) VALUES (?,0,0,0)",
+                (user_id,),
+            )
+            conn.execute(
+                "INSERT OR IGNORE INTO user_prefs (user_id, language) VALUES (?, 'multi')",
+                (user_id,),
+            )
+
+            local_xp = conn.execute(
+                "SELECT balance, lifetime FROM user_xp WHERE user_id=?", (user_id,)
+            ).fetchone()
+            remote_life = int(xp.get("lifetime") or 0)
+            local_life = int(local_xp["lifetime"] or 0) if local_xp else 0
+            # Prefer cloud when local is empty/stale (Render disk wipe) or behind
+            if remote_life >= local_life:
+                conn.execute(
+                    """
+                    UPDATE user_xp SET balance=?, lifetime=?, updated_at=datetime('now')
+                    WHERE user_id=?
+                    """,
+                    (int(xp.get("balance") or 0), remote_life, user_id),
+                )
+                conn.execute(
+                    """
+                    UPDATE user_streaks SET
+                      current_streak=?, best_streak=?, last_study_date=?,
+                      freezes_owned=?, updated_at=datetime('now')
+                    WHERE user_id=?
+                    """,
+                    (
+                        int(st.get("current_streak") or 0),
+                        int(st.get("best_streak") or 0),
+                        st.get("last_study_date"),
+                        int(st.get("freezes_owned") or 0),
+                        user_id,
+                    ),
+                )
+                if prefs:
+                    conn.execute(
+                        """
+                        UPDATE user_prefs SET
+                          grade=?, language=?, notify_streak=?, notify_puzzle=?,
+                          high_contrast=?, font_scale=?, reduced_motion=?,
+                          preferred_subjects=?, updated_at=datetime('now')
+                        WHERE user_id=?
+                        """,
+                        (
+                            int(prefs.get("grade") or 10),
+                            (prefs.get("language") or "multi")[:20],
+                            1 if prefs.get("notify_streak", 1) else 0,
+                            1 if prefs.get("notify_puzzle", 1) else 0,
+                            1 if prefs.get("high_contrast", 0) else 0,
+                            float(prefs.get("font_scale") or 1.0),
+                            1 if prefs.get("reduced_motion", 0) else 0,
+                            prefs.get("preferred_subjects") or "[]",
+                            user_id,
+                        ),
+                    )
+                if isinstance(inv, dict):
+                    for item_id, qty in inv.items():
+                        try:
+                            q = max(0, int(qty or 0))
+                        except Exception:
+                            continue
+                        if not item_id or q <= 0:
+                            continue
+                        conn.execute(
+                            """
+                            INSERT INTO user_inventory (user_id, item_id, qty) VALUES (?,?,?)
+                            ON CONFLICT(user_id, item_id) DO UPDATE SET qty=excluded.qty
+                            """,
+                            (user_id, str(item_id)[:80], q),
+                        )
+                for m in milestones:
+                    mid = (m.get("id") or m.get("milestone_id") or "").strip()
+                    if not mid:
+                        continue
+                    conn.execute(
+                        "INSERT OR IGNORE INTO user_milestones (user_id, milestone_id, unlocked_at) VALUES (?,?,?)",
+                        (user_id, mid[:80], m.get("unlocked_at") or None),
+                    )
+                for a in attempts:
+                    try:
+                        pdate = (a.get("puzzle_date") or "").strip()
+                        grade = int(a.get("grade") or 10)
+                        subject = (a.get("subject") or "").strip()[:40]
+                        if not pdate or not subject:
+                            continue
+                        conn.execute(
+                            """
+                            INSERT INTO daily_puzzle_attempts
+                              (user_id, puzzle_date, grade, subject, attempted, correct, skipped, xp_awarded, user_answer)
+                            VALUES (?,?,?,?,?,?,?,?,?)
+                            ON CONFLICT(user_id, puzzle_date, grade, subject) DO UPDATE SET
+                              attempted=excluded.attempted, correct=excluded.correct,
+                              skipped=excluded.skipped, xp_awarded=excluded.xp_awarded,
+                              user_answer=excluded.user_answer
+                            """,
+                            (
+                                user_id, pdate, grade, subject,
+                                1 if a.get("attempted") else 0,
+                                1 if a.get("correct") else 0,
+                                1 if a.get("skipped") else 0,
+                                int(a.get("xp_awarded") or 0),
+                                (a.get("user_answer") or None),
+                            ),
+                        )
+                    except Exception:
+                        continue
+                # Restore recent ledger only when local empty (chat XP daily cap)
+                local_ledger_n = conn.execute(
+                    "SELECT COUNT(*) AS c FROM xp_ledger WHERE user_id=?", (user_id,)
+                ).fetchone()["c"]
+                if local_ledger_n == 0 and isinstance(ledger, list):
+                    for row in reversed(ledger[-200:]):
+                        try:
+                            conn.execute(
+                                """
+                                INSERT INTO xp_ledger (user_id, action, amount, meta, local_date, created_at)
+                                VALUES (?,?,?,?,?,COALESCE(?, datetime('now')))
+                                """,
+                                (
+                                    user_id,
+                                    str(row.get("action") or "restore")[:40],
+                                    int(row.get("amount") or 0),
+                                    row.get("meta"),
+                                    row.get("local_date"),
+                                    row.get("created_at"),
+                                ),
+                            )
+                        except Exception:
+                            continue
+    except Exception as e:
+        print(f"[Firestore] pull gamification failed: {e}")
+
+
 def _fs_stream_conversations(db, user_id, owner_key):
     """Yield conversation docs from the stable owner path only.
 
@@ -1346,6 +1636,7 @@ def fs_pull_conversations_into_sqlite(user_id):
         return
     try:
         owner_key = _fs_owner_key_for_user_id(user_id)
+        wiped_at = fs_get_chat_wiped_at(user_id)
         conv_docs, owner_key = _fs_stream_conversations(db, user_id, owner_key)
         with get_db() as conn:
             for conv_doc in conv_docs:
@@ -1366,6 +1657,23 @@ def fs_pull_conversations_into_sqlite(user_id):
                 archived = 1 if data.get("archived") else 0
                 created_at = data.get("created_at") or None
                 updated_at = data.get("updated_at") or None
+
+                # After Clear History, never resurrect older cloud chats
+                if wiped_at:
+                    def _norm_ts(s):
+                        s = (s or "").strip().replace("T", " ").replace("Z", "")
+                        return s[:19]
+
+                    stamp_n = _norm_ts(updated_at or created_at)
+                    wiped_n = _norm_ts(wiped_at)
+                    if not stamp_n or (wiped_n and stamp_n <= wiped_n):
+                        try:
+                            for msg_doc in conv_doc.reference.collection("messages").stream():
+                                msg_doc.reference.delete()
+                            conv_doc.reference.delete()
+                        except Exception:
+                            pass
+                        continue
 
                 local_conv_id = None
                 owned = conn.execute(
@@ -2617,6 +2925,7 @@ def clear_history():
     uid = user["id"]
     # Wipe Firestore first so a later pull cannot resurrect chats
     fs_wiped = fs_wipe_all_conversations(uid)
+    fs_mark_chats_wiped(uid)
 
     with get_db() as conn:
         rows = conn.execute(
@@ -5839,7 +6148,15 @@ try:
         from gamification import register_gamification_routes
     except ImportError:
         from study_buddy.gamification import register_gamification_routes
-    register_gamification_routes(app, get_db, require_auth, get_groq_client, resolve_groq_model)
+    register_gamification_routes(
+        app,
+        get_db,
+        require_auth,
+        get_groq_client,
+        resolve_groq_model,
+        fs_pull_gamification=fs_pull_gamification,
+        fs_push_gamification=fs_push_gamification,
+    )
 except Exception as e:
     print(f"[WARN] Gamification routes not registered: {e}")
 

@@ -450,8 +450,30 @@ def _normalize_answer(s: str) -> str:
     return s
 
 
-def register_gamification_routes(app, get_db, require_auth, get_groq_client, resolve_groq_model):
+def register_gamification_routes(
+    app,
+    get_db,
+    require_auth,
+    get_groq_client,
+    resolve_groq_model,
+    fs_pull_gamification=None,
+    fs_push_gamification=None,
+):
     """Attach all gamification routes to the Flask app."""
+
+    def _pull_game(uid):
+        if fs_pull_gamification:
+            try:
+                fs_pull_gamification(uid)
+            except Exception as e:
+                print(f"[Gamification] pull failed: {e}")
+
+    def _push_game(uid):
+        if fs_push_gamification:
+            try:
+                fs_push_gamification(uid)
+            except Exception as e:
+                print(f"[Gamification] push failed: {e}")
 
     @app.route("/api/gamification/summary", methods=["GET"])
     def gamification_summary():
@@ -460,6 +482,8 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
             return err
         uid = user["id"]
         local_date = _parse_local_date(request.args)
+        # Restore cloud XP/streak/puzzle before reading (survives logout + Render wipes)
+        _pull_game(uid)
         with get_db() as conn:
             _ensure_xp_streak(conn, uid)
             recon = _reconcile_missed_day(conn, uid, local_date)
@@ -499,6 +523,7 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
                     }
                     break
 
+        _push_game(uid)
         return jsonify({
             "xp": int(xp["balance"] or 0) if xp else 0,
             "lifetimeXp": int(xp["lifetime"] or 0) if xp else 0,
@@ -562,6 +587,7 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
 
             xp = conn.execute("SELECT balance, lifetime FROM user_xp WHERE user_id=?", (uid,)).fetchone()
 
+        _push_game(uid)
         return jsonify({
             "ok": True,
             "action": action,
@@ -641,6 +667,7 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
             new_bal = conn.execute(
                 "SELECT balance FROM user_xp WHERE user_id=?", (uid,)
             ).fetchone()["balance"]
+        _push_game(uid)
         return jsonify({"ok": True, "xp": int(new_bal), "itemId": item_id, "owned": owned + 1})
 
     @app.route("/api/prefs", methods=["GET", "POST"])
@@ -650,6 +677,7 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
             return err
         uid = user["id"]
         if request.method == "GET":
+            _pull_game(uid)
             with get_db() as conn:
                 prefs = _get_prefs(conn, uid)
             return jsonify({"prefs": prefs})
@@ -698,6 +726,7 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
                 ),
             )
             prefs = _get_prefs(conn, uid)
+        _push_game(uid)
         return jsonify({"ok": True, "prefs": prefs})
 
     @app.route("/api/planner", methods=["GET", "POST"])
@@ -819,6 +848,7 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
             return err
         uid = user["id"]
         local_date = _parse_local_date(request.args)
+        _pull_game(uid)
         with get_db() as conn:
             prefs = _get_prefs(conn, uid)
             grade = int(request.args.get("grade") or prefs.get("grade") or 10)
@@ -891,6 +921,7 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
         data = request.get_json(force=True) or {}
         local_date = _parse_local_date(data)
         user_answer = (data.get("answer") or "").strip()
+        _pull_game(uid)
         with get_db() as conn:
             prefs = _get_prefs(conn, uid)
             grade = int(data.get("grade") or prefs.get("grade") or 10)
@@ -944,6 +975,7 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
             )
             xp = conn.execute("SELECT balance FROM user_xp WHERE user_id=?", (uid,)).fetchone()
 
+        _push_game(uid)
         return jsonify({
             "ok": True,
             "correct": correct,
@@ -967,6 +999,7 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
         uid = user["id"]
         data = request.get_json(force=True) or {}
         local_date = _parse_local_date(data)
+        _pull_game(uid)
         with get_db() as conn:
             prefs = _get_prefs(conn, uid)
             grade = int(data.get("grade") or prefs.get("grade") or 10)
@@ -988,6 +1021,7 @@ def register_gamification_routes(app, get_db, require_auth, get_groq_client, res
                 """,
                 (uid, local_date, grade, subject),
             )
+        _push_game(uid)
         return jsonify({
             "ok": True,
             "skipped": True,

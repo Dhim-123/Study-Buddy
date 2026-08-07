@@ -4590,7 +4590,7 @@
                   <span>or</span>
                   <span style="flex:1; height:1px; background:var(--border);"></span>
                 </div>
-                <button class="btn-icon" id="auth-google-btn" type="button" style="width:100%; justify-content:center; font-weight:700;">
+                <button class="btn-primary" id="auth-google-btn" type="button" style="width:100%; justify-content:center; font-weight:700;">
                   Continue with Google
                 </button>
               </div>
@@ -13355,7 +13355,7 @@
         modalCard.classList.toggle("danger", isEverything);
         modalTitle.textContent = isEverything ? "🚨 Clear Everything?" : item.label + "?";
         modalMsg.textContent = isEverything
-          ? "This permanently deletes chat, notebook, mistakes, Learning DNA, uploads, session outputs, search history, and cache. Theme and login are kept. This cannot be undone."
+          ? "This permanently deletes chat, notebook, mistakes, Learning DNA, uploads, session outputs, search history, and cache. XP, streak, puzzle progress, theme, and login are kept. This cannot be undone."
           : `This will permanently clear ${item.label.replace(/^Clear |^Reset /, "").toLowerCase()}. This cannot be undone.`;
         if (deleteGate) deleteGate.style.display = "none";
         if (deleteInput) deleteInput.value = "";

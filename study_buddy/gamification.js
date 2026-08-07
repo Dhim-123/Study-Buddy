@@ -80,10 +80,7 @@
     }
     if (summaryInflight && !force) return summaryInflight;
     const gen = ++summaryGen;
-    if (force) {
-      summary = null;
-      renderNavbarGuest();
-    }
+    // Keep last known XP/streak visible while refreshing (don't flash zeros on login)
     summaryInflight = api(`/api/gamification/summary?localDate=${encodeURIComponent(localDate())}`)
       .then((data) => {
         if (gen !== summaryGen || !isLoggedIn()) return null;
