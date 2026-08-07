@@ -1270,6 +1270,65 @@ def fs_delete_conversation(user_id, conv_id):
         print(f"[Firestore] delete conversation failed: {e}")
 
 
+def _fs_wipe_collection_docs(coll_ref, subcollections=None):
+    """Hard-delete every document in a collection (and optional nested subcollections)."""
+    deleted = 0
+    subcollections = subcollections or []
+    try:
+        for doc in list(coll_ref.stream()):
+            for sub in subcollections:
+                try:
+                    for child in list(doc.reference.collection(sub).stream()):
+                        child.reference.delete()
+                except Exception as e:
+                    print(f"[Firestore] wipe subcollection {sub} failed: {e}")
+            doc.reference.delete()
+            deleted += 1
+    except Exception as e:
+        print(f"[Firestore] wipe collection failed: {e}")
+    return deleted
+
+
+def fs_wipe_all_conversations(user_id):
+    """Permanently delete ALL remote conversations for this account (stable owner path)."""
+    db = get_firestore()
+    if not db:
+        return 0
+    try:
+        owner_key = _fs_owner_key_for_user_id(user_id)
+        coll = db.collection("users").document(str(owner_key)).collection("conversations")
+        return _fs_wipe_collection_docs(coll, subcollections=["messages"])
+    except Exception as e:
+        print(f"[Firestore] wipe all conversations failed: {e}")
+        return 0
+
+
+def fs_wipe_all_notebook_entries(user_id):
+    """Permanently delete ALL remote notebook entries for this user."""
+    db = get_firestore()
+    if not db:
+        return 0
+    try:
+        coll = db.collection("users").document(str(user_id)).collection("notebook")
+        return _fs_wipe_collection_docs(coll)
+    except Exception as e:
+        print(f"[Firestore] wipe all notebook failed: {e}")
+        return 0
+
+
+def fs_wipe_all_mistakes(user_id):
+    """Permanently delete ALL remote Mistake Vault entries for this user."""
+    db = get_firestore()
+    if not db:
+        return 0
+    try:
+        coll = db.collection("users").document(str(user_id)).collection("mistakes")
+        return _fs_wipe_collection_docs(coll)
+    except Exception as e:
+        print(f"[Firestore] wipe all mistakes failed: {e}")
+        return 0
+
+
 def _fs_stream_conversations(db, user_id, owner_key):
     """Yield conversation docs from the stable owner path only.
 
@@ -2550,26 +2609,30 @@ def get_history():
 
 @app.route("/api/history", methods=["DELETE"])
 def clear_history():
-    """Delete all conversations for the current user (SQLite + Firestore)."""
+    """Permanently delete all conversations for the current user (SQLite + Firestore)."""
     user, err = require_auth()
     if err:
         return err
 
     uid = user["id"]
+    # Wipe Firestore first so a later pull cannot resurrect chats
+    fs_wiped = fs_wipe_all_conversations(uid)
+
     with get_db() as conn:
         rows = conn.execute(
             "SELECT id FROM conversations WHERE user_id=?", (uid,)
         ).fetchall()
         conv_ids = [int(r["id"]) for r in rows]
         conn.execute("DELETE FROM conversations WHERE user_id=?", (uid,))
+        # Messages cascade with conversations; belt-and-suspenders
+        if conv_ids:
+            placeholders = ",".join("?" * len(conv_ids))
+            conn.execute(
+                f"DELETE FROM messages WHERE conversation_id IN ({placeholders})",
+                conv_ids,
+            )
 
-    for cid in conv_ids:
-        try:
-            fs_delete_conversation(uid, cid)
-        except Exception as e:
-            print(f"[Firestore] clear_history delete conv {cid} failed: {e}")
-
-    return jsonify({"ok": True, "deleted": len(conv_ids)})
+    return jsonify({"ok": True, "deleted": len(conv_ids), "firestoreDeleted": fs_wiped})
 
 
 GREETING_TITLE_RE = re.compile(
@@ -4768,22 +4831,22 @@ def delete_notebook_entry(entry_id):
 
 @app.route("/api/notebook", methods=["DELETE"])
 def clear_all_notebook_entries():
-    """Delete all Living Notebook entries for the current user."""
+    """Permanently delete all Living Notebook entries for the current user."""
     user, err = require_auth()
     if err:
         return err
 
+    uid = user["id"]
+    fs_wiped = fs_wipe_all_notebook_entries(uid)
+
     with get_db() as conn:
         rows = conn.execute(
             "SELECT id FROM living_notebook WHERE user_id=?",
-            (user["id"],),
+            (uid,),
         ).fetchall()
-        conn.execute("DELETE FROM living_notebook WHERE user_id=?", (user["id"],))
+        conn.execute("DELETE FROM living_notebook WHERE user_id=?", (uid,))
 
-    for row in rows:
-        fs_delete_notebook_entry(user["id"], row["id"])
-
-    return jsonify({"ok": True, "deleted": len(rows)})
+    return jsonify({"ok": True, "deleted": len(rows), "firestoreDeleted": fs_wiped})
 
 
 @app.route("/api/notebook/ai_extract", methods=["POST"])
@@ -5442,25 +5505,22 @@ def reset_learning_dna():
 
     uid = user["id"]
     with get_db() as conn:
-        subjects = conn.execute(
-            "SELECT subject FROM subject_analytics WHERE user_id=?",
-            (uid,),
-        ).fetchall()
         conn.execute("DELETE FROM subject_analytics WHERE user_id=?", (uid,))
         conn.execute("DELETE FROM learning_dna WHERE user_id=?", (uid,))
 
-    # Soft-fail Firestore cleanup
+    # Soft-fail Firestore cleanup — wipe whole collections so nothing resurrects on login
     db = get_firestore()
     if db:
         try:
             _fs_learning_dna_ref(db, uid).delete()
         except Exception as e:
             print(f"[Firestore] delete learning_dna failed: {e}")
-        for row in subjects:
-            try:
-                _fs_subject_analytics_ref(db, uid, row["subject"]).delete()
-            except Exception as e:
-                print(f"[Firestore] delete subject_analytics failed: {e}")
+        try:
+            _fs_wipe_collection_docs(
+                db.collection("users").document(str(uid)).collection("subject_analytics")
+            )
+        except Exception as e:
+            print(f"[Firestore] wipe subject_analytics failed: {e}")
         try:
             fs_push_progress_from_sqlite(uid, {
                 "accuracy": 0,
@@ -5730,22 +5790,23 @@ def delete_mistake(mistake_id):
 
 @app.route("/api/mistakes", methods=["DELETE"])
 def clear_all_mistakes():
-    """Delete all Mistake Vault entries for the current user."""
+    """Permanently delete all Mistake Vault entries for the current user."""
     user, err = require_auth()
     if err:
         return err
 
+    uid = user["id"]
+    fs_wiped = fs_wipe_all_mistakes(uid)
+
     with get_db() as conn:
         rows = conn.execute(
             "SELECT id FROM student_mistakes WHERE user_id=?",
-            (user["id"],),
+            (uid,),
         ).fetchall()
-        conn.execute("DELETE FROM student_mistakes WHERE user_id=?", (user["id"],))
+        conn.execute("DELETE FROM student_mistakes WHERE user_id=?", (uid,))
 
-    for row in rows:
-        fs_delete_mistake(user["id"], row["id"])
-    fs_push_progress_from_sqlite(user["id"])
-    return jsonify({"ok": True, "deleted": len(rows)})
+    fs_push_progress_from_sqlite(uid)
+    return jsonify({"ok": True, "deleted": len(rows), "firestoreDeleted": fs_wiped})
 
 
 @app.route("/api/mistakes/subjects", methods=["GET"])

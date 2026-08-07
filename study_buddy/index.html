@@ -4384,14 +4384,13 @@
         <div class="settings-row">
           <span>App language</span>
           <select id="settings-language" class="input" style="padding:6px 8px;width:auto;">
-            <option value="multi">Multilingual (match chat)</option>
+            <option value="multi">Multilingual</option>
             <option value="en">English</option>
             <option value="hi">Hindi</option>
             <option value="te">Telugu</option>
             <option value="es">Spanish</option>
             <option value="fr">French</option>
           </select>
-          <p class="settings-hint" style="margin:6px 0 0;">Multilingual replies in whatever language you type. Pick a language to lock replies to that only.</p>
         </div>
       </div>
 
@@ -13420,7 +13419,7 @@
 
       async function clearNotebook() {
         if (!(await requireLoginForCloud())) throw new Error("login");
-        const res = await fetch("/api/notebook", { method: "DELETE" });
+        const res = await fetch("/api/notebook", { method: "DELETE", credentials: "include" });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || "Failed to clear notebook");
@@ -13450,7 +13449,7 @@
 
       async function clearDna() {
         if (!(await requireLoginForCloud())) throw new Error("login");
-        const res = await fetch("/api/learning_dna/reset", { method: "POST" });
+        const res = await fetch("/api/learning_dna/reset", { method: "POST", credentials: "include" });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || "Failed to clear Learning DNA");
@@ -13460,7 +13459,7 @@
 
       async function clearMistakes() {
         if (!(await requireLoginForCloud())) throw new Error("login");
-        const res = await fetch("/api/mistakes", { method: "DELETE" });
+        const res = await fetch("/api/mistakes", { method: "DELETE", credentials: "include" });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || "Failed to clear mistakes");
@@ -13476,11 +13475,11 @@
         const recent = (conversations || []).filter((c) => !c.pinned && !c.archived);
         for (const c of recent) {
           try {
-            await fetch(`/api/conversations/${c.id}`, { method: "DELETE" });
+            await fetch(`/api/conversations/${c.id}`, { method: "DELETE", credentials: "include" });
           } catch (_) {}
         }
+        if (typeof sbResetChatState === "function") sbResetChatState();
         if (typeof sbLoadConversations === "function") await sbLoadConversations();
-        // If current chat was deleted, reset UI
         if (currentConvId && !(conversations || []).some((c) => c.id === currentConvId)) {
           history = [];
           currentConvId = null;
@@ -13517,6 +13516,7 @@
       }
 
       async function clearEverything() {
+        // Chat wipe is full-collection; skip clearRecent so it cannot re-pull mid-clear
         const steps = [
           clearChatHistoryOnly,
           clearPodcast,
@@ -13527,7 +13527,6 @@
           clearUploads,
           clearDna,
           clearMistakes,
-          clearRecent,
           clearSearch,
           clearCache,
         ];
@@ -13541,6 +13540,7 @@
             console.warn("[Clear Everything] step failed:", e);
           }
         }
+        if (typeof sbResetChatState === "function") sbResetChatState();
         if (sawLoginBlock && !(currentUser && currentUser.loggedIn)) {
           showClearToast("Local data cleared — log in to clear cloud data");
         }
