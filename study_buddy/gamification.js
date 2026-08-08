@@ -664,6 +664,91 @@
     });
   }
 
+  const PENDING_STUDY_KEY = "sb_pending_study_topic";
+
+  function rememberPendingStudyTopic(topic, kind) {
+    try {
+      sessionStorage.setItem(
+        PENDING_STUDY_KEY,
+        JSON.stringify({
+          topic: String(topic || "").trim(),
+          kind: kind || "",
+          at: Date.now(),
+        })
+      );
+    } catch (_) {}
+  }
+
+  function takePendingStudyTopic(kind) {
+    try {
+      const raw = sessionStorage.getItem(PENDING_STUDY_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || !data.topic) return null;
+      // Only auto-complete for the practice type that was started
+      if (kind && data.kind && data.kind !== kind && data.kind !== "chat") return null;
+      if (data.at && Date.now() - data.at > 2 * 60 * 60 * 1000) {
+        sessionStorage.removeItem(PENDING_STUDY_KEY);
+        return null;
+      }
+      sessionStorage.removeItem(PENDING_STUDY_KEY);
+      return String(data.topic || "").trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function taskMatchesStudyTopic(taskTitle, topic) {
+    const title = String(taskTitle || "").toLowerCase();
+    const t = String(topic || "").toLowerCase().trim();
+    if (!title || !t) return false;
+    if (title.includes(t) || t.includes(title)) return true;
+    // Match on first chunk before ":" (subject) or shared significant words
+    const subj = t.split(":")[0].trim();
+    if (subj.length >= 3 && title.includes(subj)) return true;
+    const words = t.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+    return words.some((w) => title.includes(w));
+  }
+
+  async function completeMatchingPlannerTasks(topic) {
+    if (!isLoggedIn() || !topic) return 0;
+    let tasks = [];
+    try {
+      const data = await api("/api/planner");
+      tasks = (data.tasks || []).filter((t) => !t.done && taskMatchesStudyTopic(t.title, topic));
+    } catch (_) {
+      return 0;
+    }
+    // Complete at most 2 matching open tasks — keeps it calm
+    const targets = tasks.slice(0, 2);
+    let n = 0;
+    for (const t of targets) {
+      try {
+        await api(`/api/planner/${t.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ done: true }),
+        });
+        n += 1;
+      } catch (_) {}
+    }
+    if (n > 0) {
+      toast(n === 1 ? "Planner task done" : `${n} planner tasks done`, "success");
+      refreshStudyToday();
+      // Refresh planner list if visible
+      const list = document.getElementById("planner-task-list");
+      if (list && list.offsetParent !== null) {
+        refreshPlanner().catch(() => {});
+      }
+    }
+    return n;
+  }
+
+  async function onStudyPracticeComplete(kind) {
+    const topic = takePendingStudyTopic(kind);
+    if (!topic) return;
+    await completeMatchingPlannerTasks(topic);
+  }
+
   function openStudyAction(kind, topic) {
     const prompt = String(topic || "").trim() || "General revision";
     const go = (section) => {
@@ -674,22 +759,23 @@
       }
     };
     if (kind === "quiz") {
+      rememberPendingStudyTopic(prompt, "quiz");
       go("quiz");
       const input = document.getElementById("quiz-input");
       if (input) input.value = prompt;
       setTimeout(() => document.getElementById("generate-quiz-btn")?.click(), 120);
-      toast(`Quiz: ${prompt}`, "success");
       return;
     }
     if (kind === "flashcards") {
+      rememberPendingStudyTopic(prompt, "flashcards");
       go("flashcards");
       const input = document.getElementById("flashcard-input");
       if (input) input.value = prompt;
       setTimeout(() => document.getElementById("generate-flashcard-btn")?.click(), 120);
-      toast(`Flashcards: ${prompt}`, "success");
       return;
     }
-    // chat
+    // chat — remember topic; complete after they send (optional hook) or leave pending short
+    rememberPendingStudyTopic(prompt, "chat");
     go("chat");
     const input = document.getElementById("user-input");
     if (input) {
@@ -699,7 +785,6 @@
         input.dispatchEvent(new Event("input", { bubbles: true }));
       } catch (_) {}
     }
-    toast("Chat ready — press Send", "success");
   }
 
   function pickStudyTodayTasks(tasks) {
@@ -1120,6 +1205,7 @@
     refreshPlanner: () => refreshPlanner({ autoSync: true }),
     refreshStudyToday,
     openStudyAction,
+    onStudyPracticeComplete,
     isEducationalQuestion,
     onLogin() {
       summaryGen++;

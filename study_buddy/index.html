@@ -2352,6 +2352,14 @@
       font-size: 0.86rem;
     }
     .exam-upcoming-banner .exam-upcoming-item b { color: var(--text); font-weight: 700; }
+    .exam-upcoming-banner .exam-upcoming-item.exam-soon {
+      color: var(--text);
+    }
+    .exam-upcoming-banner .exam-upcoming-item.exam-soon b { color: #fbbf24; }
+    .exam-upcoming-banner.exam-banner-urgent {
+      border-color: rgba(251, 191, 36, 0.45);
+      background: rgba(251, 191, 36, 0.07);
+    }
     .study-today-banner {
       margin: 0 auto 14px;
       max-width: 560px;
@@ -6211,18 +6219,32 @@
         const list = Array.isArray(exams) ? exams.filter((e) => e && e.exam_date) : [];
         if (!list.length) {
           banner.style.display = "none";
+          banner.classList.remove("exam-banner-urgent");
           banner.innerHTML = "";
           return;
         }
+        const soonest = list.reduce((min, ex) => {
+          const d = typeof ex.days_left === "number" ? ex.days_left : 999;
+          return Math.min(min, d);
+        }, 999);
+        const urgent = soonest <= 3;
         const items = list.slice(0, 4).map((ex) => {
           const days = ex.days_left;
+          const isSoon = typeof days === "number" && days <= 3;
           const when = typeof days === "number"
             ? (days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`)
             : `on ${ex.exam_date}`;
           const portion = (ex.portion || "").trim();
-          return `<div class="exam-upcoming-item"><b>${escapeHtml(ex.subject || "Exam")}</b> ${escapeHtml(when)}${portion ? ` · Portion: ${escapeHtml(portion.slice(0, 160))}` : ""}</div>`;
+          const portionBit = portion
+            ? ` · ${escapeHtml(portion.slice(0, isSoon ? 80 : 160))}`
+            : "";
+          return `<div class="exam-upcoming-item${isSoon ? " exam-soon" : ""}"><b>${escapeHtml(ex.subject || "Exam")}</b> ${escapeHtml(when)}${portionBit}</div>`;
         }).join("");
-        banner.innerHTML = `<strong>Upcoming exams</strong>${items}`;
+        const heading = urgent
+          ? (soonest === 0 ? "Exam today" : soonest === 1 ? "Exam tomorrow" : `Exam in ${soonest} days`)
+          : "Upcoming exams";
+        banner.classList.toggle("exam-banner-urgent", urgent);
+        banner.innerHTML = `<strong>${heading}</strong>${items}`;
         banner.style.display = "block";
       }
 
@@ -8883,6 +8905,9 @@
             } else {
               window.SBGame.award("chat");
             }
+            if (typeof window.SBGame.onStudyPracticeComplete === "function") {
+              window.SBGame.onStudyPracticeComplete("chat");
+            }
           }
         } catch (_) {}
 
@@ -10370,6 +10395,11 @@
         }
         appendChatSources(output, data.sources, "grid-column: 1 / -1;");
         try { if (window.SBGame) window.SBGame.award("flashcards"); } catch (_) {}
+        try {
+          if (window.SBGame && typeof window.SBGame.onStudyPracticeComplete === "function") {
+            window.SBGame.onStudyPracticeComplete("flashcards");
+          }
+        } catch (_) {}
       } catch (err) {
         output.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
@@ -10479,6 +10509,11 @@
         output.appendChild(submitBtn);
         appendChatSources(output, data.sources);
         try { if (window.SBGame) window.SBGame.award("quiz"); } catch (_) {}
+        try {
+          if (window.SBGame && typeof window.SBGame.onStudyPracticeComplete === "function") {
+            window.SBGame.onStudyPracticeComplete("quiz");
+          }
+        } catch (_) {}
       } catch (err) {
         output.innerHTML = `<div style="color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
@@ -10549,6 +10584,11 @@
         }
         appendChatSources(output, data.sources, "grid-column: 1 / -1;");
         try { if (window.SBGame) window.SBGame.award("flashcards"); } catch (_) {}
+        try {
+          if (window.SBGame && typeof window.SBGame.onStudyPracticeComplete === "function") {
+            window.SBGame.onStudyPracticeComplete("flashcards");
+          }
+        } catch (_) {}
       } catch (err) {
         output.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
@@ -10678,6 +10718,11 @@
         output.appendChild(submitBtn);
         appendChatSources(output, data.sources);
         try { if (window.SBGame) window.SBGame.award("quiz"); } catch (_) {}
+        try {
+          if (window.SBGame && typeof window.SBGame.onStudyPracticeComplete === "function") {
+            window.SBGame.onStudyPracticeComplete("quiz");
+          }
+        } catch (_) {}
       } catch (err) {
         output.innerHTML = `<div style="color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
