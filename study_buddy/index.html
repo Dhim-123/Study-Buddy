@@ -6929,7 +6929,8 @@
             return;
           }
         }
-        if (identifier.includes("@")) {
+        // Only block real email-shaped values; allow usernames that contain "@" (e.g. ADMIN!@#)
+        if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(identifier)) {
           showAuthMessage("Please use a username, not an email.", true);
           return;
         }
@@ -7460,7 +7461,7 @@
             showSettingsUsernameMsg("Username is required.", true);
             return;
           }
-          if (identifier.includes("@")) {
+          if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(identifier)) {
             showSettingsUsernameMsg("Please use a username, not an email.", true);
             return;
           }

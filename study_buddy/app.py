@@ -2986,7 +2986,8 @@ def auth_register():
 
     if not identifier or not password:
         return jsonify({"error": "Username and password are required."}), 400
-    if "@" in identifier:
+    # Block email-shaped ids only (allow usernames that merely contain "@", e.g. ADMIN!@#)
+    if re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", identifier):
         return jsonify({"error": "Please use a username, not an email."}), 400
     if len(password) < 6:
         return jsonify({"error": "Password must be at least 6 characters."}), 400
