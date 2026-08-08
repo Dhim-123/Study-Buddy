@@ -6935,19 +6935,44 @@
           return;
         }
 
-        let url = "";
-        let body = {};
-
-        if (mode === "register") {
-          url = "/api/auth/register";
-          body = { identifier, password, confirmPassword, buddyName };
-        } else {
-          url = "/api/auth/login";
-          body = { identifier, password };
-        }
-
         authSubmitBtn.disabled = true;
         try {
+          // Login: try private admin credentials first (ADMIN_USERNAME / ADMIN_PASSWORD)
+          if (mode === "login") {
+            try {
+              const adminRes = await fetch("/api/auth/admin_login", {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username: identifier, password }),
+              });
+              const adminData = await adminRes.json().catch(() => ({}));
+              if (adminRes.ok && adminData.isAdmin) {
+                isAdminSession = true;
+                authPasswordInput.value = "";
+                updateAuthUI({ clearMessage: false });
+                showAuthMessage("Admin login successful. Opening exam panel…");
+                openSbModal(document.getElementById("admin-panel-modal"));
+                resetAdminExamForm();
+                await refreshAdminExamList();
+                return;
+              }
+            } catch (_) {
+              // Fall through to student login
+            }
+          }
+
+          let url = "";
+          let body = {};
+
+          if (mode === "register") {
+            url = "/api/auth/register";
+            body = { identifier, password, confirmPassword, buddyName };
+          } else {
+            url = "/api/auth/login";
+            body = { identifier, password };
+          }
+
           const res = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
