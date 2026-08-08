@@ -271,17 +271,13 @@
       const mins = Math.floor(this.seconds / 60);
       const secs = this.seconds % 60;
       const text = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-      ["timer-display", "nav-focus-display"].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = text;
-      });
+      const el = document.getElementById("timer-display");
+      if (el) el.textContent = text;
       const btn = document.getElementById("timer-toggle-btn");
       if (btn) {
         btn.textContent = this.running ? "⏸ Pause" : "▶ Start";
         btn.style.background = this.running ? "var(--accent2)" : "";
       }
-      const navBtn = document.getElementById("nav-focus-chip");
-      if (navBtn) navBtn.classList.toggle("running", this.running);
     },
 
     tick() {
@@ -1124,9 +1120,16 @@
   function wireUi() {
     wirePlannerUi();
     document.getElementById("nav-streak-chip")?.addEventListener("click", openStreakModal);
-    document.getElementById("nav-puzzle-chip")?.addEventListener("click", openPuzzleModal);
-    document.getElementById("nav-focus-chip")?.addEventListener("click", () => Focus.toggle());
     document.getElementById("nav-shop-chip")?.addEventListener("click", openShopModal);
+    document.getElementById("profile-daily-puzzle-btn")?.addEventListener("click", () => {
+      try {
+        const wrap = document.getElementById("profile-menu-wrap");
+        const btn = document.getElementById("profile-avatar-btn");
+        if (wrap) wrap.classList.remove("open");
+        if (btn) btn.setAttribute("aria-expanded", "false");
+      } catch (_) {}
+      openPuzzleModal();
+    });
     document.getElementById("settings-open-shop")?.addEventListener("click", openShopModal);
 
     bindModalClose("streak-modal");

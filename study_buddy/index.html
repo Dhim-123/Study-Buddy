@@ -121,10 +121,10 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 14px 24px;
+      padding: 8px 16px;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      gap: 12px;
+      gap: 10px;
       flex-shrink: 0;
       z-index: 20;
       position: sticky;
@@ -175,6 +175,7 @@
       display: flex;
       gap: 8px;
       align-items: center;
+      flex-shrink: 0;
     }
 
     .btn-icon {
@@ -1580,16 +1581,67 @@
 
     .feature-tabs {
       display: flex;
-      gap: 6px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 6px 16px;
+      gap: 2px;
       align-items: center;
-      flex-shrink: 0;
-      position: sticky;
-      top: 0;
-      z-index: 19;
+      flex: 1 1 auto;
+      min-width: 0;
       overflow-x: auto;
+      scrollbar-width: none;
+      padding: 0;
+      background: transparent;
+      border: none;
+    }
+    .feature-tabs::-webkit-scrollbar { display: none; }
+
+    .more-tabs-wrap {
+      position: relative;
+      flex-shrink: 0;
+    }
+    .more-tabs-btn {
+      padding: 6px 10px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-md);
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: all 0.15s ease-out;
+      font-family: var(--font-ui);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .more-tabs-btn:hover {
+      color: var(--text);
+      background: var(--hover-bg);
+    }
+    .more-tabs-btn.active {
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 4px 12px var(--glow-accent);
+    }
+    .more-tabs-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      min-width: 180px;
+      padding: 6px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+      z-index: 40;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .more-tabs-menu[hidden] { display: none !important; }
+    .more-tabs-menu .tab-btn {
+      justify-content: flex-start;
+      width: 100%;
+      flex: none;
     }
 
     /* ── DEFINITIONS ── */
@@ -1822,21 +1874,22 @@
 
     /* ── TAB BUTTONS ── */
     .tab-btn {
-      flex: 1;
-      padding: 10px 16px;
+      flex: 0 0 auto;
+      padding: 6px 10px;
       background: transparent;
       border: none;
       border-radius: var(--radius-md);
       color: var(--muted);
       font-weight: 700;
-      font-size: .88rem;
+      font-size: 0.82rem;
       cursor: pointer;
       transition: all 0.15s ease-out;
       font-family: var(--font-ui);
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 6px;
+      white-space: nowrap;
     }
 
     .tab-btn:hover {
@@ -1848,6 +1901,15 @@
       color: #fff;
       background: var(--accent);
       box-shadow: 0 4px 12px var(--glow-accent);
+    }
+
+    .tab-btn-icon { line-height: 1; }
+    @media (max-width: 900px) {
+      .tab-btn-label,
+      .more-tabs-btn .more-tabs-label { display: none; }
+      .header-stat-label { display: none; }
+      .logo { font-size: 1.1rem; }
+      .logo-icon { width: 32px; height: 32px; font-size: 1rem; }
     }
 
     .feature-section {
@@ -3339,6 +3401,7 @@
       align-items: center;
       gap: 10px;
       min-width: 0;
+      flex-shrink: 0;
     }
 
     /* Profile menu (top-right) */
@@ -4212,55 +4275,34 @@
 
     /* ── Gamification navbar + modals ── */
     header { position: relative; }
-    .header-center {
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      z-index: 5;
-      max-width: min(560px, calc(100vw - 220px));
-    }
-    .nav-chip {
+    .header-stats {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 7px 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(59, 130, 246, 0.28);
-      background: rgba(255, 255, 255, 0.06);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      gap: 4px;
+      margin-right: 4px;
+    }
+    .header-stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border: none;
+      border-radius: var(--radius-md);
+      background: transparent;
       color: var(--text);
       font-family: var(--font-ui);
       font-weight: 700;
       font-size: 0.78rem;
       cursor: pointer;
-      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
       white-space: nowrap;
+      transition: background 0.15s ease, color 0.15s ease;
     }
-    .nav-chip:hover {
-      border-color: rgba(59, 130, 246, 0.55);
-      background: rgba(59, 130, 246, 0.12);
-      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.15);
-      transform: translateY(-1px);
+    .header-stat:hover {
+      background: var(--hover-bg);
+      color: var(--accent);
     }
-    .nav-chip .nav-chip-label { color: #6a6a85; font-weight: 600; }
-    .nav-chip .nav-chip-value { color: var(--accent); font-weight: 800; }
-    .nav-chip.running {
-      border-color: var(--accent2);
-      background: rgba(249, 115, 22, 0.12);
-    }
-    .nav-chip-icon { font-size: 0.95rem; line-height: 1; }
-    @media (max-width: 820px) {
-      .nav-chip .nav-chip-label { display: none; }
-      .header-center { gap: 4px; max-width: calc(100vw - 160px); }
-      .nav-chip { padding: 6px 9px; font-size: 0.72rem; }
-    }
-    @media (max-width: 520px) {
-      .nav-chip-shop { display: none; }
-    }
+    .header-stat .header-stat-value { color: var(--accent); font-weight: 800; }
+    .header-stat-label { color: #6a6a85; font-weight: 600; }
 
     .sb-game-modal {
       position: fixed; inset: 0; z-index: 1200;
@@ -4466,28 +4508,38 @@
         Study<span>Buddy</span>
       </div>
     </div>
-    <div class="header-center" id="header-center" role="group" aria-label="Study engagement">
-      <button type="button" class="nav-chip" id="nav-streak-chip" aria-label="Streak details">
-        <span class="nav-chip-icon" aria-hidden="true">🔥</span>
-        <span class="nav-chip-value" id="nav-streak-count">0</span>
-        <span class="nav-chip-label">Day Streak</span>
-      </button>
-      <button type="button" class="nav-chip" id="nav-puzzle-chip" aria-label="Open Daily Puzzle Grade 9">
-        <span class="nav-chip-icon" aria-hidden="true">🧩</span>
-        <span class="nav-chip-label">Grade 9</span>
-      </button>
-      <button type="button" class="nav-chip" id="nav-focus-chip" aria-label="Toggle Focus timer">
-        <span class="nav-chip-icon" aria-hidden="true">⏱️</span>
-        <span class="nav-chip-value" id="nav-focus-display">25:00</span>
-        <span class="nav-chip-label">Focus</span>
-      </button>
-      <button type="button" class="nav-chip nav-chip-shop" id="nav-shop-chip" aria-label="Open XP Shop">
-        <span class="nav-chip-icon" aria-hidden="true">🛍️</span>
-        <span class="nav-chip-value" id="nav-xp-count">0</span>
-        <span class="nav-chip-label">XP</span>
-      </button>
-    </div>
+    <nav id="feature-tabs" class="feature-tabs" aria-label="Features">
+      <button class="tab-btn active" data-tab="chat" title="Chat" type="button"><span class="tab-btn-icon" aria-hidden="true">💬</span><span class="tab-btn-label">Chat</span></button>
+      <button class="tab-btn" data-tab="flashcards" title="Flashcards" type="button"><span class="tab-btn-icon" aria-hidden="true">🎯</span><span class="tab-btn-label">Flashcards</span></button>
+      <button class="tab-btn" data-tab="quiz" title="Quiz" type="button"><span class="tab-btn-icon" aria-hidden="true">❓</span><span class="tab-btn-label">Quiz</span></button>
+      <button class="tab-btn" data-tab="planner" title="Planner" type="button"><span class="tab-btn-icon" aria-hidden="true">📅</span><span class="tab-btn-label">Planner</span></button>
+      <button class="tab-btn" data-tab="mock-test" title="Mock Test" type="button"><span class="tab-btn-icon" aria-hidden="true">📝</span><span class="tab-btn-label">Mock Test</span></button>
+      <div class="more-tabs-wrap">
+        <button type="button" class="more-tabs-btn" id="more-tabs-btn" aria-haspopup="true" aria-expanded="false" aria-controls="more-tabs-menu" title="More features">
+          <span aria-hidden="true">⋯</span><span class="more-tabs-label">More</span>
+        </button>
+        <div id="more-tabs-menu" class="more-tabs-menu" role="menu" hidden>
+          <button class="tab-btn more-tab" data-tab="podcasts" title="Podcasts" type="button" role="menuitem"><span class="tab-btn-icon" aria-hidden="true">🎧</span><span class="tab-btn-label">Podcasts</span></button>
+          <button class="tab-btn more-tab" data-tab="crosscheck" title="Crosscheck" type="button" role="menuitem"><span class="tab-btn-icon" aria-hidden="true">🧪</span><span class="tab-btn-label">Crosscheck</span></button>
+          <button class="tab-btn more-tab" data-tab="definitions" title="Definitions" type="button" role="menuitem"><span class="tab-btn-icon" aria-hidden="true">📖</span><span class="tab-btn-label">Definitions</span></button>
+          <button class="tab-btn more-tab" data-tab="formulas" title="Formulas" type="button" role="menuitem"><span class="tab-btn-icon" aria-hidden="true">📐</span><span class="tab-btn-label">Formulas</span></button>
+          <button class="tab-btn more-tab" data-tab="learning-dna" title="Learning DNA" type="button" role="menuitem"><span class="tab-btn-icon" aria-hidden="true">🧬</span><span class="tab-btn-label">Learning DNA</span></button>
+          <button class="tab-btn more-tab" data-tab="mistake-vault" title="Mistake Vault" type="button" role="menuitem"><span class="tab-btn-icon" aria-hidden="true">🗃️</span><span class="tab-btn-label">Mistake Vault</span></button>
+        </div>
+      </div>
+    </nav>
     <div class="header-right">
+      <div class="header-stats" id="header-center" role="group" aria-label="Study engagement">
+        <button type="button" class="header-stat" id="nav-streak-chip" aria-label="Streak details" title="Streak">
+          <span aria-hidden="true">🔥</span>
+          <span class="header-stat-value" id="nav-streak-count">0</span>
+          <span class="header-stat-label">Streak</span>
+        </button>
+        <button type="button" class="header-stat" id="nav-shop-chip" aria-label="Open XP Shop" title="XP Shop">
+          <span class="header-stat-value" id="nav-xp-count">0</span>
+          <span class="header-stat-label">XP</span>
+        </button>
+      </div>
       <span id="header-notes-badge" style="display:none; background: rgba(82, 232, 160, 0.15); color: var(--accent3); border: 1px solid var(--accent3); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; margin-right: 10px; font-weight: bold; align-items: center; gap: 4px;">📝 Notes Mode</span>
       <button class="btn-icon" id="auth-btn">🚪 Login / Register</button>
       <div class="profile-menu-wrap" id="profile-menu-wrap" hidden>
@@ -4517,6 +4569,7 @@
             <div class="profile-actions">
               <button type="button" class="profile-action-btn" id="profile-change-pic-btn">🖼️ Change Profile Picture</button>
               <input type="file" id="profile-pic-input" accept="image/*" hidden />
+              <button type="button" class="profile-action-btn" id="profile-daily-puzzle-btn">🧩 Daily Puzzle</button>
               <button type="button" class="profile-action-btn" id="profile-open-settings-btn">⚙️ Open Settings</button>
               <button type="button" class="profile-action-btn danger" id="profile-logout-btn">🚪 Logout</button>
             </div>
@@ -4799,21 +4852,6 @@
   </div>
 
   <div id="clear-toast" class="clear-toast" role="status" aria-live="polite"></div>
-
-  <!-- NAVIGATION TABS -->
-  <nav id="feature-tabs" class="feature-tabs">
-    <button class="tab-btn active" data-tab="chat">💬 Chat</button>
-    <button class="tab-btn" data-tab="podcasts">🎧 Podcasts</button>
-    <button class="tab-btn" data-tab="flashcards">🎯 Flashcards</button>
-    <button class="tab-btn" data-tab="quiz">❓ Quiz</button>
-    <button class="tab-btn" data-tab="crosscheck">🧪 Crosscheck</button>
-    <button class="tab-btn" data-tab="definitions">📖 Definitions</button>
-    <button class="tab-btn" data-tab="mock-test">📝 Mock Test</button>
-    <button class="tab-btn" data-tab="planner">📅 Planner</button>
-    <button class="tab-btn" data-tab="formulas">📐 Formulas</button>
-    <button class="tab-btn" data-tab="learning-dna">🧬 Learning DNA</button>
-    <button class="tab-btn" data-tab="mistake-vault">🗃️ Mistake Vault</button>
-  </nav>
 
   <main>
 
@@ -8944,9 +8982,10 @@
       hideAllFeatureSections();
 
       // Update tab buttons
-      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-      const targetTab = [...document.querySelectorAll(".tab-btn")].find(b => b.dataset.tab === sectionName);
+      document.querySelectorAll(".tab-btn[data-tab]").forEach(b => b.classList.remove("active"));
+      const targetTab = [...document.querySelectorAll(".tab-btn[data-tab]")].find(b => b.dataset.tab === sectionName);
       if (targetTab) targetTab.classList.add("active");
+      if (typeof window.syncMoreTabsUi === "function") window.syncMoreTabsUi();
 
       // Show the target section
       switch(sectionName) {
@@ -9884,7 +9923,7 @@
     //  FEATURE TAB HANDLING
     // =====================================================================
 
-    const tabButtons = document.querySelectorAll(".tab-btn");
+    const tabButtons = document.querySelectorAll(".tab-btn[data-tab]");
     const chatArea = document.getElementById("chat-area");
     const podcastsSection = document.getElementById("podcasts-section");
     const flashcardsSection = document.getElementById("flashcards-section");
@@ -9899,6 +9938,33 @@
     const crosscheckOutputEl = document.getElementById("crosscheck-output");
     const crosscheckQuestionEl = document.getElementById("crosscheck-question-input");
     const crosscheckAnswerEl = document.getElementById("crosscheck-answer-input");
+    const moreTabsBtn = document.getElementById("more-tabs-btn");
+    const moreTabsMenu = document.getElementById("more-tabs-menu");
+
+    function setMoreTabsOpen(open) {
+      if (!moreTabsBtn || !moreTabsMenu) return;
+      moreTabsMenu.hidden = !open;
+      moreTabsBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+
+    function syncMoreTabsUi() {
+      if (!moreTabsBtn) return;
+      const moreActive = !!document.querySelector(".tab-btn.more-tab.active");
+      moreTabsBtn.classList.toggle("active", moreActive);
+      setMoreTabsOpen(false);
+    }
+
+    if (moreTabsBtn && moreTabsMenu) {
+      moreTabsBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setMoreTabsOpen(moreTabsMenu.hidden);
+      });
+      document.addEventListener("click", (e) => {
+        if (!moreTabsMenu.hidden && !moreTabsMenu.contains(e.target) && e.target !== moreTabsBtn) {
+          setMoreTabsOpen(false);
+        }
+      });
+    }
 
     function hideAllFeatureSections() {
       chatArea.style.display = "none";
@@ -9919,6 +9985,7 @@
         // Remove active class from all buttons
         tabButtons.forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
+        syncMoreTabsUi();
 
         hideAllFeatureSections();
 
@@ -9956,6 +10023,8 @@
         }
       });
     });
+
+    window.syncMoreTabsUi = syncMoreTabsUi;
 
     const sidebarLearningDnaBtn = document.getElementById("sidebar-learning-dna-btn");
     if (sidebarLearningDnaBtn) {
@@ -10135,9 +10204,10 @@
       const prompt = `Using the full chat conversation and the student question and answer below, check whether the answer is correct. If the answer is wrong, explain exactly where the student likely went wrong, show how to fix it, and reveal the correct answer. Do not give hints only; provide the correct explanation clearly in English.\n\n${text}`.trim();
       if (!prompt) return;
       if (switchToTab) {
-        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-        const crossTab = [...document.querySelectorAll(".tab-btn")].find(b => b.dataset.tab === "crosscheck");
+        document.querySelectorAll(".tab-btn[data-tab]").forEach(b => b.classList.remove("active"));
+        const crossTab = [...document.querySelectorAll(".tab-btn[data-tab]")].find(b => b.dataset.tab === "crosscheck");
         if (crossTab) crossTab.classList.add("active");
+        if (typeof window.syncMoreTabsUi === "function") window.syncMoreTabsUi();
         chatArea.style.display = "none";
         podcastsSection.style.display = "none";
         flashcardsSection.style.display = "none";
@@ -10196,9 +10266,10 @@
 
     async function generatePodcast(customTopic, switchToTab = true) {
       if (switchToTab) {
-        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-        const pTab = [...document.querySelectorAll(".tab-btn")].find(b => b.dataset.tab === "podcasts");
+        document.querySelectorAll(".tab-btn[data-tab]").forEach(b => b.classList.remove("active"));
+        const pTab = [...document.querySelectorAll(".tab-btn[data-tab]")].find(b => b.dataset.tab === "podcasts");
         if (pTab) pTab.classList.add("active");
+        if (typeof window.syncMoreTabsUi === "function") window.syncMoreTabsUi();
         chatArea.style.display = "none";
         podcastsSection.style.display = "flex";
         flashcardsSection.style.display = "none";
@@ -10359,9 +10430,10 @@
         return;
       }
       if (switchToTab) {
-        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-        const fTab = [...document.querySelectorAll(".tab-btn")].find(b => b.dataset.tab === "flashcards");
+        document.querySelectorAll(".tab-btn[data-tab]").forEach(b => b.classList.remove("active"));
+        const fTab = [...document.querySelectorAll(".tab-btn[data-tab]")].find(b => b.dataset.tab === "flashcards");
         if (fTab) fTab.classList.add("active");
+        if (typeof window.syncMoreTabsUi === "function") window.syncMoreTabsUi();
         chatArea.style.display = "none";
         podcastsSection.style.display = "none";
         flashcardsSection.style.display = "flex";
@@ -10415,9 +10487,10 @@
         return;
       }
       if (switchToTab) {
-        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-        const qTab = [...document.querySelectorAll(".tab-btn")].find(b => b.dataset.tab === "quiz");
+        document.querySelectorAll(".tab-btn[data-tab]").forEach(b => b.classList.remove("active"));
+        const qTab = [...document.querySelectorAll(".tab-btn[data-tab]")].find(b => b.dataset.tab === "quiz");
         if (qTab) qTab.classList.add("active");
+        if (typeof window.syncMoreTabsUi === "function") window.syncMoreTabsUi();
         chatArea.style.display = "none";
         podcastsSection.style.display = "none";
         flashcardsSection.style.display = "none";
