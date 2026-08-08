@@ -14508,6 +14508,21 @@
         try {
           if (typeof sbResetChatState === "function") sbResetChatState();
         } catch (_) {}
+        try {
+          conversations = [];
+          currentConvId = null;
+          history = [];
+          if (typeof sbRenderConversations === "function") sbRenderConversations();
+          if (messagesEl && welcomeEl) {
+            messagesEl.innerHTML = "";
+            messagesEl.appendChild(welcomeEl);
+            welcomeEl.style.display = "flex";
+          }
+        } catch (_) {}
+        try {
+          sessionStorage.setItem("sb_content_cleared", String(Date.now()));
+          if (data.wipe_gen != null) sessionStorage.setItem("sb_wipe_gen", String(data.wipe_gen));
+        } catch (_) {}
       }
 
       const runners = {

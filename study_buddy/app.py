@@ -916,6 +916,15 @@ def init_db():
             )
         except Exception:
             pass
+        for ddl in (
+            "ALTER TABLE conversations ADD COLUMN content_wipe_gen INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE living_notebook ADD COLUMN content_wipe_gen INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE student_mistakes ADD COLUMN content_wipe_gen INTEGER NOT NULL DEFAULT 0",
+        ):
+            try:
+                conn.execute(ddl)
+            except Exception:
+                pass
         # Backfill dual portions from legacy single portion
         try:
             conn.execute(
@@ -1181,7 +1190,9 @@ def fs_pull_notebook_into_sqlite(user_id):
             .collection("notebook")
             .stream()
         )
+        current_wipe_gen = int(wipe_meta.get("wipe_gen") or 0)
         with get_db() as conn:
+            _ensure_local_wipe_gen_columns(conn)
             for doc in docs:
                 data = doc.to_dict() or {}
                 try:
@@ -1204,6 +1215,12 @@ def fs_pull_notebook_into_sqlite(user_id):
                 if not str(content).strip():
                     continue
                 position = int(data.get("position") or 0)
+                try:
+                    raw_gen = data.get("content_wipe_gen")
+                    doc_gen = int(raw_gen) if raw_gen is not None and str(raw_gen).strip() != "" else 0
+                except Exception:
+                    doc_gen = 0
+                stamp_gen = max(doc_gen, current_wipe_gen)
 
                 owned = conn.execute(
                     "SELECT id FROM living_notebook WHERE id=? AND user_id=?",
@@ -1215,10 +1232,11 @@ def fs_pull_notebook_into_sqlite(user_id):
                         UPDATE living_notebook
                         SET subject=?, category=?, content=?, position=?,
                             created_at=COALESCE(?, created_at),
-                            updated_at=COALESCE(?, updated_at)
+                            updated_at=COALESCE(?, updated_at),
+                            content_wipe_gen=?
                         WHERE id=? AND user_id=?
                         """,
-                        (subject, category, content, position, created_at, updated_at, entry_id, user_id),
+                        (subject, category, content, position, created_at, updated_at, stamp_gen, entry_id, user_id),
                     )
                     continue
 
@@ -1272,6 +1290,11 @@ def fs_pull_notebook_into_sqlite(user_id):
 
 def fs_push_all_notebook_entries(user_id):
     """Push all local notebook entries for a user to Firestore. Soft-fails."""
+    active, _, _, _ = fs_wipe_is_active(user_id)
+    if active:
+        # Never bulk-reupload under a wipe tombstone (prevents resurrection)
+        print(f"[Firestore] skip bulk notebook push — wipe active user={user_id}")
+        return
     db = get_firestore()
     if not db:
         return
@@ -1618,6 +1641,7 @@ def fs_doc_survives_wipe(data, wipe_meta):
     True if a remote doc is allowed after a content wipe.
     Requires content_wipe_gen >= current wipe gen (timezone-proof).
     Legacy docs without gen are treated as pre-wipe and purged.
+    Never trust written_at alone — bulk push used to restamp it to "now".
     """
     if not wipe_meta:
         return True
@@ -1631,12 +1655,85 @@ def fs_doc_survives_wipe(data, wipe_meta):
         doc_gen = int(raw_gen) if raw_gen is not None and str(raw_gen).strip() != "" else None
     except Exception:
         doc_gen = None
-    if wipe_gen > 0:
-        # Only docs written after this wipe (stamped with gen) may return
-        return doc_gen is not None and doc_gen >= wipe_gen
-    # Timestamp-only fallback for very old tombstones without gen
-    stamp = data.get("written_at") or data.get("created_at") or data.get("updated_at")
-    return _fs_is_after_wipe(stamp, wiped_at)
+    # Prefer generation gate (timezone-proof). If tombstone has no gen yet,
+    # still require an explicit doc gen — never allow written_at-only survival.
+    threshold = wipe_gen if wipe_gen > 0 else 1
+    return doc_gen is not None and doc_gen >= threshold
+
+
+def _ensure_local_wipe_gen_columns(conn):
+    """Local content_wipe_gen so pre-wipe SQLite rows can be scrubbed permanently."""
+    for ddl in (
+        "ALTER TABLE conversations ADD COLUMN content_wipe_gen INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE living_notebook ADD COLUMN content_wipe_gen INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE student_mistakes ADD COLUMN content_wipe_gen INTEGER NOT NULL DEFAULT 0",
+    ):
+        try:
+            conn.execute(ddl)
+        except Exception:
+            pass
+
+
+def fs_wipe_is_active(user_id):
+    """Return (active, wipe_gen, wiped_at, wipe_meta)."""
+    wipe_meta = fs_get_content_wipe_meta(user_id)
+    wiped_at = wipe_meta.get("wiped_at")
+    wipe_gen = int(wipe_meta.get("wipe_gen") or 0)
+    return bool(wipe_gen > 0 or wiped_at), wipe_gen, wiped_at, wipe_meta
+
+
+def scrub_prewipe_local_content(user_id):
+    """
+    Delete local chats/notes/mistakes from before the current wipe gen.
+    Stops hard-refresh from showing resurrected rows left on ephemeral disks.
+    """
+    active, wipe_gen, wiped_at, _ = fs_wipe_is_active(user_id)
+    if not active:
+        return {"conversations": 0, "notebook": 0, "mistakes": 0}
+    threshold = wipe_gen if wipe_gen > 0 else 1
+    with get_db() as conn:
+        _ensure_local_wipe_gen_columns(conn)
+        c1 = conn.execute(
+            "DELETE FROM conversations WHERE user_id=? AND COALESCE(content_wipe_gen, 0) < ?",
+            (user_id, threshold),
+        ).rowcount
+        c2 = conn.execute(
+            "DELETE FROM living_notebook WHERE user_id=? AND COALESCE(content_wipe_gen, 0) < ?",
+            (user_id, threshold),
+        ).rowcount
+        c3 = conn.execute(
+            "DELETE FROM student_mistakes WHERE user_id=? AND COALESCE(content_wipe_gen, 0) < ?",
+            (user_id, threshold),
+        ).rowcount
+    return {
+        "conversations": int(c1 or 0),
+        "notebook": int(c2 or 0),
+        "mistakes": int(c3 or 0),
+        "threshold": threshold,
+    }
+
+
+def _stamp_row_wipe_gen(conn, table, row_id, user_id, wipe_gen):
+    """Stamp a local content row with wipe gen (best-effort)."""
+    try:
+        _ensure_local_wipe_gen_columns(conn)
+        if table == "conversations":
+            conn.execute(
+                "UPDATE conversations SET content_wipe_gen=? WHERE id=? AND user_id=?",
+                (int(wipe_gen or 0), row_id, user_id),
+            )
+        elif table == "living_notebook":
+            conn.execute(
+                "UPDATE living_notebook SET content_wipe_gen=? WHERE id=? AND user_id=?",
+                (int(wipe_gen or 0), row_id, user_id),
+            )
+        elif table == "student_mistakes":
+            conn.execute(
+                "UPDATE student_mistakes SET content_wipe_gen=? WHERE id=? AND user_id=?",
+                (int(wipe_gen or 0), row_id, user_id),
+            )
+    except Exception:
+        pass
 
 
 def fs_purge_remote_conversation_doc(conv_doc):
@@ -1951,7 +2048,9 @@ def fs_pull_conversations_into_sqlite(user_id):
         stats["wiped_at"] = wiped_at
         stats["wipe_gen"] = wipe_meta.get("wipe_gen")
         stats["remote_docs"] = len(conv_docs)
+        current_wipe_gen = int(wipe_meta.get("wipe_gen") or 0)
         with get_db() as conn:
+            _ensure_local_wipe_gen_columns(conn)
             for conv_doc in conv_docs:
                 data = conv_doc.to_dict() or {}
                 remote_owner = (data.get("owner_key") or "").strip()
@@ -2048,6 +2147,15 @@ def fs_pull_conversations_into_sqlite(user_id):
                 if local_conv_id is None:
                     continue
 
+                # Stamp local row so a later Clear won't treat this as pre-wipe residue
+                try:
+                    raw_gen = data.get("content_wipe_gen")
+                    doc_gen = int(raw_gen) if raw_gen is not None and str(raw_gen).strip() != "" else 0
+                except Exception:
+                    doc_gen = 0
+                stamp_gen = max(doc_gen, current_wipe_gen)
+                _stamp_row_wipe_gen(conn, "conversations", local_conv_id, user_id, stamp_gen)
+
                 # Messages live under the local conversation id in Firestore after any re-key
                 try:
                     msg_docs = list(
@@ -2143,6 +2251,12 @@ def fs_pull_conversations_into_sqlite(user_id):
 
 def fs_push_all_conversations(user_id):
     """Push all local conversations + messages for a user to Firestore. Soft-fails."""
+    active, _, _, _ = fs_wipe_is_active(user_id)
+    if active:
+        # CRITICAL: bulk push after Clear restamps old chats with current wipe_gen
+        # and makes the tombstone useless. Individual create/message upserts are OK.
+        print(f"[Firestore] skip bulk conversation push — wipe active user={user_id}")
+        return
     db = get_firestore()
     if not db:
         return
@@ -2535,6 +2649,10 @@ def fs_pull_mistakes_into_sqlite(user_id):
 
 def fs_push_all_mistakes(user_id):
     """Push all local Mistake Vault rows for a user to Firestore. Soft-fails."""
+    active, _, _, _ = fs_wipe_is_active(user_id)
+    if active:
+        print(f"[Firestore] skip bulk mistakes push — wipe active user={user_id}")
+        return
     db = get_firestore()
     if not db:
         return
@@ -3860,18 +3978,15 @@ def list_conversations():
         return err
 
     uid = user["id"]
+    # Scrub any pre-wipe local leftovers FIRST (ephemeral disk / race survivors)
+    scrub_stats = scrub_prewipe_local_content(uid)
     pull_stats = fs_pull_conversations_into_sqlite(uid) or {}
-    with get_db() as conn:
-        before_push = conn.execute(
-            "SELECT COUNT(*) AS c FROM conversations WHERE user_id=?",
-            (uid,),
-        ).fetchone()["c"]
+    active, wipe_gen, wiped_at, _ = fs_wipe_is_active(uid)
 
-    # Never re-upload after a wipe when local is empty (stops resurrection)
-    wiped_at = fs_get_chat_wiped_at(uid)
-    if int(before_push or 0) > 0:
-        fs_push_all_conversations(uid)
-    elif not wiped_at:
+    # CRITICAL: never bulk-push while a wipe tombstone exists.
+    # Bulk push was restamping cleared chats with the current wipe_gen,
+    # which made them look "new" and resurrected them on every hard refresh.
+    if not active:
         fs_push_all_conversations(uid)
 
     with get_db() as conn:
@@ -3883,7 +3998,20 @@ def list_conversations():
             ORDER BY c.pinned DESC, c.updated_at DESC
         """, (uid,)).fetchall()
 
-    return jsonify({"conversations": [dict(r) for r in rows]})
+    return jsonify({
+        "conversations": [dict(r) for r in rows],
+        "wipe": {
+            "active": active,
+            "wipe_gen": wipe_gen,
+            "wiped_at": wiped_at,
+            "scrubbed": scrub_stats,
+            "pull": {
+                "imported": (pull_stats or {}).get("imported"),
+                "skipped_wiped": (pull_stats or {}).get("skipped_wiped"),
+                "remote_docs": (pull_stats or {}).get("remote_docs"),
+            },
+        },
+    })
 
 
 @app.route("/api/conversations", methods=["POST"])
@@ -3895,11 +4023,13 @@ def create_conversation():
 
     data  = request.get_json(force=True) or {}
     title = (data.get("title") or "New Chat").strip()[:100]
+    wipe_gen = int(fs_get_content_wipe_meta(user["id"]).get("wipe_gen") or 0)
 
     with get_db() as conn:
+        _ensure_local_wipe_gen_columns(conn)
         cur = conn.execute(
-            "INSERT INTO conversations (user_id, title) VALUES (?,?)",
-            (user["id"], title)
+            "INSERT INTO conversations (user_id, title, content_wipe_gen) VALUES (?,?,?)",
+            (user["id"], title, wipe_gen),
         )
         conv_id = cur.lastrowid
         row = conn.execute("SELECT * FROM conversations WHERE id=?", (conv_id,)).fetchone()
@@ -4093,9 +4223,11 @@ def clear_everything_api():
 
     uid = user["id"]
     # Tombstone FIRST so any concurrent pull cannot resurrect mid-wipe
-    fs_mark_chats_wiped(uid)
+    wipe_info = fs_mark_chats_wiped(uid)
+    wipe_gen = int((wipe_info or {}).get("wipe_gen") or 0)
 
     with get_db() as conn:
+        _ensure_local_wipe_gen_columns(conn)
         chats = conn.execute(
             "SELECT COUNT(*) AS c FROM conversations WHERE user_id=?", (uid,)
         ).fetchone()["c"]
@@ -4115,6 +4247,8 @@ def clear_everything_api():
     fs_wipe_all_conversations(uid)
     fs_wipe_all_notebook_entries(uid)
     fs_wipe_all_mistakes(uid)
+    # Belt-and-suspenders: scrub again in case a concurrent pull raced
+    scrub_prewipe_local_content(uid)
     db = get_firestore()
     if db:
         try:
@@ -4143,13 +4277,22 @@ def clear_everything_api():
         except Exception:
             pass
 
+    # Final local scrub after cloud wipe (blocks concurrent pull races)
+    scrub_prewipe_local_content(uid)
+    with get_db() as conn:
+        left = conn.execute(
+            "SELECT COUNT(*) AS c FROM conversations WHERE user_id=?", (uid,)
+        ).fetchone()["c"]
+
     return jsonify({
         "ok": True,
+        "wipe_gen": wipe_gen,
         "deleted": {
             "chats": int(chats or 0),
             "notebook": int(notes or 0),
             "mistakes": int(mistakes or 0),
         },
+        "remaining_local_chats": int(left or 0),
     })
 
 
@@ -4962,9 +5105,11 @@ def chat():
                         if not conv_row:
                             smart_title = generate_smart_title(client, last_message, target_model)
                             title = smart_title if smart_title else "New Chat"
+                            _ensure_local_wipe_gen_columns(conn)
+                            wg = int(fs_get_content_wipe_meta(uid).get("wipe_gen") or 0)
                             cur = conn.execute(
-                                "INSERT INTO conversations (user_id, title) VALUES (?,?)",
-                                (uid, title),
+                                "INSERT INTO conversations (user_id, title, content_wipe_gen) VALUES (?,?,?)",
+                                (uid, title, wg),
                             )
                             conv_id = cur.lastrowid
                             conv_row = conn.execute(
@@ -6505,9 +6650,12 @@ def get_notebook_entries():
     if err:
         return err
 
-    # Pull remote notes into SQLite, then mirror local notes up (soft-fail)
-    fs_pull_notebook_into_sqlite(user["id"])
-    fs_push_all_notebook_entries(user["id"])
+    uid = user["id"]
+    scrub_prewipe_local_content(uid)
+    fs_pull_notebook_into_sqlite(uid)
+    active, _, _, _ = fs_wipe_is_active(uid)
+    if not active:
+        fs_push_all_notebook_entries(uid)
 
     with get_db() as conn:
         rows = conn.execute("""
@@ -6515,7 +6663,7 @@ def get_notebook_entries():
             FROM living_notebook
             WHERE user_id=?
             ORDER BY subject ASC, category ASC, position ASC, updated_at DESC
-        """, (user["id"],)).fetchall()
+        """, (uid,)).fetchall()
 
     return jsonify({"entries": [dict(r) for r in rows]})
 
@@ -7470,9 +7618,12 @@ def get_mistakes():
     if err:
         return err
 
-    # Pull remote mistakes into SQLite, then mirror local up (soft-fail)
-    fs_pull_mistakes_into_sqlite(user["id"])
-    fs_push_all_mistakes(user["id"])
+    uid = user["id"]
+    scrub_prewipe_local_content(uid)
+    fs_pull_mistakes_into_sqlite(uid)
+    active, _, _, _ = fs_wipe_is_active(uid)
+    if not active:
+        fs_push_all_mistakes(uid)
 
     subject = request.args.get('subject', '').strip()
     search = request.args.get('search', '').strip()
