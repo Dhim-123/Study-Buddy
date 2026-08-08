@@ -699,7 +699,10 @@ SYSTEM_PROMPT = os.getenv(
     "for that level — do not invent board-official papers or claim official mark schemes. "
     "After a hard explanation, ask one short check-for-understanding question. "
     "If the student seems stuck, prefer a hint before dumping the full answer. "
-    "When the topic matches a known misconception from their recent mistakes, briefly warn about it."
+    "When the topic matches a known misconception from their recent mistakes, briefly warn about it. "
+    "You receive PERSONAL TUTOR CONTEXT with Mistake Vault items when available. "
+    "If the student asks to check/review their Mistake Vault or past mistakes, use that list: "
+    "summarize the mistakes and teach from them. Never claim you cannot access their Mistake Vault."
 )
 
 # Minor-safe rails (always appended for generative study endpoints)
@@ -3342,7 +3345,7 @@ def format_student_context_for_prompt(user_id):
                 FROM student_mistakes
                 WHERE user_id=? AND COALESCE(mastered, 0)=0
                 ORDER BY created_at DESC
-                LIMIT 5
+                LIMIT 8
                 """,
                 (user_id,),
             ).fetchall()
@@ -3352,6 +3355,9 @@ def format_student_context_for_prompt(user_id):
             "\n\nPERSONAL TUTOR CONTEXT:",
             f"- You are {buddy}, this student's study buddy. Be warm and personal, but stay focused on learning.",
             f"- Preferred explanation style: {style}.",
+            "- You have access to this student's Mistake Vault via the list below (when present). "
+            "If they ask to check/review the vault or their mistakes, summarize and teach from that list. "
+            "Never say you cannot access the Mistake Vault.",
         ]
         if weakest:
             bits = []
@@ -3369,17 +3375,18 @@ def format_student_context_for_prompt(user_id):
                     "- Reinforce these focus subjects when relevant: " + "; ".join(bits) + "."
                 )
         if mistakes:
-            lines.append(
-                "- Recent unmastered mistakes (mention gently only when the topic matches; "
-                "do not dump this whole list):"
-            )
+            lines.append(f"- Mistake Vault ({len(mistakes)} recent unmastered item(s)):")
             for m in mistakes:
-                q = (m["question"] or "")[:120].replace("\n", " ")
-                wrong = (m["wrong_answer"] or "")[:60].replace("\n", " ")
-                right = (m["correct_answer"] or "")[:60].replace("\n", " ")
+                q = (m["question"] or "")[:140].replace("\n", " ")
+                wrong = (m["wrong_answer"] or "")[:70].replace("\n", " ")
+                right = (m["correct_answer"] or "")[:70].replace("\n", " ")
                 subj = (m["subject"] or "General")[:40]
                 topic = (m["topic"] or "General")[:40]
                 lines.append(f"  • [{subj}/{topic}] Q: {q} | Wrong: {wrong} | Right: {right}")
+        else:
+            lines.append(
+                "- Mistake Vault is currently empty. If they ask about it, say so and suggest a short quiz."
+            )
         lines.append(
             "- After hard explanations, ask one short check-for-understanding question. "
             "If stuck, hint first. Reuse known mistakes when the topic matches.\n"

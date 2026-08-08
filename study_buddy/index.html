@@ -508,11 +508,105 @@
 
     /* Footer flows naturally below chat list with tight vertical spacing */
     .sb-footer {
-      padding: 10px 14px 14px;
+      padding: 12px 12px 14px;
       border-top: 1px solid var(--border);
-      background: rgba(0, 0, 0, 0.12);
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.16));
       flex-shrink: 0;
       margin-top: 0;
+    }
+
+    .sidebar-tools {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .sidebar-tool-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .sidebar-chip-btn {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+      text-align: center;
+    }
+    .sidebar-chip-btn:hover {
+      border-color: rgba(59, 130, 246, 0.45);
+      background: rgba(59, 130, 246, 0.1);
+    }
+    .compact-focus-bar {
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 12px;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .compact-focus-bar .focus-label {
+      font-weight: 800;
+      font-size: 0.78rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .compact-focus-bar #timer-display {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.95rem;
+      font-weight: 900;
+      color: var(--text);
+    }
+    .sidebar-account-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .sidebar-account-card .field {
+      margin: 0;
+    }
+    .sidebar-account-card label {
+      font-weight: 700;
+      font-size: 0.72rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+      display: block;
+    }
+    .sidebar-account-card .input {
+      padding: 7px 10px;
+      font-size: 0.82rem;
+      border-radius: 8px;
+    }
+    .sidebar-account-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .sidebar-account-actions .btn-primary,
+    .sidebar-account-actions .btn-icon {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 0.78rem;
+      border-radius: 8px;
+      justify-content: center;
     }
 
     /* ── RIGHT SIDEBAR: DICTIONARY & LIVING NOTEBOOK (own scroll) ── */
@@ -590,17 +684,52 @@
     }
 
     .sidebar-section-header {
-      padding: 14px 18px;
+      padding: 12px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       cursor: pointer;
       user-select: none;
       transition: background 0.15s ease;
+      border-bottom: 1px solid transparent;
     }
 
     .sidebar-section-header:hover {
       background: rgba(255, 255, 255, 0.04);
+    }
+
+    #dict-sidebar .dict-title,
+    #dict-sidebar .nb-sidebar-title {
+      font-size: 0.92rem;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+    }
+    #dict-sidebar .dict-search-row {
+      padding: 0 12px 10px !important;
+      gap: 6px;
+    }
+    #dict-sidebar .dict-body {
+      padding: 0 12px 12px !important;
+    }
+    #dict-sidebar .dict-empty {
+      padding: 18px 10px;
+      font-size: 0.8rem;
+      line-height: 1.45;
+    }
+    #dict-sidebar .nb-subject-select-row {
+      padding: 0 12px 8px !important;
+    }
+    #dict-sidebar #nb-sidebar-body {
+      padding: 0 12px 14px !important;
+      gap: 10px !important;
+    }
+    #dict-sidebar .nb-sidebar-cat-card {
+      padding: 10px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    #dict-sidebar .nb-sidebar-cat-header {
+      font-size: 0.8rem;
     }
 
     .section-toggle-icon {
@@ -2577,7 +2706,14 @@
 
     .mistake-actions {
       display: flex;
-      gap: 8px;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+    .mistake-actions .btn-sm {
+      white-space: nowrap;
+      font-size: 0.72rem;
+      padding: 5px 9px;
     }
 
     .mistake-question {
@@ -4947,43 +5083,36 @@
             </div>
             
             <!-- SETTINGS & NOTES PANEL -->
-            <div class="settings-notes-panel" style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
-              <!-- 1. Learning DNA Dashboard Button (Logged-in Only) -->
-              <button class="btn-primary logged-in-only" id="sidebar-learning-dna-btn" type="button" style="display:none; width: 100%; padding: 10px 12px; font-weight: 800;">
-                🧬 Learning DNA Dashboard
-              </button>
-
-              <!-- Compact Focus Timer (Occupies minimal vertical space under Chat History) -->
-              <div class="compact-focus-bar" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: var(--radius-md); padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                <span style="font-weight: 800; font-size: 0.82rem; color: var(--text); display: flex; align-items: center; gap: 6px; white-space: nowrap;">
-                  ⏱️ Focus <span id="timer-display" style="font-family: monospace; font-size: 0.95rem; font-weight: 900; color: #ffffff;">25:00</span>
+            <div class="settings-notes-panel sidebar-tools" style="margin-top: 12px;">
+              <div class="compact-focus-bar">
+                <span class="focus-label">
+                  Focus <span id="timer-display">25:00</span>
                 </span>
                 <div style="display: flex; gap: 4px; align-items: center;">
-                  <button id="timer-toggle-btn" class="btn-primary" type="button" style="padding: 3px 10px; font-size: 0.75rem; font-weight: 700;">▶ Start</button>
-                  <button id="timer-reset-btn" class="btn-icon" type="button" style="padding: 3px 6px; font-size: 0.75rem;" title="Reset Timer">🔄</button>
+                  <button id="timer-toggle-btn" class="btn-primary" type="button" style="padding: 4px 10px; font-size: 0.72rem; font-weight: 700;">Start</button>
+                  <button id="timer-reset-btn" class="btn-icon" type="button" style="padding: 4px 7px; font-size: 0.72rem;" title="Reset Timer">↺</button>
                 </div>
               </div>
 
-              <!-- 2. Clean Horizontal Divider -->
-              <hr style="border: none; border-top: 1px solid var(--border); margin: 4px 0;" />
-
-              <!-- 3. Buddy Name -->
-              <div class="field logged-in-only" style="display:none;">
-                <label style="font-weight: 700; font-size: 0.85rem; margin-bottom: 4px; display: block;">Buddy Name</label>
-                <input type="text" class="input" id="buddy-name-input" placeholder="Enter buddy name" style="padding: 6px 10px; font-size: 0.85rem;" />
+              <div class="sidebar-tool-row logged-in-only" style="display:none;">
+                <button class="sidebar-chip-btn" id="sidebar-learning-dna-btn" type="button">Learning DNA</button>
+                <button class="sidebar-chip-btn" id="sidebar-mistake-vault-btn" type="button">Mistake Vault</button>
               </div>
 
-              <!-- 4. Username -->
-              <div class="field logged-in-only" style="display:none;">
-                <label style="font-weight: 700; font-size: 0.85rem; margin-bottom: 4px; display: block;">Username</label>
-                <input type="text" class="input" id="username-input" placeholder="Enter username" style="padding: 6px 10px; font-size: 0.85rem;" />
+              <div class="sidebar-account-card logged-in-only" style="display:none;">
+                <div class="field">
+                  <label for="buddy-name-input">Buddy</label>
+                  <input type="text" class="input" id="buddy-name-input" placeholder="Buddy name" />
+                </div>
+                <div class="field">
+                  <label for="username-input">Username</label>
+                  <input type="text" class="input" id="username-input" placeholder="Username" />
+                </div>
+                <div class="sidebar-account-actions">
+                  <button class="btn-primary" id="save-settings-btn" type="button">Save</button>
+                  <button class="btn-icon" id="logout-btn" type="button" style="background:rgba(244,63,94,0.1); border-color:rgba(244,63,94,0.2); color:#f43f5e;">Log out</button>
+                </div>
               </div>
-
-              <!-- 5. Save Settings Button -->
-              <button class="btn-primary logged-in-only" id="save-settings-btn" style="display:none; width: 100%; padding: 8px 12px; font-weight: 700;">💾 Save Settings</button>
-
-              <!-- 6. Logout Button -->
-              <button class="btn-icon logged-in-only" id="logout-btn" type="button" style="width:100%; background:rgba(244,63,94,0.1); border-color:rgba(244,63,94,0.2); color:#f43f5e; display:none; padding: 8px 12px;">🚪 Log out</button>
             </div>
 
         </div>
@@ -6198,10 +6327,14 @@
           if (authPasswordInput) authPasswordInput.style.display = "none";
           if (idLabel) idLabel.style.display = "none";
           if (pwLabel) pwLabel.style.display = "none";
-          if (logoutBtn) logoutBtn.style.display = "block";
           if (googleWrap) googleWrap.style.display = "none";
 
-          loggedInOnlyElements.forEach(el => el.style.display = "block");
+          loggedInOnlyElements.forEach((el) => {
+            if (el.classList.contains("sidebar-tool-row")) el.style.display = "grid";
+            else if (el.classList.contains("sidebar-account-card")) el.style.display = "flex";
+            else el.style.display = "";
+          });
+          if (logoutBtn) logoutBtn.style.display = "";
           if (buddyNameEl) buddyNameEl.value = currentUser.buddyName || "Nova";
           if (usernameInputEl) usernameInputEl.value = currentUser.identifier || "";
           cfg.buddyName = currentUser.buddyName || "Nova";
@@ -8548,8 +8681,78 @@
         return { feature: "definitions", topic: extractFeatureTopic(message, "definitions?") };
       }
 
+      if (/\bmistake\s*vault\b/.test(msg)
+          || /\b(check|show|open|review|see)\b[\s\S]{0,24}\b(my\s+)?mistakes?\b/.test(msg)
+          || /\b(my\s+)?(past|previous)\s+mistakes?\b/.test(msg)) {
+        return { feature: "mistake_vault", topic: null };
+      }
+
       return { feature: null, topic: null };
     }
+
+    async function executeMistakeVaultReview() {
+      if (!currentUser?.loggedIn) {
+        appendBubble("ai", "Please log in first so I can open your Mistake Vault.");
+        document.getElementById("auth-btn")?.click();
+        return;
+      }
+      try {
+        const res = await fetch("/api/mistakes?unmastered=true", { credentials: "include" });
+        const data = res.ok ? await res.json() : { mistakes: [] };
+        const mistakes = data.mistakes || [];
+        if (!mistakes.length) {
+          appendBubble(
+            "ai",
+            "Your **Mistake Vault** is empty right now. Take a Quiz, tap **See Score**, and wrong answers will land there. Then ask me again and I’ll review them with you.\n\nTip: More → Mistake Vault opens the full list anytime."
+          );
+          if (typeof loadMistakeVault === "function") loadMistakeVault();
+          return;
+        }
+        const lines = mistakes.slice(0, 8).map((m, i) => {
+          const q = String(m.question || "").replace(/\s+/g, " ").slice(0, 140);
+          const wrong = String(m.wrong_answer || "—").replace(/\s+/g, " ").slice(0, 80);
+          const right = String(m.correct_answer || "—").replace(/\s+/g, " ").slice(0, 80);
+          return `${i + 1}. **${m.subject || "General"}** — ${q}\n   Wrong: ${wrong}\n   Right: ${right}`;
+        });
+        appendBubble(
+          "ai",
+          `Here’s what’s in your **Mistake Vault** (${mistakes.length} open):\n\n${lines.join("\n\n")}\n\nTell me a number to review, or open **More → Mistake Vault** and tap **Review this topic** on any card.`
+        );
+        if (typeof loadMistakeVault === "function") loadMistakeVault();
+      } catch (err) {
+        appendBubble("ai", `I couldn’t load your Mistake Vault just now (${err.message}). Try More → Mistake Vault.`);
+      }
+    }
+
+    function reviewMistakeInChat(mistakeId) {
+      const m = (typeof allMistakes !== "undefined" ? allMistakes : []).find(
+        (x) => Number(x.id) === Number(mistakeId)
+      );
+      if (!m) {
+        if (typeof window.showSection === "function") window.showSection("chat");
+        return;
+      }
+      const topic = (m.topic && m.topic !== "Quiz" && m.topic !== "General")
+        ? m.topic
+        : (m.subject || "this topic");
+      const prompt =
+        `Help me review this Mistake Vault item on ${topic}.\n` +
+        `Question: ${m.question || ""}\n` +
+        `I answered: ${m.wrong_answer || "—"}\n` +
+        `Correct answer: ${m.correct_answer || "—"}\n` +
+        `Explain why I was wrong, teach the idea simply, then give me 2 short practice questions.`;
+      if (typeof window.showSection === "function") window.showSection("chat");
+      const input = document.getElementById("user-input");
+      if (input) {
+        input.value = prompt;
+        try { autoGrow(input); } catch (_) {}
+        input.focus();
+      }
+      setTimeout(() => {
+        try { if (typeof triggerSend === "function") triggerSend(); } catch (_) {}
+      }, 80);
+    }
+    window.reviewMistakeInChat = reviewMistakeInChat;
 
     function executeFeatureIntent(intent) {
       const { feature, topic } = intent;
@@ -8577,6 +8780,10 @@
           break;
         case "definitions":
           executeDefinitions(topic);
+          break;
+        case "mistake_vault":
+          executeMistakeVaultReview();
+          break;
           break;
       }
     }
@@ -10006,12 +10213,14 @@
     const sidebarLearningDnaBtn = document.getElementById("sidebar-learning-dna-btn");
     if (sidebarLearningDnaBtn) {
       sidebarLearningDnaBtn.addEventListener("click", () => {
-        tabButtons.forEach(b => b.classList.remove("active"));
-        hideAllFeatureSections();
-        if (learningDnaSection) learningDnaSection.style.display = "flex";
-        if (typeof renderLearningDnaDashboard === 'function') renderLearningDnaDashboard();
+        if (typeof window.showSection === "function") window.showSection("learning-dna");
+        else if (typeof renderLearningDnaDashboard === "function") renderLearningDnaDashboard();
       });
     }
+    document.getElementById("sidebar-mistake-vault-btn")?.addEventListener("click", () => {
+      if (typeof window.showSection === "function") window.showSection("mistake-vault");
+      else if (typeof loadMistakeVault === "function") loadMistakeVault();
+    });
 
     function getLatestUserPrompt() {
       const lastUserMessage = [...history].reverse().find(msg => msg.role === "user");
@@ -10099,7 +10308,7 @@
             question: (parsed.question || `Quiz question ${idx + 1}`).slice(0, 2000),
             wrong_answer: String(wrongOpt).slice(0, 500),
             correct_answer: String(parsed.correctOpt || parsed.correctAnswer || "—").slice(0, 500),
-            explanation: `Correct answer is ${parsed.correctAnswer}. Review this topic.`,
+            explanation: `Correct answer is ${parsed.correctAnswer}.`,
           });
         });
         try {
@@ -13253,28 +13462,30 @@
       mistakeList.innerHTML = currentMistakes.map(mistake => `
         <div class="mistake-item ${mistake.mastered ? 'mastered' : ''}" data-id="${mistake.id}">
           <div class="mistake-header">
-            <div class="mistake-subject">${mistake.subject}</div>
+            <div class="mistake-subject">${escapeHtml(mistake.subject || "General")}</div>
             <div class="mistake-actions">
-              <button class="btn-sm" onclick="toggleMastered(${mistake.id}, ${!mistake.mastered})" 
+              <button type="button" class="btn-sm" onclick="reviewMistakeInChat(${mistake.id})"
+                      style="background: var(--accent);">Review this topic</button>
+              <button type="button" class="btn-sm" onclick="toggleMastered(${mistake.id}, ${!mistake.mastered})" 
                       style="background: ${mistake.mastered ? 'var(--accent2)' : 'var(--accent3)'};">
-                ${mistake.mastered ? '❌ Unmark' : '✅ Mastered'}
+                ${mistake.mastered ? 'Unmark' : 'Mastered'}
               </button>
-              <button class="btn-sm btn-danger" onclick="deleteMistake(${mistake.id})">🗑️</button>
+              <button type="button" class="btn-sm btn-danger" onclick="deleteMistake(${mistake.id})">Delete</button>
             </div>
           </div>
-          <div class="mistake-question">Q: ${mistake.question}</div>
+          <div class="mistake-question">Q: ${escapeHtml(mistake.question || "")}</div>
           <div class="mistake-answers">
             <div class="mistake-wrong-answer">
               <strong>Your Answer:</strong><br>
-              ${mistake.wrong_answer || 'Not specified'}
+              ${escapeHtml(mistake.wrong_answer || "Not specified")}
             </div>
             <div class="mistake-correct-answer">
               <strong>Correct Answer:</strong><br>
-              ${mistake.correct_answer}
+              ${escapeHtml(mistake.correct_answer || "")}
             </div>
           </div>
           <div class="mistake-explanation">
-            <strong>Explanation:</strong> ${mistake.explanation}
+            <strong>Explanation:</strong> ${escapeHtml(mistake.explanation || "")}
           </div>
         </div>
       `).join('');
