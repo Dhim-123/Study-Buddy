@@ -2975,11 +2975,12 @@ def _split_portion_topics(portion: str):
 
 
 def build_exam_study_plan(exams):
-    """Build dated study tasks from exam dates + portions (all subjects)."""
+    """Build dated study tasks from exam dates + portions. Nearer exams first."""
     from datetime import timedelta
 
     today = datetime.utcnow().date()
-    plan = []
+    # Prioritize soonest exams first
+    scored = []
     for ex in exams or []:
         try:
             exam_date = datetime.strptime(ex.get("exam_date") or "", "%Y-%m-%d").date()
@@ -2988,11 +2989,16 @@ def build_exam_study_plan(exams):
         days = (exam_date - today).days
         if days < 0:
             continue
+        scored.append((days, ex, exam_date))
+    scored.sort(key=lambda x: (x[0], (x[1].get("subject") or "").lower()))
+
+    plan = []
+    for days, ex, exam_date in scored:
         subject = (ex.get("subject") or "General").strip() or "General"
-        title = (ex.get("title") or "Exam").strip() or "Exam"
         topics = _split_portion_topics(ex.get("portion") or "")
         if not topics:
-            topics = [f"Revise full syllabus for {subject} ({title})"]
+            topics = [f"Revise full syllabus for {subject}"]
+        # Nearer exams get topics scheduled sooner / denser
         span = max(1, days)
         n = len(topics)
         for i, topic in enumerate(topics):
@@ -3005,15 +3011,157 @@ def build_exam_study_plan(exams):
             plan.append({
                 "exam_id": ex.get("id"),
                 "subject": subject,
-                "exam_title": title,
                 "exam_date": ex.get("exam_date"),
                 "days_left": days,
                 "topic": topic,
                 "title": f"{subject}: {topic}"[:200],
                 "due_date": due.strftime("%Y-%m-%d"),
+                "source": "exam_auto",
+                "priority": 0 if days <= 3 else (1 if days <= 7 else 2),
             })
+    # Soonest due first, then higher priority (nearer exams), then subject
+    plan.sort(key=lambda x: (
+        x.get("due_date") or "",
+        x.get("priority", 9),
+        x.get("days_left", 999),
+        x.get("subject") or "",
+    ))
+    return plan
+
+
+def get_weakest_subjects_for_user(user_id, limit=5):
+    """Return weakest subjects from analytics / unmastered mistakes."""
+    out = []
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT subject, questions_taken, questions_correct, study_minutes
+            FROM subject_analytics
+            WHERE user_id=? AND (questions_taken > 0 OR study_minutes > 0)
+            """,
+            (user_id,),
+        ).fetchall()
+        for r in rows:
+            qt = int(r["questions_taken"] or 0)
+            qc = int(r["questions_correct"] or 0)
+            acc = round((qc / qt * 100.0), 1) if qt > 0 else 0.0
+            out.append({
+                "subject": (r["subject"] or "General").strip() or "General",
+                "accuracy": acc,
+                "questions_taken": qt,
+                "study_minutes": int(r["study_minutes"] or 0),
+            })
+        # Boost weakness signal from unmastered mistakes
+        mistake_rows = conn.execute(
+            """
+            SELECT subject, COUNT(*) AS c
+            FROM student_mistakes
+            WHERE user_id=? AND COALESCE(mastered, 0)=0
+            GROUP BY subject
+            ORDER BY c DESC
+            LIMIT 12
+            """,
+            (user_id,),
+        ).fetchall()
+    by_subj = {s["subject"].lower(): s for s in out}
+    for mr in mistake_rows or []:
+        subj = (mr["subject"] or "General").strip() or "General"
+        key = subj.lower()
+        if key in by_subj:
+            # Lower effective accuracy when many open mistakes
+            penalty = min(25.0, float(mr["c"] or 0) * 3.0)
+            by_subj[key]["accuracy"] = max(0.0, by_subj[key]["accuracy"] - penalty)
+            by_subj[key]["open_mistakes"] = int(mr["c"] or 0)
+        else:
+            by_subj[key] = {
+                "subject": subj,
+                "accuracy": max(0.0, 40.0 - float(mr["c"] or 0) * 3.0),
+                "questions_taken": 0,
+                "study_minutes": 0,
+                "open_mistakes": int(mr["c"] or 0),
+            }
+    ranked = sorted(
+        by_subj.values(),
+        key=lambda x: (x.get("accuracy", 100), -int(x.get("open_mistakes") or 0), -int(x.get("questions_taken") or 0)),
+    )
+    return ranked[: max(1, int(limit))]
+
+
+def build_weakness_study_plan(user_id):
+    """Study plan when no exams: focus weakest subjects over the next week."""
+    from datetime import timedelta
+
+    today = datetime.utcnow().date()
+    weakest = get_weakest_subjects_for_user(user_id, limit=4)
+    plan = []
+    if not weakest:
+        for i, tip in enumerate((
+            "Take a short quiz so Study Buddy can find your weakest subject",
+            "Review Mistake Vault and mark one topic to practice",
+            "Ask Chat to explain a topic you find hard",
+        )):
+            plan.append({
+                "exam_id": None,
+                "subject": "General",
+                "topic": tip,
+                "title": tip[:200],
+                "due_date": (today + timedelta(days=i)).strftime("%Y-%m-%d"),
+                "source": "weakness_auto",
+                "priority": 1,
+                "accuracy": None,
+            })
+        return plan
+
+    day = 0
+    for s in weakest:
+        subj = s["subject"]
+        acc = s.get("accuracy")
+        acc_txt = f"{acc:.0f}%" if isinstance(acc, (int, float)) else "low"
+        tasks = [
+            f"Practice {subj} (weakest — {acc_txt} accuracy)",
+            f"Review mistakes & redo hard questions in {subj}",
+            f"Ask Chat for a mini lesson on a weak {subj} topic",
+        ]
+        for t in tasks:
+            plan.append({
+                "exam_id": None,
+                "subject": subj,
+                "topic": t,
+                "title": t[:200],
+                "due_date": (today + timedelta(days=min(day, 6))).strftime("%Y-%m-%d"),
+                "source": "weakness_auto",
+                "priority": 1,
+                "accuracy": acc,
+            })
+            day += 1
     plan.sort(key=lambda x: (x.get("due_date") or "", x.get("subject") or ""))
     return plan
+
+
+def build_smart_study_plan(user_id):
+    """
+    Exams first (portion-based, nearest exam prioritized).
+    If no upcoming exams → plan around weakest subjects.
+    """
+    exams = list_upcoming_exams_for_user(user_id, limit=40)
+    if exams:
+        plan = build_exam_study_plan(exams)
+        return {
+            "mode": "exams",
+            "exams": exams,
+            "plan": plan,
+            "weakest": [],
+            "section": get_user_section_prefs(user_id),
+        }
+    weakest = get_weakest_subjects_for_user(user_id, limit=5)
+    plan = build_weakness_study_plan(user_id)
+    return {
+        "mode": "weakest",
+        "exams": [],
+        "plan": plan,
+        "weakest": weakest,
+        "section": get_user_section_prefs(user_id),
+    }
 
 
 def format_exams_for_prompt(exams):
@@ -3026,7 +3174,7 @@ def format_exams_for_prompt(exams):
         when = f"in {days} day(s)" if isinstance(days, int) else f"on {ex.get('exam_date')}"
         portion = (ex.get("portion") or "").strip()
         lines.append(
-            f"- {ex.get('subject')}: {ex.get('title')} {when}"
+            f"- {ex.get('subject')} {when}"
             + (f". Portion: {portion[:400]}" if portion else ".")
         )
     lines.append("Prefer questions and revision aligned with these portions when relevant.\n")
@@ -3193,8 +3341,9 @@ def admin_upsert_exam():
     exam_date = _parse_exam_date(data.get("exam_date") or data.get("examDate"))
     if not exam_date:
         return jsonify({"error": "exam_date must be YYYY-MM-DD."}), 400
-    title = (data.get("title") or "Exam").strip()[:120] or "Exam"
     subject = (data.get("subject") or "General").strip()[:80] or "General"
+    # Title field removed from admin UI — keep DB column as subject label
+    title = subject[:120] or "Exam"
     legacy_portion = (data.get("portion") or "").strip()[:4000]
     portion_whiz = data.get("portion_whiz", data.get("portionWhiz"))
     portion_super = data.get("portion_super", data.get("portionSuper"))
@@ -3305,25 +3454,24 @@ def exams_upcoming():
 
 @app.route("/api/planner/exam-plan", methods=["GET"])
 def planner_exam_plan():
-    """Preview study plan generated from upcoming exams for this student's section."""
+    """Preview smart study plan (exams first, else weakest subjects)."""
     user, err = require_auth()
     if err:
         return err
-    exams = list_upcoming_exams_for_user(user["id"], limit=40)
-    plan = build_exam_study_plan(exams)
-    return jsonify({"exams": exams, "plan": plan, "section": get_user_section_prefs(user["id"])})
+    smart = build_smart_study_plan(user["id"])
+    return jsonify(smart)
 
 
 @app.route("/api/planner/sync-exams", methods=["POST"])
 @rate_limit(max_calls=20, window_sec=60)
 def planner_sync_exams():
-    """Replace auto exam tasks with a fresh plan from this student's section exams."""
+    """Replace auto tasks with smart plan: exams first, else weakest subjects."""
     user, err = require_auth()
     if err:
         return err
     uid = user["id"]
-    exams = list_upcoming_exams_for_user(uid, limit=40)
-    plan = build_exam_study_plan(exams)
+    smart = build_smart_study_plan(uid)
+    plan = smart.get("plan") or []
     with get_db() as conn:
         try:
             conn.execute(
@@ -3336,16 +3484,22 @@ def planner_sync_exams():
         except Exception:
             pass
         conn.execute(
-            "DELETE FROM study_planner_tasks WHERE user_id=? AND COALESCE(source,'')='exam_auto'",
+            """
+            DELETE FROM study_planner_tasks
+            WHERE user_id=? AND COALESCE(source,'') IN ('exam_auto', 'weakness_auto')
+            """,
             (uid,),
         )
         for item in plan:
+            src = item.get("source") or (
+                "exam_auto" if smart.get("mode") == "exams" else "weakness_auto"
+            )
             conn.execute(
                 """
                 INSERT INTO study_planner_tasks (user_id, title, due_date, done, source, exam_id)
-                VALUES (?, ?, ?, 0, 'exam_auto', ?)
+                VALUES (?, ?, ?, 0, ?, ?)
                 """,
-                (uid, item["title"], item["due_date"], item.get("exam_id")),
+                (uid, item["title"], item["due_date"], src, item.get("exam_id")),
             )
         rows = conn.execute(
             """
@@ -3358,10 +3512,12 @@ def planner_sync_exams():
         ).fetchall()
     return jsonify({
         "ok": True,
-        "exams": exams,
+        "mode": smart.get("mode"),
+        "exams": smart.get("exams") or [],
+        "weakest": smart.get("weakest") or [],
         "plan": plan,
         "tasks": [dict(r) for r in rows],
-        "section": get_user_section_prefs(uid),
+        "section": smart.get("section") or get_user_section_prefs(uid),
     })
 
 

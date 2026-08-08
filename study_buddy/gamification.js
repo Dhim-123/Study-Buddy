@@ -591,19 +591,42 @@
     el.style.color = isError ? "#f43f5e" : "";
   }
 
-  function renderPlannerExams(exams) {
+  function setPlannerPriorityHeading(mode) {
+    const el = document.getElementById("planner-priority-heading");
+    if (!el) return;
+    if (mode === "weakest") el.textContent = "Weakest subjects";
+    else if (mode === "exams") el.textContent = "Upcoming exams";
+    else el.textContent = "Priority focus";
+  }
+
+  function renderPlannerFocus(mode, exams, weakest) {
     const host = document.getElementById("planner-exams-summary");
     if (!host) return;
-    const list = exams || [];
+    setPlannerPriorityHeading(mode);
+    if (mode === "exams") {
+      const list = exams || [];
+      if (!list.length) {
+        host.innerHTML = `<span class="settings-hint">No upcoming exams.</span>`;
+        return;
+      }
+      host.innerHTML = list
+        .map((ex) => {
+          const days = typeof ex.days_left === "number" ? `${ex.days_left}d left` : ex.exam_date || "";
+          return `<div class="planner-exam-chip"><strong>${escapePlannerHtml(ex.subject)}</strong> · ${escapePlannerHtml(days)}</div>`;
+        })
+        .join("");
+      return;
+    }
+    const list = weakest || [];
     if (!list.length) {
       host.innerHTML =
-        `<span class="settings-hint">No upcoming exams yet. Ask admin to add subjects (Math, English, …) in Exam dates &amp; portions.</span>`;
+        `<span class="settings-hint">No exam schedule. Take quizzes so we can prioritize your weakest subjects.</span>`;
       return;
     }
     host.innerHTML = list
-      .map((ex) => {
-        const days = typeof ex.days_left === "number" ? `${ex.days_left}d left` : ex.exam_date || "";
-        return `<div class="planner-exam-chip"><strong>${escapePlannerHtml(ex.subject)}</strong> · ${escapePlannerHtml(ex.title)} · ${escapePlannerHtml(days)}</div>`;
+      .map((s) => {
+        const acc = typeof s.accuracy === "number" ? `${Math.round(s.accuracy)}%` : "—";
+        return `<div class="planner-exam-chip"><strong>${escapePlannerHtml(s.subject)}</strong> · ${escapePlannerHtml(acc)} accuracy</div>`;
       })
       .join("");
   }
@@ -613,16 +636,18 @@
     if (!list) return;
     const rows = tasks || [];
     if (!rows.length) {
-      list.innerHTML = `<li class="planner-empty">No tasks yet. Click “Sync plan from exams”.</li>`;
+      list.innerHTML = `<li class="planner-empty">No tasks yet. Click “Sync study plan”.</li>`;
       return;
     }
     list.innerHTML = rows
       .map((t) => {
         const due = t.due_date ? `Due ${escapePlannerHtml(t.due_date)}` : "No due date";
-        const badge =
-          t.source === "exam_auto"
-            ? `<div class="planner-task-badge">From exam</div>`
-            : `<div class="planner-task-badge" style="color:#6a6a85;">Manual</div>`;
+        let badge = `<div class="planner-task-badge" style="color:#6a6a85;">Manual</div>`;
+        if (t.source === "exam_auto") {
+          badge = `<div class="planner-task-badge">Exam priority</div>`;
+        } else if (t.source === "weakness_auto") {
+          badge = `<div class="planner-task-badge" style="color:#f59e0b;">Weakest subject</div>`;
+        }
         return `<li class="planner-task${t.done ? " done" : ""}" data-task-id="${t.id}">
           <label>
             <input type="checkbox" data-planner-done ${t.done ? "checked" : ""} />
@@ -666,7 +691,7 @@
           await api(`/api/planner/${id}`, { method: "DELETE" });
           li.remove();
           if (!list.querySelector(".planner-task")) {
-            list.innerHTML = `<li class="planner-empty">No tasks yet. Click “Sync plan from exams”.</li>`;
+            list.innerHTML = `<li class="planner-empty">No tasks yet. Click “Sync study plan”.</li>`;
           }
         } catch (e) {
           toast(e.message, "warn");
@@ -675,13 +700,26 @@
     });
   }
 
+  function applySyncedPlanner(data) {
+    const mode = data.mode || ((data.exams || []).length ? "exams" : "weakest");
+    renderPlannerFocus(mode, data.exams || [], data.weakest || []);
+    renderPlannerTasks(data.tasks || []);
+    const nPlan = (data.plan || data.tasks || []).length;
+    if (mode === "exams") {
+      setPlannerStatus(`Exam plan · ${(data.exams || []).length} exam(s) → ${nPlan} tasks`);
+    } else {
+      setPlannerStatus(`Weakest-subject plan · ${nPlan} tasks`);
+    }
+    return mode;
+  }
+
   async function refreshPlanner(opts) {
     const autoSync = !!(opts && opts.autoSync);
     if (!isLoggedIn()) {
-      renderPlannerExams([]);
+      renderPlannerFocus("", [], []);
       const list = document.getElementById("planner-task-list");
       if (list) {
-        list.innerHTML = `<li class="planner-empty">Log in to see your exam-based study plan.</li>`;
+        list.innerHTML = `<li class="planner-empty">Log in to see your study plan.</li>`;
       }
       setPlannerStatus("");
       return;
@@ -689,34 +727,35 @@
     setPlannerStatus("Loading…");
     try {
       let tasksData = await api("/api/planner");
-      let exams = [];
-      try {
-        const upcoming = await api("/api/exams/upcoming");
-        exams = upcoming.exams || [];
-      } catch (_) {}
-      renderPlannerExams(exams);
-      const sectionLabel =
-        (window.currentUser && window.currentUser.section) ||
-        localStorage.getItem("sb_section") ||
-        "";
-
-      const hasExamAuto = (tasksData.tasks || []).some((t) => t.source === "exam_auto");
-      if (autoSync && exams.length && !hasExamAuto) {
+      const hasAuto = (tasksData.tasks || []).some(
+        (t) => t.source === "exam_auto" || t.source === "weakness_auto"
+      );
+      if (autoSync && !hasAuto) {
         const synced = await api("/api/planner/sync-exams", { method: "POST", body: "{}" });
-        exams = synced.exams || exams;
-        tasksData = { tasks: synced.tasks || [] };
-        renderPlannerExams(exams);
-        setPlannerStatus(
-          `Synced ${exams.length} exam(s) → ${(synced.plan || []).length} tasks` +
-            (sectionLabel ? ` · ${sectionLabel}` : "")
-        );
-      } else {
-        setPlannerStatus(
-          exams.length
-            ? `${exams.length} upcoming exam(s)` + (sectionLabel ? ` · ${sectionLabel}` : "")
-            : "No upcoming exams"
-        );
+        applySyncedPlanner(synced);
+        return;
       }
+      let mode = "exams";
+      let exams = [];
+      let weakest = [];
+      try {
+        const preview = await api("/api/planner/exam-plan");
+        mode = preview.mode || "exams";
+        exams = preview.exams || [];
+        weakest = preview.weakest || [];
+      } catch (_) {
+        try {
+          const upcoming = await api("/api/exams/upcoming");
+          exams = upcoming.exams || [];
+          mode = exams.length ? "exams" : "weakest";
+        } catch (_) {}
+      }
+      renderPlannerFocus(mode, exams, weakest);
+      setPlannerStatus(
+        mode === "exams"
+          ? `${exams.length} upcoming exam(s) (priority)`
+          : "No exams — prioritizing weakest subjects"
+      );
       renderPlannerTasks(tasksData.tasks || []);
     } catch (e) {
       setPlannerStatus(e.message || "Failed to load planner", true);
@@ -728,19 +767,14 @@
       toast("Log in to sync the planner", "warn");
       return;
     }
-    setPlannerStatus("Syncing from exams…");
+    setPlannerStatus("Building smart study plan…");
     try {
       const data = await api("/api/planner/sync-exams", { method: "POST", body: "{}" });
-      renderPlannerExams(data.exams || []);
-      renderPlannerTasks(data.tasks || []);
-      const nEx = (data.exams || []).length;
-      const nPlan = (data.plan || []).length;
-      setPlannerStatus(
-        nEx
-          ? `Synced ${nEx} exam(s) → ${nPlan} study tasks`
-          : "No upcoming exams to sync"
+      const mode = applySyncedPlanner(data);
+      toast(
+        mode === "exams" ? "Study plan updated from exams" : "Study plan updated from weakest subjects",
+        "success"
       );
-      toast(nEx ? "Study plan updated from exams" : "No upcoming exams", nEx ? "success" : "warn");
     } catch (e) {
       setPlannerStatus(e.message || "Sync failed", true);
       toast(e.message, "warn");
