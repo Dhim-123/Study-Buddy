@@ -891,6 +891,8 @@ def init_db():
                 exam_date   TEXT    NOT NULL,
                 subject     TEXT    NOT NULL DEFAULT 'General',
                 portion     TEXT    NOT NULL DEFAULT '',
+                portion_whiz TEXT   NOT NULL DEFAULT '',
+                portion_super TEXT  NOT NULL DEFAULT '',
                 grade       INTEGER,
                 active      INTEGER NOT NULL DEFAULT 1,
                 updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -900,6 +902,38 @@ def init_db():
         """)
         try:
             conn.execute("ALTER TABLE living_notebook ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            conn.execute(
+                "ALTER TABLE exam_schedule ADD COLUMN portion_whiz TEXT NOT NULL DEFAULT ''"
+            )
+        except Exception:
+            pass
+        try:
+            conn.execute(
+                "ALTER TABLE exam_schedule ADD COLUMN portion_super TEXT NOT NULL DEFAULT ''"
+            )
+        except Exception:
+            pass
+        # Backfill dual portions from legacy single portion
+        try:
+            conn.execute(
+                """
+                UPDATE exam_schedule
+                SET portion_whiz = portion
+                WHERE (portion_whiz IS NULL OR TRIM(portion_whiz) = '')
+                  AND portion IS NOT NULL AND TRIM(portion) != ''
+                """
+            )
+            conn.execute(
+                """
+                UPDATE exam_schedule
+                SET portion_super = portion
+                WHERE (portion_super IS NULL OR TRIM(portion_super) = '')
+                  AND portion IS NOT NULL AND TRIM(portion) != ''
+                """
+            )
         except Exception:
             pass
 
@@ -1685,6 +1719,9 @@ def fs_push_gamification(user_id):
                 "font_scale": float(prefs["font_scale"] or 1.0) if prefs else 1.0,
                 "reduced_motion": int(prefs["reduced_motion"] or 0) if prefs else 0,
                 "preferred_subjects": (prefs["preferred_subjects"] if prefs else None) or "[]",
+                "section": (prefs["section"] if prefs and "section" in prefs.keys() else "") or "",
+                "drop_math": int(prefs["drop_math"] or 0) if prefs and "drop_math" in prefs.keys() else 0,
+                "drop_science": int(prefs["drop_science"] or 0) if prefs and "drop_science" in prefs.keys() else 0,
             },
             "inventory": {r["item_id"]: int(r["qty"] or 0) for r in inv},
             "milestones": [
@@ -1768,12 +1805,17 @@ def fs_pull_gamification(user_id):
                     ),
                 )
                 if prefs:
+                    _ensure_prefs_section_columns(conn)
+                    section = normalize_section(prefs.get("section") or "")
+                    drop_math = 1 if prefs.get("drop_math") and section == "Super 3" else 0
+                    drop_science = 1 if prefs.get("drop_science") and section == "Super 3" else 0
                     conn.execute(
                         """
                         UPDATE user_prefs SET
                           grade=?, language=?, notify_streak=?, notify_puzzle=?,
                           high_contrast=?, font_scale=?, reduced_motion=?,
-                          preferred_subjects=?, updated_at=datetime('now')
+                          preferred_subjects=?, section=?, drop_math=?, drop_science=?,
+                          updated_at=datetime('now')
                         WHERE user_id=?
                         """,
                         (
@@ -1785,6 +1827,9 @@ def fs_pull_gamification(user_id):
                             float(prefs.get("font_scale") or 1.0),
                             1 if prefs.get("reduced_motion", 0) else 0,
                             prefs.get("preferred_subjects") or "[]",
+                            section,
+                            drop_math,
+                            drop_science,
                             user_id,
                         ),
                     )
@@ -2682,19 +2727,170 @@ def _parse_exam_date(value):
     return s
 
 
-def _exam_row_to_dict(row, today=None):
+VALID_SECTIONS = (
+    "Whiz 1", "Whiz 2", "Whiz 3",
+    "Super 1", "Super 2", "Super 3",
+)
+
+
+def normalize_section(raw):
+    s = (raw or "").strip()
+    for v in VALID_SECTIONS:
+        if s.lower() == v.lower():
+            return v
+    return ""
+
+
+def section_track(section: str) -> str:
+    """Whiz* → whiz, Super* → super."""
+    s = (section or "").strip().lower()
+    if s.startswith("super"):
+        return "super"
+    return "whiz"
+
+
+def resolve_portion_pair(portion_whiz, portion_super, legacy_portion=""):
+    """
+    Resolve Whiz/Super portions. '=' in one field means use the other side's text.
+    If both empty, fall back to legacy portion for both.
+    """
+    raw_w = (portion_whiz or "").strip()
+    raw_s = (portion_super or "").strip()
+    legacy = (legacy_portion or "").strip()
+    if not raw_w and not raw_s:
+        return legacy, legacy
+    if raw_w == "=" and raw_s == "=":
+        return legacy, legacy
+    if raw_w == "=":
+        resolved_w = raw_s if raw_s and raw_s != "=" else legacy
+    else:
+        resolved_w = raw_w or legacy
+    if raw_s == "=":
+        resolved_s = raw_w if raw_w and raw_w != "=" else legacy
+    else:
+        resolved_s = raw_s or legacy
+    return resolved_w, resolved_s
+
+
+def subject_dropped_for_prefs(subject: str, drop_math: bool, drop_science: bool) -> bool:
+    """Super 3 may drop Math and/or Science exams from their plan."""
+    s = (subject or "").strip().lower()
+    if not s:
+        return False
+    if drop_math and (
+        s in ("math", "maths", "mathematics")
+        or s.startswith("math")
+        or "mathematics" in s
+    ):
+        return True
+    if drop_science and (
+        s == "science"
+        or s.startswith("science")
+        or s in ("physics", "chemistry", "biology")
+        or any(x in s for x in ("physics", "chemistry", "biology"))
+    ):
+        return True
+    return False
+
+
+def _ensure_prefs_section_columns(conn):
+    for ddl in (
+        "ALTER TABLE user_prefs ADD COLUMN section TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE user_prefs ADD COLUMN drop_math INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE user_prefs ADD COLUMN drop_science INTEGER NOT NULL DEFAULT 0",
+    ):
+        try:
+            conn.execute(ddl)
+        except Exception:
+            pass
+
+
+def get_user_section_prefs(user_id):
+    """Return {section, track, drop_math, drop_science} for a student."""
+    with get_db() as conn:
+        _ensure_prefs_section_columns(conn)
+        row = conn.execute(
+            "SELECT section, drop_math, drop_science FROM user_prefs WHERE user_id=?",
+            (user_id,),
+        ).fetchone()
+    if not row:
+        return {
+            "section": "",
+            "track": "whiz",
+            "drop_math": False,
+            "drop_science": False,
+        }
+    section = normalize_section(row["section"] if "section" in row.keys() else "")
+    drop_math = bool(int(row["drop_math"] or 0)) if section == "Super 3" else False
+    drop_science = bool(int(row["drop_science"] or 0)) if section == "Super 3" else False
+    return {
+        "section": section,
+        "track": section_track(section),
+        "drop_math": drop_math,
+        "drop_science": drop_science,
+    }
+
+
+def apply_section_prefs(user_id, section_raw, drop_math=False, drop_science=False):
+    """Persist section (+ Super 3 drops). Returns (ok, error_or_section)."""
+    section = normalize_section(section_raw)
+    if not section:
+        return False, "Please select your section (Whiz 1–3 or Super 1–3)."
+    if section != "Super 3":
+        drop_math = False
+        drop_science = False
+    with get_db() as conn:
+        _ensure_prefs_section_columns(conn)
+        if not conn.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone():
+            return False, "User not found."
+        conn.execute(
+            "INSERT OR IGNORE INTO user_prefs (user_id, language) VALUES (?, 'multi')",
+            (user_id,),
+        )
+        conn.execute(
+            """
+            UPDATE user_prefs
+            SET section=?, drop_math=?, drop_science=?, updated_at=datetime('now')
+            WHERE user_id=?
+            """,
+            (section, 1 if drop_math else 0, 1 if drop_science else 0, user_id),
+        )
+    try:
+        fs_push_gamification(user_id)
+    except Exception:
+        pass
+    return True, section
+
+
+def _exam_row_to_dict(row, today=None, resolve_for_track=None):
     """Serialize exam_schedule row; include days_left when today is set."""
     d = dict(row)
+    legacy = d.get("portion") or ""
+    pw = d.get("portion_whiz") if "portion_whiz" in d else ""
+    ps = d.get("portion_super") if "portion_super" in d else ""
+    if pw is None:
+        pw = ""
+    if ps is None:
+        ps = ""
+    resolved_w, resolved_s = resolve_portion_pair(pw, ps, legacy)
     out = {
         "id": int(d["id"]),
         "title": d.get("title") or "Exam",
         "exam_date": d.get("exam_date") or "",
         "subject": d.get("subject") or "General",
-        "portion": d.get("portion") or "",
+        "portion": legacy or resolved_w or resolved_s,
+        "portion_whiz": pw if (pw or "").strip() else (legacy or ""),
+        "portion_super": ps if (ps or "").strip() else (legacy or ""),
+        "portion_whiz_resolved": resolved_w,
+        "portion_super_resolved": resolved_s,
         "grade": d.get("grade"),
         "active": bool(int(d.get("active") or 0)),
         "updated_at": d.get("updated_at") or "",
     }
+    if resolve_for_track == "super":
+        out["portion"] = resolved_s
+    elif resolve_for_track == "whiz":
+        out["portion"] = resolved_w
     if today is not None and out["exam_date"]:
         try:
             ed = datetime.strptime(out["exam_date"], "%Y-%m-%d").date()
@@ -2704,7 +2900,7 @@ def _exam_row_to_dict(row, today=None):
     return out
 
 
-def list_upcoming_exams(limit=12, subject=None, include_inactive=False):
+def list_upcoming_exams(limit=40, subject=None, include_inactive=False, resolve_for_track=None):
     """Return upcoming/active exams for personalization (site-wide)."""
     today = datetime.utcnow().date()
     today_s = today.strftime("%Y-%m-%d")
@@ -2722,7 +2918,102 @@ def list_upcoming_exams(limit=12, subject=None, include_inactive=False):
     params.append(int(limit))
     with get_db() as conn:
         rows = conn.execute(sql, params).fetchall()
-    return [_exam_row_to_dict(r, today=today) for r in rows]
+    return [
+        _exam_row_to_dict(r, today=today, resolve_for_track=resolve_for_track)
+        for r in rows
+    ]
+
+
+def list_upcoming_exams_for_user(user_id, limit=40, subject=None):
+    """Upcoming exams with portion resolved for the student's section track; Super 3 drops applied."""
+    prefs = get_user_section_prefs(user_id)
+    track = prefs.get("track") or "whiz"
+    exams = list_upcoming_exams(
+        limit=max(limit * 2, 40),
+        subject=subject,
+        include_inactive=False,
+        resolve_for_track=track,
+    )
+    out = []
+    for ex in exams:
+        if subject_dropped_for_prefs(
+            ex.get("subject") or "",
+            prefs.get("drop_math"),
+            prefs.get("drop_science"),
+        ):
+            continue
+        ex = dict(ex)
+        ex["section"] = prefs.get("section") or ""
+        ex["track"] = track
+        out.append(ex)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _split_portion_topics(portion: str):
+    """Split portion text into study topics (newline / comma / semicolon / bullets)."""
+    raw = (portion or "").strip()
+    if not raw:
+        return []
+    parts = re.split(r"[\n;•]+|,(?=\s)", raw)
+    topics = []
+    for p in parts:
+        t = re.sub(r"^\s*[-*\d.)]+\s*", "", (p or "").strip())
+        if t:
+            topics.append(t[:160])
+    # Dedupe while preserving order
+    seen = set()
+    out = []
+    for t in topics:
+        key = t.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(t)
+    return out[:40]
+
+
+def build_exam_study_plan(exams):
+    """Build dated study tasks from exam dates + portions (all subjects)."""
+    from datetime import timedelta
+
+    today = datetime.utcnow().date()
+    plan = []
+    for ex in exams or []:
+        try:
+            exam_date = datetime.strptime(ex.get("exam_date") or "", "%Y-%m-%d").date()
+        except Exception:
+            continue
+        days = (exam_date - today).days
+        if days < 0:
+            continue
+        subject = (ex.get("subject") or "General").strip() or "General"
+        title = (ex.get("title") or "Exam").strip() or "Exam"
+        topics = _split_portion_topics(ex.get("portion") or "")
+        if not topics:
+            topics = [f"Revise full syllabus for {subject} ({title})"]
+        span = max(1, days)
+        n = len(topics)
+        for i, topic in enumerate(topics):
+            if n == 1:
+                offset = 0
+            else:
+                offset = int(round(i * (span - 1) / max(n - 1, 1))) if span > 1 else 0
+                offset = max(0, min(offset, max(0, days)))
+            due = today + timedelta(days=offset)
+            plan.append({
+                "exam_id": ex.get("id"),
+                "subject": subject,
+                "exam_title": title,
+                "exam_date": ex.get("exam_date"),
+                "days_left": days,
+                "topic": topic,
+                "title": f"{subject}: {topic}"[:200],
+                "due_date": due.strftime("%Y-%m-%d"),
+            })
+    plan.sort(key=lambda x: (x.get("due_date") or "", x.get("subject") or ""))
+    return plan
 
 
 def format_exams_for_prompt(exams):
@@ -2730,7 +3021,7 @@ def format_exams_for_prompt(exams):
     if not exams:
         return ""
     lines = ["\n\nUPCOMING EXAMS (personalize teaching toward these portions):"]
-    for ex in exams[:6]:
+    for ex in exams[:12]:
         days = ex.get("days_left")
         when = f"in {days} day(s)" if isinstance(days, int) else f"on {ex.get('exam_date')}"
         portion = (ex.get("portion") or "").strip()
@@ -2836,6 +3127,7 @@ def auth_me():
         session.pop("user_id", None)
         return jsonify({"loggedIn": False, "isAdmin": admin})
     pw = row["password_hash"] or ""
+    sec = get_user_section_prefs(row["id"])
     return jsonify({
         "loggedIn": True,
         "identifier": row["identifier"],
@@ -2845,6 +3137,9 @@ def auth_me():
         "email": _row_get(row, "email"),
         "userId": row["id"],
         "isAdmin": admin,
+        "section": sec.get("section") or "",
+        "dropMath": sec.get("drop_math"),
+        "dropScience": sec.get("drop_science"),
     })
 
 
@@ -2890,7 +3185,7 @@ def admin_list_exams():
 @app.route("/api/admin/exams", methods=["POST"])
 @rate_limit(max_calls=30, window_sec=60)
 def admin_upsert_exam():
-    """Admin: create or update an exam date + portion."""
+    """Admin: create or update an exam date + Whiz/Super portions (use = for same)."""
     _, err = require_admin()
     if err:
         return err
@@ -2900,7 +3195,20 @@ def admin_upsert_exam():
         return jsonify({"error": "exam_date must be YYYY-MM-DD."}), 400
     title = (data.get("title") or "Exam").strip()[:120] or "Exam"
     subject = (data.get("subject") or "General").strip()[:80] or "General"
-    portion = (data.get("portion") or "").strip()[:4000]
+    legacy_portion = (data.get("portion") or "").strip()[:4000]
+    portion_whiz = data.get("portion_whiz", data.get("portionWhiz"))
+    portion_super = data.get("portion_super", data.get("portionSuper"))
+    if portion_whiz is None and portion_super is None:
+        portion_whiz = legacy_portion
+        portion_super = "=" if legacy_portion else ""
+    portion_whiz = str(portion_whiz or "").strip()[:4000]
+    portion_super = str(portion_super or "").strip()[:4000]
+    if not portion_whiz and not portion_super and legacy_portion:
+        portion_whiz = legacy_portion
+        portion_super = "="
+    # Keep legacy portion as a resolved preview (prefer Whiz text, then Super)
+    resolved_w, resolved_s = resolve_portion_pair(portion_whiz, portion_super, legacy_portion)
+    portion = resolved_w or resolved_s or legacy_portion
     grade = data.get("grade")
     try:
         grade = max(1, min(12, int(grade))) if grade is not None and str(grade).strip() != "" else None
@@ -2910,6 +3218,18 @@ def admin_upsert_exam():
     exam_id = data.get("id")
 
     with get_db() as conn:
+        try:
+            conn.execute(
+                "ALTER TABLE exam_schedule ADD COLUMN portion_whiz TEXT NOT NULL DEFAULT ''"
+            )
+        except Exception:
+            pass
+        try:
+            conn.execute(
+                "ALTER TABLE exam_schedule ADD COLUMN portion_super TEXT NOT NULL DEFAULT ''"
+            )
+        except Exception:
+            pass
         if exam_id is not None:
             try:
                 exam_id = int(exam_id)
@@ -2923,11 +3243,15 @@ def admin_upsert_exam():
             conn.execute(
                 """
                 UPDATE exam_schedule SET
-                  title=?, exam_date=?, subject=?, portion=?, grade=?, active=?,
+                  title=?, exam_date=?, subject=?, portion=?,
+                  portion_whiz=?, portion_super=?, grade=?, active=?,
                   updated_at=datetime('now')
                 WHERE id=?
                 """,
-                (title, exam_date, subject, portion, grade, active, exam_id),
+                (
+                    title, exam_date, subject, portion,
+                    portion_whiz, portion_super, grade, active, exam_id,
+                ),
             )
             row = conn.execute(
                 "SELECT * FROM exam_schedule WHERE id=?", (exam_id,)
@@ -2935,10 +3259,14 @@ def admin_upsert_exam():
         else:
             cur = conn.execute(
                 """
-                INSERT INTO exam_schedule (title, exam_date, subject, portion, grade, active)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO exam_schedule
+                  (title, exam_date, subject, portion, portion_whiz, portion_super, grade, active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (title, exam_date, subject, portion, grade, active),
+                (
+                    title, exam_date, subject, portion,
+                    portion_whiz, portion_super, grade, active,
+                ),
             )
             row = conn.execute(
                 "SELECT * FROM exam_schedule WHERE id=?", (cur.lastrowid,)
@@ -2965,13 +3293,83 @@ def admin_delete_exam(exam_id):
 
 @app.route("/api/exams/upcoming", methods=["GET"])
 def exams_upcoming():
-    """Logged-in students: upcoming active exams for personalization."""
+    """Logged-in students: upcoming exams with portion for their section (Whiz/Super)."""
     user, err = require_auth()
     if err:
         return err
     subject = (request.args.get("subject") or "").strip()[:80] or None
-    exams = list_upcoming_exams(limit=12, subject=subject, include_inactive=False)
-    return jsonify({"exams": exams})
+    sec = get_user_section_prefs(user["id"])
+    exams = list_upcoming_exams_for_user(user["id"], limit=40, subject=subject)
+    return jsonify({"exams": exams, "section": sec})
+
+
+@app.route("/api/planner/exam-plan", methods=["GET"])
+def planner_exam_plan():
+    """Preview study plan generated from upcoming exams for this student's section."""
+    user, err = require_auth()
+    if err:
+        return err
+    exams = list_upcoming_exams_for_user(user["id"], limit=40)
+    plan = build_exam_study_plan(exams)
+    return jsonify({"exams": exams, "plan": plan, "section": get_user_section_prefs(user["id"])})
+
+
+@app.route("/api/planner/sync-exams", methods=["POST"])
+@rate_limit(max_calls=20, window_sec=60)
+def planner_sync_exams():
+    """Replace auto exam tasks with a fresh plan from this student's section exams."""
+    user, err = require_auth()
+    if err:
+        return err
+    uid = user["id"]
+    exams = list_upcoming_exams_for_user(uid, limit=40)
+    plan = build_exam_study_plan(exams)
+    with get_db() as conn:
+        try:
+            conn.execute(
+                "ALTER TABLE study_planner_tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'"
+            )
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE study_planner_tasks ADD COLUMN exam_id INTEGER")
+        except Exception:
+            pass
+        conn.execute(
+            "DELETE FROM study_planner_tasks WHERE user_id=? AND COALESCE(source,'')='exam_auto'",
+            (uid,),
+        )
+        for item in plan:
+            conn.execute(
+                """
+                INSERT INTO study_planner_tasks (user_id, title, due_date, done, source, exam_id)
+                VALUES (?, ?, ?, 0, 'exam_auto', ?)
+                """,
+                (uid, item["title"], item["due_date"], item.get("exam_id")),
+            )
+        rows = conn.execute(
+            """
+            SELECT id, title, due_date, done, source, exam_id, created_at
+            FROM study_planner_tasks WHERE user_id=?
+            ORDER BY done ASC, due_date IS NULL, due_date ASC, id ASC
+            LIMIT 200
+            """,
+            (uid,),
+        ).fetchall()
+    return jsonify({
+        "ok": True,
+        "exams": exams,
+        "plan": plan,
+        "tasks": [dict(r) for r in rows],
+        "section": get_user_section_prefs(uid),
+    })
+
+
+def _section_from_request_data(data):
+    section = normalize_section(data.get("section") or "")
+    drop_math = bool(data.get("dropMath", data.get("drop_math", False)))
+    drop_science = bool(data.get("dropScience", data.get("drop_science", False)))
+    return section, drop_math, drop_science
 
 
 @app.route("/api/auth/register", methods=["POST"])
@@ -2983,6 +3381,7 @@ def auth_register():
     buddy_name = (data.get("buddyName")  or "Max").strip() or "Max"
 
     confirm_password = (data.get("confirmPassword") or "").strip()
+    section, drop_math, drop_science = _section_from_request_data(data)
 
     if not identifier or not password:
         return jsonify({"error": "Username and password are required."}), 400
@@ -2995,6 +3394,8 @@ def auth_register():
         return jsonify({"error": "Please confirm your password in the Confirm Password field."}), 400
     if confirm_password != password:
         return jsonify({"error": "Password and confirmation do not match."}), 400
+    if not section:
+        return jsonify({"error": "Please select your section (Whiz 1–3 or Super 1–3)."}), 400
 
     ph = hash_password(password)
     try:
@@ -3012,6 +3413,8 @@ def auth_register():
         session.permanent = True
         session["user_id"] = row["id"]
         session["identifier"] = row["identifier"]
+        apply_section_prefs(row["id"], section, drop_math, drop_science)
+        sec = get_user_section_prefs(row["id"])
         return jsonify({
             "identifier": row["identifier"],
             "buddyName": row["buddy_name"],
@@ -3019,6 +3422,9 @@ def auth_register():
             "hasPassword": True,
             "userId": row["id"],
             "email": _row_get(row, "email"),
+            "section": sec.get("section") or section,
+            "dropMath": sec.get("drop_math"),
+            "dropScience": sec.get("drop_science"),
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -3030,9 +3436,12 @@ def auth_login():
     data = request.get_json(force=True)
     identifier = (data.get("identifier") or "").strip()
     password   = (data.get("password")   or "").strip()
+    section, drop_math, drop_science = _section_from_request_data(data)
 
     if not identifier or not password:
         return jsonify({"error": "Incorrect username or password"}), 400
+    if not section:
+        return jsonify({"error": "Please select your section before logging in."}), 400
 
     with get_db() as conn:
         row = conn.execute(
@@ -3053,6 +3462,8 @@ def auth_login():
     session.permanent = True
     session["user_id"] = row["id"]
     session["identifier"] = row["identifier"]
+    apply_section_prefs(row["id"], section, drop_math, drop_science)
+    sec = get_user_section_prefs(row["id"])
     return jsonify({
         "identifier": row["identifier"],
         "buddyName": row["buddy_name"],
@@ -3060,6 +3471,9 @@ def auth_login():
         "hasPassword": True,
         "userId": row["id"],
         "email": _row_get(row, "email"),
+        "section": sec.get("section") or section,
+        "dropMath": sec.get("drop_math"),
+        "dropScience": sec.get("drop_science"),
     })
 
 @app.route("/api/auth/update_buddy", methods=["POST"])
@@ -3186,6 +3600,9 @@ def auth_firebase():
     id_token = (data.get("idToken") or "").strip()
     if not id_token:
         return jsonify({"error": "idToken is required."}), 400
+    section, drop_math, drop_science = _section_from_request_data(data)
+    if not section:
+        return jsonify({"error": "Please select your section before signing in."}), 400
 
     try:
         decoded = fb_auth.verify_id_token(id_token)
@@ -3259,6 +3676,8 @@ def auth_firebase():
         session.permanent = True
         session["user_id"] = row["id"]
         session["identifier"] = row["identifier"]
+        apply_section_prefs(row["id"], section, drop_math, drop_science)
+        sec = get_user_section_prefs(row["id"])
         pw = row["password_hash"] or ""
         return jsonify({
             "identifier": row["identifier"],
@@ -3267,6 +3686,9 @@ def auth_firebase():
             "hasPassword": bool(pw) and not str(pw).startswith("firebase_only:"),
             "email": _row_get(row, "email") or email or None,
             "userId": row["id"],
+            "section": sec.get("section") or section,
+            "dropMath": sec.get("drop_math"),
+            "dropScience": sec.get("drop_science"),
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -4032,7 +4454,13 @@ def chat():
             f"(age-appropriate depth, vocabulary, and examples).\n"
         )
     try:
-        system_prompt += format_exams_for_prompt(list_upcoming_exams(limit=6))
+        uid = user.get("id") if isinstance(user, dict) else None
+        if uid:
+            system_prompt += format_exams_for_prompt(
+                list_upcoming_exams_for_user(uid, limit=8)
+            )
+        else:
+            system_prompt += format_exams_for_prompt(list_upcoming_exams(limit=6))
     except Exception as e:
         print(f"[WARN] exam personalization prompt failed: {e}")
 
@@ -4967,12 +5395,12 @@ def api_mock_test():
     exam = (data.get("exam") or "CBSE").strip()[:80]
     grade = (data.get("grade") or "Class 10").strip()[:40]
     chapters = (data.get("chapters") or data.get("topics") or "").strip()[:400]
-    # If chapters omitted, personalize from admin exam portion for this subject
+    # If chapters omitted, personalize from this student's section exam portion
     if not chapters:
         try:
-            upcoming = list_upcoming_exams(limit=3, subject=subject)
+            upcoming = list_upcoming_exams_for_user(user["id"], limit=3, subject=subject)
             if not upcoming:
-                upcoming = list_upcoming_exams(limit=3)
+                upcoming = list_upcoming_exams_for_user(user["id"], limit=3)
             for ex in upcoming:
                 portion = (ex.get("portion") or "").strip()
                 if portion:

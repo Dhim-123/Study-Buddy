@@ -22,7 +22,7 @@ XP_AWARDS = {
     "notes_upload": 20,
     "podcast": 20,
     "notes_read": 10,
-    "planner": 10,  # unused for now (Study Planner scrapped)
+    "planner": 10,  # XP when completing a planner task
 }
 
 CHAT_XP_DAILY_CAP = 40  # max chat XP awards per local day (streak still once)
@@ -199,6 +199,8 @@ def migrate_gamification_tables(conn):
             title TEXT NOT NULL,
             due_date TEXT,
             done INTEGER NOT NULL DEFAULT 0,
+            source TEXT NOT NULL DEFAULT 'manual',
+            exam_id INTEGER,
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_planner_user ON study_planner_tasks(user_id, due_date);
@@ -207,6 +209,25 @@ def migrate_gamification_tables(conn):
         conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
     except Exception:
         pass
+    try:
+        conn.execute(
+            "ALTER TABLE study_planner_tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'"
+        )
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE study_planner_tasks ADD COLUMN exam_id INTEGER")
+    except Exception:
+        pass
+    for ddl in (
+        "ALTER TABLE user_prefs ADD COLUMN section TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE user_prefs ADD COLUMN drop_math INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE user_prefs ADD COLUMN drop_science INTEGER NOT NULL DEFAULT 0",
+    ):
+        try:
+            conn.execute(ddl)
+        except Exception:
+            pass
 
 
 def _parse_local_date(data) -> str:
@@ -234,16 +255,51 @@ def _ensure_xp_streak(conn, uid: int):
     )
 
 
+def _normalize_section_value(raw) -> str:
+    valid = (
+        "Whiz 1", "Whiz 2", "Whiz 3",
+        "Super 1", "Super 2", "Super 3",
+    )
+    s = (raw or "").strip()
+    for v in valid:
+        if s.lower() == v.lower():
+            return v
+    return ""
+
+
 def _get_prefs(conn, uid: int) -> dict:
     _ensure_xp_streak(conn, uid)
+    for ddl in (
+        "ALTER TABLE user_prefs ADD COLUMN section TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE user_prefs ADD COLUMN drop_math INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE user_prefs ADD COLUMN drop_science INTEGER NOT NULL DEFAULT 0",
+    ):
+        try:
+            conn.execute(ddl)
+        except Exception:
+            pass
     row = conn.execute("SELECT * FROM user_prefs WHERE user_id=?", (uid,)).fetchone()
     if not row:
-        return {"grade": 9, "language": "multi", "font_scale": 1.0}
+        return {
+            "grade": 9,
+            "language": "multi",
+            "font_scale": 1.0,
+            "section": "",
+            "drop_math": 0,
+            "drop_science": 0,
+        }
     d = dict(row)
     try:
         d["preferred_subjects"] = json.loads(d.get("preferred_subjects") or "[]")
     except Exception:
         d["preferred_subjects"] = []
+    d["section"] = _normalize_section_value(d.get("section") or "")
+    if d["section"] != "Super 3":
+        d["drop_math"] = 0
+        d["drop_science"] = 0
+    else:
+        d["drop_math"] = 1 if int(d.get("drop_math") or 0) else 0
+        d["drop_science"] = 1 if int(d.get("drop_science") or 0) else 0
     return d
 
 
@@ -541,6 +597,9 @@ def register_gamification_routes(
                 "fontScale": float(prefs.get("font_scale") or 1.0),
                 "reducedMotion": bool(prefs.get("reduced_motion", 0)),
                 "preferredSubjects": prefs.get("preferred_subjects") or [],
+                "section": prefs.get("section") or "",
+                "dropMath": bool(prefs.get("drop_math", 0)),
+                "dropScience": bool(prefs.get("drop_science", 0)),
             },
             "inventory": {r["item_id"]: r["qty"] for r in inv},
             "milestones": [dict(m) for m in milestones],
@@ -685,20 +744,39 @@ def register_gamification_routes(
         data = request.get_json(force=True) or {}
         with get_db() as conn:
             _ensure_xp_streak(conn, uid)
-            grade = data.get("grade", 9)
+            current = _get_prefs(conn, uid)
+            grade = data.get("grade", current.get("grade", 9))
             try:
                 grade = max(1, min(12, int(grade)))
             except Exception:
                 grade = 9
-            language = (data.get("language") or "multi").strip().lower()[:20] or "multi"
+            language = (data.get("language") or current.get("language") or "multi").strip().lower()[:20] or "multi"
             if language not in ("en", "hi", "te", "es", "fr", "multi", "auto", "multilingual"):
                 language = "multi"
             if language in ("auto", "multilingual"):
                 language = "multi"
-            subjects = data.get("preferredSubjects") or data.get("preferred_subjects") or []
+            subjects = data.get("preferredSubjects") or data.get("preferred_subjects")
+            if subjects is None:
+                subjects = current.get("preferred_subjects") or []
             if not isinstance(subjects, list):
                 subjects = []
             subjects_json = json.dumps([str(s)[:40] for s in subjects[:12]])
+            if "section" in data:
+                section = _normalize_section_value(data.get("section"))
+            else:
+                section = _normalize_section_value(current.get("section") or "")
+            if section == "Super 3":
+                if "dropMath" in data or "drop_math" in data:
+                    drop_math = 1 if data.get("dropMath", data.get("drop_math", False)) else 0
+                else:
+                    drop_math = 1 if current.get("drop_math") else 0
+                if "dropScience" in data or "drop_science" in data:
+                    drop_science = 1 if data.get("dropScience", data.get("drop_science", False)) else 0
+                else:
+                    drop_science = 1 if current.get("drop_science") else 0
+            else:
+                drop_math = 0
+                drop_science = 0
             conn.execute(
                 """
                 UPDATE user_prefs SET
@@ -710,6 +788,9 @@ def register_gamification_routes(
                     font_scale=?,
                     reduced_motion=?,
                     preferred_subjects=?,
+                    section=?,
+                    drop_math=?,
+                    drop_science=?,
                     updated_at=datetime('now')
                 WHERE user_id=?
                 """,
@@ -722,12 +803,27 @@ def register_gamification_routes(
                     float(data.get("fontScale", data.get("font_scale", 1.0)) or 1.0),
                     1 if data.get("reducedMotion", data.get("reduced_motion", False)) else 0,
                     subjects_json,
+                    section,
+                    drop_math,
+                    drop_science,
                     uid,
                 ),
             )
             prefs = _get_prefs(conn, uid)
         _push_game(uid)
         return jsonify({"ok": True, "prefs": prefs})
+
+    def _ensure_planner_columns(conn):
+        try:
+            conn.execute(
+                "ALTER TABLE study_planner_tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'"
+            )
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE study_planner_tasks ADD COLUMN exam_id INTEGER")
+        except Exception:
+            pass
 
     @app.route("/api/planner", methods=["GET", "POST"])
     def planner_list_create():
@@ -737,12 +833,13 @@ def register_gamification_routes(
         uid = user["id"]
         if request.method == "GET":
             with get_db() as conn:
+                _ensure_planner_columns(conn)
                 rows = conn.execute(
                     """
-                    SELECT id, title, due_date, done, created_at
+                    SELECT id, title, due_date, done, source, exam_id, created_at
                     FROM study_planner_tasks WHERE user_id=?
-                    ORDER BY done ASC, due_date IS NULL, due_date ASC, id DESC
-                    LIMIT 100
+                    ORDER BY done ASC, due_date IS NULL, due_date ASC, id ASC
+                    LIMIT 200
                     """,
                     (uid,),
                 ).fetchall()
@@ -754,12 +851,19 @@ def register_gamification_routes(
             return jsonify({"error": "Title required."}), 400
         due = (data.get("dueDate") or data.get("due_date") or "").strip() or None
         with get_db() as conn:
+            _ensure_planner_columns(conn)
             cur = conn.execute(
-                "INSERT INTO study_planner_tasks (user_id, title, due_date) VALUES (?,?,?)",
+                """
+                INSERT INTO study_planner_tasks (user_id, title, due_date, source)
+                VALUES (?,?,?,'manual')
+                """,
                 (uid, title, due),
             )
             row = conn.execute(
-                "SELECT id, title, due_date, done, created_at FROM study_planner_tasks WHERE id=?",
+                """
+                SELECT id, title, due_date, done, source, exam_id, created_at
+                FROM study_planner_tasks WHERE id=?
+                """,
                 (cur.lastrowid,),
             ).fetchone()
         return jsonify({"ok": True, "task": dict(row)})
@@ -780,6 +884,7 @@ def register_gamification_routes(
 
         data = request.get_json(force=True) or {}
         with get_db() as conn:
+            _ensure_planner_columns(conn)
             row = conn.execute(
                 "SELECT * FROM study_planner_tasks WHERE id=? AND user_id=?",
                 (task_id, uid),
@@ -794,7 +899,10 @@ def register_gamification_routes(
                 (str(title)[:200], 1 if done else 0, due, task_id, uid),
             )
             updated = conn.execute(
-                "SELECT id, title, due_date, done, created_at FROM study_planner_tasks WHERE id=?",
+                """
+                SELECT id, title, due_date, done, source, exam_id, created_at
+                FROM study_planner_tasks WHERE id=?
+                """,
                 (task_id,),
             ).fetchone()
         return jsonify({"ok": True, "task": dict(updated)})

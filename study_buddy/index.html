@@ -2353,12 +2353,18 @@
     }
     .exam-upcoming-banner .exam-upcoming-item b { color: var(--text); font-weight: 700; }
     .admin-modal-card {
-      max-width: 520px;
-      width: min(96vw, 520px);
+      max-width: 640px;
+      width: min(96vw, 640px);
       max-height: 88vh;
       overflow: auto;
     }
     .admin-exam-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .admin-exam-list-heading {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--muted);
+      margin: 16px 0 0;
+    }
     .admin-exam-row {
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -2371,6 +2377,12 @@
       gap: 8px;
       margin-top: 8px;
       flex-wrap: wrap;
+    }
+    .admin-exam-mode {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 0;
     }
     .mock-score-banner {
       font-family: var(--font-ui);
@@ -4327,20 +4339,41 @@
       background: rgba(59, 130, 246, 0.06);
       border: 1px solid rgba(59, 130, 246, 0.2);
       border-radius: var(--radius-md);
-      padding: 10px 12px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
     }
-    .planner-box h4 { margin: 0 0 8px; font-size: 0.82rem; font-weight: 800; }
-    .planner-add { display: flex; gap: 6px; margin-bottom: 8px; }
-    .planner-add input { flex: 1; padding: 6px 8px; font-size: 0.8rem; }
-    #planner-task-list { list-style: none; margin: 0; padding: 0; max-height: 140px; overflow-y: auto; }
+    .planner-box h4 { margin: 0 0 8px; font-size: 0.9rem; font-weight: 800; }
+    .planner-exams-summary {
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px;
+    }
+    .planner-exam-chip {
+      font-size: 0.78rem;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color: var(--secondary);
+    }
+    .planner-exam-chip strong { color: var(--text); }
+    .planner-toolbar {
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;
+    }
+    .planner-add { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .planner-add input { flex: 1; min-width: 140px; padding: 8px 10px; font-size: 0.85rem; }
+    #planner-task-list { list-style: none; margin: 0; padding: 0; max-height: min(55vh, 520px); overflow-y: auto; }
     .planner-task {
-      display: flex; align-items: center; justify-content: space-between; gap: 6px;
-      padding: 4px 0; font-size: 0.78rem;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.85rem;
     }
-    .planner-task.done span { text-decoration: line-through; color: #6a6a85; }
-    .planner-task label { display: flex; align-items: center; gap: 6px; flex: 1; cursor: pointer; }
-    .planner-del { background: none; border: none; color: #6a6a85; cursor: pointer; font-size: 1rem; }
-    .planner-empty { color: #6a6a85; font-size: 0.75rem; padding: 4px 0; }
+    .planner-task.done span.planner-task-title { text-decoration: line-through; color: #6a6a85; }
+    .planner-task label { display: flex; align-items: flex-start; gap: 8px; flex: 1; cursor: pointer; }
+    .planner-task-meta { font-size: 0.72rem; color: #6a6a85; margin-top: 2px; }
+    .planner-task-badge {
+      font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+      color: var(--accent); opacity: 0.85;
+    }
+    .planner-del { background: none; border: none; color: #6a6a85; cursor: pointer; font-size: 1.1rem; padding: 4px; }
+    .planner-empty { color: #6a6a85; font-size: 0.85rem; padding: 12px 0; }
 
     .profile-email { font-size: 0.78rem; color: #6a6a85; margin-top: 2px; }
     .sb-skel { color: #6a6a85; padding: 20px 0; text-align: center; }
@@ -4507,6 +4540,23 @@
             <option value="11">11</option><option value="12">12</option>
           </select>
         </div>
+        <div class="settings-row">
+          <span>Section</span>
+          <select id="settings-section" class="input" style="padding:6px 8px;width:auto;">
+            <option value="">Select…</option>
+            <option value="Whiz 1">Whiz 1</option>
+            <option value="Whiz 2">Whiz 2</option>
+            <option value="Whiz 3">Whiz 3</option>
+            <option value="Super 1">Super 1</option>
+            <option value="Super 2">Super 2</option>
+            <option value="Super 3">Super 3</option>
+          </select>
+        </div>
+        <div id="settings-super3-drops" style="display:none;">
+          <div class="settings-row"><span>Drop Math</span><input type="checkbox" class="settings-toggle" id="settings-drop-math" /></div>
+          <div class="settings-row"><span>Drop Science</span><input type="checkbox" class="settings-toggle" id="settings-drop-science" /></div>
+          <p class="settings-hint" style="margin:0 0 8px;">Super 3 only — dropped subjects are hidden from Planner &amp; exam portions.</p>
+        </div>
       </div>
 
       <div class="settings-divider"></div>
@@ -4612,24 +4662,32 @@
     <div class="sb-game-card admin-modal-card wide" role="dialog" aria-modal="true" aria-labelledby="admin-panel-title">
       <button type="button" class="sb-game-close" data-admin-panel-close aria-label="Close">&times;</button>
       <h3 id="admin-panel-title">Exam dates &amp; portions</h3>
-      <p class="settings-hint" style="margin-top:0;">These apply to all students (chat personalization, mock-test portions, welcome banner).</p>
+      <p class="settings-hint" style="margin-top:0;">
+        Add <strong>one exam per subject</strong>. Exam <strong>dates are shared</strong>; enter separate
+        <strong>Whiz</strong> and <strong>Super</strong> portions. Type <code>=</code> in one portion box to mean “same as the other”.
+      </p>
+      <p class="admin-exam-mode" id="admin-exam-mode">Mode: Add new exam</p>
       <div style="display:flex;flex-direction:column;gap:8px;">
         <input id="admin-exam-id" type="hidden" value="" />
-        <input id="admin-exam-title" class="input" placeholder="Title (e.g. Mid-term Physics)" />
+        <input id="admin-exam-title" class="input" placeholder="Title (e.g. Mid-term Math)" />
         <input id="admin-exam-date" class="input" type="date" />
-        <input id="admin-exam-subject" class="input" placeholder="Subject (e.g. Physics)" />
+        <input id="admin-exam-subject" class="input" placeholder="Subject (e.g. Math, English Grammar)" />
         <input id="admin-exam-grade" class="input" type="number" min="1" max="12" placeholder="Grade (optional)" />
-        <textarea id="admin-exam-portion" class="input" rows="4" placeholder="Portion / syllabus (chapters, topics)"></textarea>
+        <label style="font-size:0.8rem;font-weight:700;color:var(--muted);">Whiz portion</label>
+        <textarea id="admin-exam-portion-whiz" class="input" rows="3" placeholder="Whiz syllabus topics (or = if same as Super)"></textarea>
+        <label style="font-size:0.8rem;font-weight:700;color:var(--muted);">Super portion</label>
+        <textarea id="admin-exam-portion-super" class="input" rows="3" placeholder="Super syllabus topics (or = if same as Whiz)"></textarea>
         <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--muted);">
           <input type="checkbox" id="admin-exam-active" checked /> Active
         </label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button type="button" class="btn-primary" id="admin-exam-save" style="padding:10px 14px;">Save exam</button>
-          <button type="button" class="btn-secondary" id="admin-exam-reset" style="padding:10px 14px;">New</button>
+          <button type="button" class="btn-primary" id="admin-exam-save" style="padding:10px 14px;">Add exam</button>
+          <button type="button" class="btn-secondary" id="admin-exam-reset" style="padding:10px 14px;">Clear form (add another)</button>
           <button type="button" class="btn-secondary" id="admin-logout-btn" style="padding:10px 14px;margin-left:auto;">Admin logout</button>
         </div>
         <p id="admin-exam-msg" class="settings-hint" style="display:none;margin:0;"></p>
       </div>
+      <p class="admin-exam-list-heading" id="admin-exam-list-heading">Scheduled exams (0)</p>
       <div class="admin-exam-list" id="admin-exam-list"></div>
     </div>
   </div>
@@ -4711,6 +4769,7 @@
     <button class="tab-btn" data-tab="crosscheck">🧪 Crosscheck</button>
     <button class="tab-btn" data-tab="definitions">📖 Definitions</button>
     <button class="tab-btn" data-tab="mock-test">📝 Mock Test</button>
+    <button class="tab-btn" data-tab="planner">📅 Planner</button>
     <button class="tab-btn" data-tab="formulas">📐 Formulas</button>
     <button class="tab-btn" data-tab="learning-dna">🧬 Learning DNA</button>
     <button class="tab-btn" data-tab="mistake-vault">🗃️ Mistake Vault</button>
@@ -4741,6 +4800,27 @@
             <div class="auth-card" id="auth-card" data-mode="login" data-logged-in="0">
               <h3 id="auth-mode-title">Login</h3>
               <div class="field">
+                <label for="auth-section">Your section</label>
+                <select class="input" id="auth-section">
+                  <option value="">Select section…</option>
+                  <option value="Whiz 1">Whiz 1</option>
+                  <option value="Whiz 2">Whiz 2</option>
+                  <option value="Whiz 3">Whiz 3</option>
+                  <option value="Super 1">Super 1</option>
+                  <option value="Super 2">Super 2</option>
+                  <option value="Super 3">Super 3</option>
+                </select>
+              </div>
+              <div class="field" id="auth-super3-drops" style="display:none; margin-top:10px;">
+                <label style="display:block;margin-bottom:6px;">Super 3 — subjects to drop</label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--muted);margin-bottom:4px;">
+                  <input type="checkbox" id="auth-drop-math" /> Drop Math
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--muted);">
+                  <input type="checkbox" id="auth-drop-science" /> Drop Science
+                </label>
+              </div>
+              <div class="field" style="margin-top: 10px;">
                 <label for="auth-identifier">Username</label>
                 <input type="text" class="input" id="auth-identifier" placeholder="Choose a username" />
               </div>
@@ -4836,7 +4916,7 @@
           <div id="onboard-tips" class="hint-box" style="display:none; margin: 0 auto 14px; max-width: 520px; text-align:left;">
             <strong style="display:block; margin-bottom:6px;">Start in 3 steps</strong>
             <ol style="margin:0; padding-left:18px; color:var(--muted); font-size:0.92rem; line-height:1.45;">
-              <li>Log in so chat &amp; XP sync across devices</li>
+              <li>Select your section, then log in</li>
               <li>Set your grade in Settings (gear)</li>
               <li>Ask a question — or upload notes below</li>
             </ol>
@@ -5363,6 +5443,30 @@
       <div id="mock-test-output"></div>
       <div id="mock-test-actions" style="display:none; margin-top:12px;">
         <button id="submit-mock-test-btn" class="btn-primary">✅ Submit test</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STUDY PLANNER SECTION (from admin exams) -->
+  <div id="planner-section" class="feature-section" style="display:none;">
+    <div class="section-container">
+      <div class="feature-header">
+        <h2>📅 Study Planner</h2>
+        <p>Built from your section’s exam portions (Whiz or Super). Super 3 dropped subjects are excluded. Sync after exams change.</p>
+      </div>
+      <div class="planner-box">
+        <h4>Upcoming exams</h4>
+        <div class="planner-exams-summary" id="planner-exams-summary"></div>
+        <div class="planner-toolbar">
+          <button type="button" class="btn-primary" id="planner-sync-btn" style="padding:10px 14px;">🔄 Sync plan from exams</button>
+          <span class="settings-hint" id="planner-status" style="margin:0;"></span>
+        </div>
+        <div class="planner-add">
+          <input id="planner-task-title" class="input" type="text" placeholder="Optional extra task…" maxlength="200" />
+          <input id="planner-task-due" class="input" type="date" style="max-width:160px;" />
+          <button type="button" class="btn-secondary" id="planner-add-btn" style="padding:8px 12px;">Add</button>
+        </div>
+        <ul id="planner-task-list"></ul>
       </div>
     </div>
   </div>
@@ -6104,6 +6208,14 @@
             return;
           }
           upcomingExamsCache = data.exams || [];
+          if (data.section) {
+            currentUser = {
+              ...currentUser,
+              section: data.section.section || currentUser.section || "",
+              dropMath: !!data.section.drop_math,
+              dropScience: !!data.section.drop_science,
+            };
+          }
           renderExamUpcomingBanner(upcomingExamsCache);
           prefillMockChaptersFromExams();
         } catch (_) {
@@ -6111,6 +6223,7 @@
           renderExamUpcomingBanner([]);
         }
       }
+      window.loadUpcomingExams = loadUpcomingExams;
 
       function prefillMockChaptersFromExams() {
         const chaptersEl = document.getElementById("mock-chapters");
@@ -6136,8 +6249,22 @@
         el.style.display = "block";
       }
 
+      function syncAdminExamModeUi() {
+        const id = (document.getElementById("admin-exam-id")?.value || "").trim();
+        const modeEl = document.getElementById("admin-exam-mode");
+        const saveBtn = document.getElementById("admin-exam-save");
+        if (id) {
+          if (modeEl) modeEl.textContent = "Mode: Editing exam #" + id + " (Save updates this one only)";
+          if (saveBtn) saveBtn.textContent = "Update exam";
+        } else {
+          if (modeEl) modeEl.textContent = "Mode: Add new exam (keeps existing exams)";
+          if (saveBtn) saveBtn.textContent = "Add exam";
+        }
+      }
+
       async function refreshAdminExamList() {
         const listEl = document.getElementById("admin-exam-list");
+        const heading = document.getElementById("admin-exam-list-heading");
         if (!listEl) return;
         listEl.innerHTML = `<div class="settings-hint">Loading…</div>`;
         try {
@@ -6145,19 +6272,25 @@
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || "Failed to load exams");
           const exams = data.exams || [];
+          if (heading) heading.textContent = `Scheduled exams (${exams.length})`;
           if (!exams.length) {
-            listEl.innerHTML = `<div class="settings-hint">No exams yet. Add one above.</div>`;
+            listEl.innerHTML = `<div class="settings-hint">No exams yet. Add Math, then clear the form and add English, etc.</div>`;
             return;
           }
-          listEl.innerHTML = exams.map((ex) => `
+          listEl.innerHTML = exams.map((ex) => {
+            const whiz = (ex.portion_whiz || ex.portion || "").trim();
+            const superP = (ex.portion_super || "").trim();
+            return `
             <div class="admin-exam-row" data-exam-id="${ex.id}">
-              <div><strong>${escapeHtml(ex.title)}</strong> · ${escapeHtml(ex.subject)} · ${escapeHtml(ex.exam_date)}${ex.active ? "" : " · inactive"}</div>
-              <div class="settings-hint" style="margin:4px 0 0;">${escapeHtml((ex.portion || "").slice(0, 220) || "(no portion)")}</div>
+              <div><strong>${escapeHtml(ex.subject || "General")}</strong> · ${escapeHtml(ex.title)} · ${escapeHtml(ex.exam_date)}${ex.active ? "" : " · inactive"}</div>
+              <div class="settings-hint" style="margin:4px 0 0;"><b>Whiz:</b> ${escapeHtml(whiz.slice(0, 140) || "(empty)")}</div>
+              <div class="settings-hint" style="margin:2px 0 0;"><b>Super:</b> ${escapeHtml(superP.slice(0, 140) || "(empty)")}</div>
               <div class="admin-exam-actions">
                 <button type="button" class="qs-btn" data-admin-edit="${ex.id}">Edit</button>
                 <button type="button" class="qs-btn" data-admin-delete="${ex.id}">Delete</button>
               </div>
-            </div>`).join("");
+            </div>`;
+          }).join("");
           listEl.querySelectorAll("[data-admin-edit]").forEach((btn) => {
             btn.addEventListener("click", () => {
               const id = Number(btn.getAttribute("data-admin-edit"));
@@ -6168,9 +6301,11 @@
               document.getElementById("admin-exam-date").value = ex.exam_date || "";
               document.getElementById("admin-exam-subject").value = ex.subject || "";
               document.getElementById("admin-exam-grade").value = ex.grade != null ? String(ex.grade) : "";
-              document.getElementById("admin-exam-portion").value = ex.portion || "";
+              document.getElementById("admin-exam-portion-whiz").value = ex.portion_whiz || ex.portion || "";
+              document.getElementById("admin-exam-portion-super").value = ex.portion_super || "";
               document.getElementById("admin-exam-active").checked = !!ex.active;
-              setAdminMsg(document.getElementById("admin-exam-msg"), "Editing exam #" + ex.id, false);
+              syncAdminExamModeUi();
+              setAdminMsg(document.getElementById("admin-exam-msg"), "Editing exam #" + ex.id + ". Use “Clear form” to add a different subject instead.", false);
             });
           });
           listEl.querySelectorAll("[data-admin-delete]").forEach((btn) => {
@@ -6185,28 +6320,34 @@
               }
               await refreshAdminExamList();
               loadUpcomingExams();
-              setAdminMsg(document.getElementById("admin-exam-msg"), "Deleted.", false);
+              setAdminMsg(document.getElementById("admin-exam-msg"), "Deleted. Remaining exams stay in the list.", false);
             });
           });
         } catch (e) {
+          if (heading) heading.textContent = "Scheduled exams";
           listEl.innerHTML = `<div class="settings-hint" style="color:#f43f5e;">${escapeHtml(e.message || "Error")}</div>`;
         }
       }
 
-      function resetAdminExamForm() {
+      function resetAdminExamForm(keepMsg) {
         document.getElementById("admin-exam-id").value = "";
         document.getElementById("admin-exam-title").value = "";
         document.getElementById("admin-exam-date").value = "";
         document.getElementById("admin-exam-subject").value = "";
         document.getElementById("admin-exam-grade").value = "";
-        document.getElementById("admin-exam-portion").value = "";
+        const whizEl = document.getElementById("admin-exam-portion-whiz");
+        const superEl = document.getElementById("admin-exam-portion-super");
+        if (whizEl) whizEl.value = "";
+        if (superEl) superEl.value = "";
         document.getElementById("admin-exam-active").checked = true;
-        setAdminMsg(document.getElementById("admin-exam-msg"), "", false);
+        syncAdminExamModeUi();
+        if (!keepMsg) setAdminMsg(document.getElementById("admin-exam-msg"), "", false);
       }
 
       async function openAdminFlow() {
         if (isAdminSession) {
           openSbModal(document.getElementById("admin-panel-modal"));
+          syncAdminExamModeUi();
           await refreshAdminExamList();
           return;
         }
@@ -6251,21 +6392,25 @@
           isAdminSession = false;
           closeSbModal(document.getElementById("admin-panel-modal"));
         });
-        document.getElementById("admin-exam-reset")?.addEventListener("click", resetAdminExamForm);
+        document.getElementById("admin-exam-reset")?.addEventListener("click", () => {
+          resetAdminExamForm();
+          setAdminMsg(document.getElementById("admin-exam-msg"), "Form cleared — fill in the next subject and click Add exam.", false);
+        });
         document.getElementById("admin-exam-save")?.addEventListener("click", async () => {
           const msg = document.getElementById("admin-exam-msg");
+          const rawId = (document.getElementById("admin-exam-id")?.value || "").trim();
+          const isUpdate = !!rawId;
           const payload = {
-            id: document.getElementById("admin-exam-id")?.value || undefined,
             title: document.getElementById("admin-exam-title")?.value || "Exam",
             exam_date: document.getElementById("admin-exam-date")?.value || "",
             subject: document.getElementById("admin-exam-subject")?.value || "General",
-            portion: document.getElementById("admin-exam-portion")?.value || "",
+            portion_whiz: document.getElementById("admin-exam-portion-whiz")?.value || "",
+            portion_super: document.getElementById("admin-exam-portion-super")?.value || "",
             grade: document.getElementById("admin-exam-grade")?.value || null,
             active: !!document.getElementById("admin-exam-active")?.checked,
           };
-          if (payload.id === "" || payload.id == null) delete payload.id;
-          else payload.id = Number(payload.id);
-          setAdminMsg(msg, "Saving…", false);
+          if (isUpdate) payload.id = Number(rawId);
+          setAdminMsg(msg, isUpdate ? "Updating…" : "Adding…", false);
           try {
             const res = await fetch("/api/admin/exams", {
               method: "POST",
@@ -6275,10 +6420,17 @@
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || "Save failed");
-            setAdminMsg(msg, "Saved.", false);
-            resetAdminExamForm();
+            const subj = (data.exam && data.exam.subject) || payload.subject;
+            resetAdminExamForm(true);
             await refreshAdminExamList();
             loadUpcomingExams();
+            setAdminMsg(
+              msg,
+              isUpdate
+                ? `Updated ${subj}. Form cleared — add another subject anytime.`
+                : `Added ${subj}. Form cleared — add another subject (e.g. English Grammar) the same way.`,
+              false
+            );
           } catch (e) {
             setAdminMsg(msg, e.message || "Save failed", true);
           }
@@ -6313,7 +6465,25 @@
               hasPassword: !!data.hasPassword,
               email: data.email || null,
               userId: data.userId || null,
+              section: data.section || "",
+              dropMath: !!data.dropMath,
+              dropScience: !!data.dropScience,
             };
+            if (data.section) {
+              try {
+                localStorage.setItem("sb_section", data.section);
+                localStorage.setItem("sb_drop_math", data.dropMath ? "1" : "0");
+                localStorage.setItem("sb_drop_science", data.dropScience ? "1" : "0");
+              } catch (_) {}
+              const secSel = document.getElementById("auth-section");
+              if (secSel) secSel.value = data.section;
+              const drops = document.getElementById("auth-super3-drops");
+              if (drops) drops.style.display = data.section === "Super 3" ? "block" : "none";
+              const dm = document.getElementById("auth-drop-math");
+              const ds = document.getElementById("auth-drop-science");
+              if (dm) dm.checked = !!data.dropMath;
+              if (ds) ds.checked = !!data.dropScience;
+            }
             // Fetch and display chat history if logged in
             await fetchChatHistory();
             await loadUpcomingExams();
@@ -6873,6 +7043,79 @@
       const authToggleBtn = document.getElementById("auth-toggle-btn");
       const logoutBtn = document.getElementById("logout-btn");
       const authCard = document.getElementById("auth-card");
+      const authSectionEl = document.getElementById("auth-section");
+      const authDropMathEl = document.getElementById("auth-drop-math");
+      const authDropScienceEl = document.getElementById("auth-drop-science");
+      const authSuper3DropsEl = document.getElementById("auth-super3-drops");
+
+      function syncAuthSuper3DropsUi() {
+        const isSuper3 = (authSectionEl?.value || "") === "Super 3";
+        if (authSuper3DropsEl) authSuper3DropsEl.style.display = isSuper3 ? "block" : "none";
+        if (!isSuper3) {
+          if (authDropMathEl) authDropMathEl.checked = false;
+          if (authDropScienceEl) authDropScienceEl.checked = false;
+        }
+      }
+
+      function readAuthSectionPayload() {
+        const section = (authSectionEl?.value || "").trim();
+        const dropMath = section === "Super 3" && !!authDropMathEl?.checked;
+        const dropScience = section === "Super 3" && !!authDropScienceEl?.checked;
+        return { section, dropMath, dropScience };
+      }
+
+      function rememberAuthSectionLocally(section, dropMath, dropScience) {
+        try {
+          if (section) localStorage.setItem("sb_section", section);
+          else localStorage.removeItem("sb_section");
+          localStorage.setItem("sb_drop_math", dropMath ? "1" : "0");
+          localStorage.setItem("sb_drop_science", dropScience ? "1" : "0");
+        } catch (_) {}
+      }
+
+      function applySectionToAuthForm(section, dropMath, dropScience) {
+        if (authSectionEl && section) authSectionEl.value = section;
+        if (authDropMathEl) authDropMathEl.checked = !!dropMath;
+        if (authDropScienceEl) authDropScienceEl.checked = !!dropScience;
+        syncAuthSuper3DropsUi();
+      }
+
+      function syncSettingsSuper3DropsUi() {
+        const sec = document.getElementById("settings-section")?.value || "";
+        const wrap = document.getElementById("settings-super3-drops");
+        if (wrap) wrap.style.display = sec === "Super 3" ? "block" : "none";
+        if (sec !== "Super 3") {
+          const dm = document.getElementById("settings-drop-math");
+          const ds = document.getElementById("settings-drop-science");
+          if (dm) dm.checked = false;
+          if (ds) ds.checked = false;
+        }
+      }
+
+      // Prefill section from last choice
+      try {
+        applySectionToAuthForm(
+          localStorage.getItem("sb_section") || "",
+          localStorage.getItem("sb_drop_math") === "1",
+          localStorage.getItem("sb_drop_science") === "1"
+        );
+      } catch (_) {
+        syncAuthSuper3DropsUi();
+      }
+      authSectionEl?.addEventListener("change", () => {
+        syncAuthSuper3DropsUi();
+        const p = readAuthSectionPayload();
+        rememberAuthSectionLocally(p.section, p.dropMath, p.dropScience);
+      });
+      authDropMathEl?.addEventListener("change", () => {
+        const p = readAuthSectionPayload();
+        rememberAuthSectionLocally(p.section, p.dropMath, p.dropScience);
+      });
+      authDropScienceEl?.addEventListener("change", () => {
+        const p = readAuthSectionPayload();
+        rememberAuthSectionLocally(p.section, p.dropMath, p.dropScience);
+      });
+      document.getElementById("settings-section")?.addEventListener("change", syncSettingsSuper3DropsUi);
       
       authIdentifierInput.value = localStorage.getItem("sb_auth_identifier") || "";
       authBuddyNameInput.value = localStorage.getItem("sb_auth_buddy_name") || "";
@@ -6901,6 +7144,13 @@
         const confirmPassword = (document.getElementById("auth-password-confirm")?.value || "").trim();
         const buddyName = (authBuddyNameInput.value || "").trim() || "Nova";
         const mode = authCard.dataset.mode || "login";
+        const sectionPayload = readAuthSectionPayload();
+
+        if (!sectionPayload.section) {
+          showAuthMessage("Please select your section (Whiz 1–3 or Super 1–3) first.", true);
+          authSectionEl?.focus();
+          return;
+        }
 
         if (!identifier || !password) {
           showAuthMessage(
@@ -6967,10 +7217,24 @@
 
           if (mode === "register") {
             url = "/api/auth/register";
-            body = { identifier, password, confirmPassword, buddyName };
+            body = {
+              identifier,
+              password,
+              confirmPassword,
+              buddyName,
+              section: sectionPayload.section,
+              dropMath: sectionPayload.dropMath,
+              dropScience: sectionPayload.dropScience,
+            };
           } else {
             url = "/api/auth/login";
-            body = { identifier, password };
+            body = {
+              identifier,
+              password,
+              section: sectionPayload.section,
+              dropMath: sectionPayload.dropMath,
+              dropScience: sectionPayload.dropScience,
+            };
           }
 
           const res = await fetch(url, {
@@ -6989,6 +7253,11 @@
             if (avatarB64) {
               try { localStorage.setItem("sb_avatar_b64", avatarB64); } catch (_) {}
             }
+            rememberAuthSectionLocally(
+              data.section || sectionPayload.section,
+              !!data.dropMath,
+              !!data.dropScience
+            );
             currentUser = { 
               loggedIn: true,
               identifier: data.identifier,
@@ -6997,12 +7266,15 @@
               hasPassword: data.hasPassword !== false,
               email: data.email || null,
               userId: data.userId || null,
+              section: data.section || sectionPayload.section,
+              dropMath: !!data.dropMath,
+              dropScience: !!data.dropScience,
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || identifier);
             const uname = data.identifier || identifier || "friend";
-            let successMsg = `Login successful. Welcome, ${uname}!`;
+            let successMsg = `Login successful. Welcome, ${uname}! (${currentUser.section})`;
             if (mode === "register") {
-              successMsg = `Registration successful. Welcome, ${uname}! You can now customize your Study Buddy's name in the settings panel.`;
+              successMsg = `Registration successful. Welcome, ${uname}! Section: ${currentUser.section}.`;
             }
             authPasswordInput.value = "";
             const confirmEl = document.getElementById("auth-password-confirm");
@@ -7010,6 +7282,7 @@
             updateAuthUI({ clearMessage: false });
             showAuthMessage(successMsg);
             updateWelcomeGreeting();
+            try { if (window.SBGame) window.SBGame.onLogin(); } catch (_) {}
             await fetchChatHistory();
             await loadUpcomingExams();
           } else {
@@ -7087,6 +7360,12 @@
             showAuthMessage("Google Sign-In is not configured yet. Set FIREBASE_WEB_CONFIG on the server.", true);
             return;
           }
+          const sectionPayload = readAuthSectionPayload();
+          if (!sectionPayload.section) {
+            showAuthMessage("Please select your section before continuing with Google.", true);
+            authSectionEl?.focus();
+            return;
+          }
           authGoogleBtn.disabled = true;
           try {
             const provider = new firebase.auth.GoogleAuthProvider();
@@ -7096,7 +7375,12 @@
               method: "POST",
               headers: { "Content-Type": "application/json" },
               credentials: "include",
-              body: JSON.stringify({ idToken }),
+              body: JSON.stringify({
+                idToken,
+                section: sectionPayload.section,
+                dropMath: sectionPayload.dropMath,
+                dropScience: sectionPayload.dropScience,
+              }),
             });
             const data = await res.json();
             if (!res.ok) {
@@ -7104,6 +7388,11 @@
               showAuthMessage(data.error || "Google sign-in failed.", true);
               return;
             }
+            rememberAuthSectionLocally(
+              data.section || sectionPayload.section,
+              !!data.dropMath,
+              !!data.dropScience
+            );
             currentUser = {
               loggedIn: true,
               identifier: data.identifier,
@@ -7112,11 +7401,15 @@
               hasPassword: !!data.hasPassword,
               email: data.email || null,
               userId: data.userId || null,
+              section: data.section || sectionPayload.section,
+              dropMath: !!data.dropMath,
+              dropScience: !!data.dropScience,
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || "");
             updateAuthUI({ clearMessage: false });
-            showAuthMessage(`Login successful. Welcome, ${data.identifier || "friend"}!`);
+            showAuthMessage(`Login successful. Welcome, ${data.identifier || "friend"}! (${currentUser.section})`);
             updateWelcomeGreeting();
+            try { if (window.SBGame) window.SBGame.onLogin(); } catch (_) {}
             await fetchChatHistory();
             await loadUpcomingExams();
           } catch (err) {
@@ -8618,6 +8911,12 @@
         case "mock-test":
           if (mockTestSection) mockTestSection.style.display = "flex";
           break;
+        case "planner":
+          if (plannerSection) plannerSection.style.display = "flex";
+          if (window.SBGame && typeof window.SBGame.refreshPlanner === "function") {
+            window.SBGame.refreshPlanner();
+          }
+          break;
         case "formulas":
           if (formulasSection) formulasSection.style.display = "flex";
           break;
@@ -9532,6 +9831,7 @@
     const crosscheckSection = document.getElementById("crosscheck-section");
     const definitionsSection = document.getElementById("definitions-section");
     const mockTestSection = document.getElementById("mock-test-section");
+    const plannerSection = document.getElementById("planner-section");
     const formulasSection = document.getElementById("formulas-section");
     const learningDnaSection = document.getElementById("learning-dna-section");
     const mistakeVaultSection = document.getElementById("mistake-vault-section");
@@ -9547,6 +9847,7 @@
       crosscheckSection.style.display = "none";
       definitionsSection.style.display = "none";
       if (mockTestSection) mockTestSection.style.display = "none";
+      if (plannerSection) plannerSection.style.display = "none";
       if (formulasSection) formulasSection.style.display = "none";
       if (learningDnaSection) learningDnaSection.style.display = "none";
       if (mistakeVaultSection) mistakeVaultSection.style.display = "none";
@@ -9574,6 +9875,12 @@
         }
         else if (tab === "mock-test") {
           if (mockTestSection) mockTestSection.style.display = "flex";
+        }
+        else if (tab === "planner") {
+          if (plannerSection) plannerSection.style.display = "flex";
+          if (window.SBGame && typeof window.SBGame.refreshPlanner === "function") {
+            window.SBGame.refreshPlanner();
+          }
         }
         else if (tab === "formulas") {
           if (formulasSection) formulasSection.style.display = "flex";

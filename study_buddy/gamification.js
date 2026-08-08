@@ -120,6 +120,24 @@
       gradeEl.value = String(prefs.grade || localStorage.getItem("sb_grade") || 9);
       try { localStorage.setItem("sb_grade", gradeEl.value); } catch (_) {}
     }
+    const sectionEl = document.getElementById("settings-section");
+    const section = prefs.section || "";
+    if (sectionEl && section) {
+      sectionEl.value = section;
+      try { localStorage.setItem("sb_section", section); } catch (_) {}
+    }
+    const dropMath = !!(prefs.dropMath ?? prefs.drop_math);
+    const dropScience = !!(prefs.dropScience ?? prefs.drop_science);
+    const dm = document.getElementById("settings-drop-math");
+    if (dm) dm.checked = section === "Super 3" && dropMath;
+    const ds = document.getElementById("settings-drop-science");
+    if (ds) ds.checked = section === "Super 3" && dropScience;
+    const dropsWrap = document.getElementById("settings-super3-drops");
+    if (dropsWrap) dropsWrap.style.display = section === "Super 3" ? "block" : "none";
+    try {
+      localStorage.setItem("sb_drop_math", section === "Super 3" && dropMath ? "1" : "0");
+      localStorage.setItem("sb_drop_science", section === "Super 3" && dropScience ? "1" : "0");
+    } catch (_) {}
     const langEl = document.getElementById("settings-language");
     if (langEl) {
       const lang = prefs.language || localStorage.getItem("sb_reply_language") || "multi";
@@ -558,7 +576,212 @@
     }
   }
 
-  // Study Planner scrapped for now — no UI / XP wiring
+  function escapePlannerHtml(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function setPlannerStatus(text, isError) {
+    const el = document.getElementById("planner-status");
+    if (!el) return;
+    el.textContent = text || "";
+    el.style.color = isError ? "#f43f5e" : "";
+  }
+
+  function renderPlannerExams(exams) {
+    const host = document.getElementById("planner-exams-summary");
+    if (!host) return;
+    const list = exams || [];
+    if (!list.length) {
+      host.innerHTML =
+        `<span class="settings-hint">No upcoming exams yet. Ask admin to add subjects (Math, English, …) in Exam dates &amp; portions.</span>`;
+      return;
+    }
+    host.innerHTML = list
+      .map((ex) => {
+        const days = typeof ex.days_left === "number" ? `${ex.days_left}d left` : ex.exam_date || "";
+        return `<div class="planner-exam-chip"><strong>${escapePlannerHtml(ex.subject)}</strong> · ${escapePlannerHtml(ex.title)} · ${escapePlannerHtml(days)}</div>`;
+      })
+      .join("");
+  }
+
+  function renderPlannerTasks(tasks) {
+    const list = document.getElementById("planner-task-list");
+    if (!list) return;
+    const rows = tasks || [];
+    if (!rows.length) {
+      list.innerHTML = `<li class="planner-empty">No tasks yet. Click “Sync plan from exams”.</li>`;
+      return;
+    }
+    list.innerHTML = rows
+      .map((t) => {
+        const due = t.due_date ? `Due ${escapePlannerHtml(t.due_date)}` : "No due date";
+        const badge =
+          t.source === "exam_auto"
+            ? `<div class="planner-task-badge">From exam</div>`
+            : `<div class="planner-task-badge" style="color:#6a6a85;">Manual</div>`;
+        return `<li class="planner-task${t.done ? " done" : ""}" data-task-id="${t.id}">
+          <label>
+            <input type="checkbox" data-planner-done ${t.done ? "checked" : ""} />
+            <span>
+              ${badge}
+              <span class="planner-task-title">${escapePlannerHtml(t.title)}</span>
+              <div class="planner-task-meta">${due}</div>
+            </span>
+          </label>
+          <button type="button" class="planner-del" data-planner-del title="Remove">×</button>
+        </li>`;
+      })
+      .join("");
+
+    list.querySelectorAll("[data-planner-done]").forEach((cb) => {
+      cb.addEventListener("change", async () => {
+        const li = cb.closest(".planner-task");
+        const id = Number(li?.dataset?.taskId);
+        if (!id) return;
+        const wasDone = li.classList.contains("done");
+        try {
+          await api(`/api/planner/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ done: !!cb.checked }),
+          });
+          if (cb.checked) li.classList.add("done");
+          else li.classList.remove("done");
+          if (cb.checked && !wasDone) awardAction("planner");
+        } catch (e) {
+          cb.checked = !cb.checked;
+          toast(e.message, "warn");
+        }
+      });
+    });
+    list.querySelectorAll("[data-planner-del]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const li = btn.closest(".planner-task");
+        const id = Number(li?.dataset?.taskId);
+        if (!id || !confirm("Remove this task?")) return;
+        try {
+          await api(`/api/planner/${id}`, { method: "DELETE" });
+          li.remove();
+          if (!list.querySelector(".planner-task")) {
+            list.innerHTML = `<li class="planner-empty">No tasks yet. Click “Sync plan from exams”.</li>`;
+          }
+        } catch (e) {
+          toast(e.message, "warn");
+        }
+      });
+    });
+  }
+
+  async function refreshPlanner(opts) {
+    const autoSync = !!(opts && opts.autoSync);
+    if (!isLoggedIn()) {
+      renderPlannerExams([]);
+      const list = document.getElementById("planner-task-list");
+      if (list) {
+        list.innerHTML = `<li class="planner-empty">Log in to see your exam-based study plan.</li>`;
+      }
+      setPlannerStatus("");
+      return;
+    }
+    setPlannerStatus("Loading…");
+    try {
+      let tasksData = await api("/api/planner");
+      let exams = [];
+      try {
+        const upcoming = await api("/api/exams/upcoming");
+        exams = upcoming.exams || [];
+      } catch (_) {}
+      renderPlannerExams(exams);
+      const sectionLabel =
+        (window.currentUser && window.currentUser.section) ||
+        localStorage.getItem("sb_section") ||
+        "";
+
+      const hasExamAuto = (tasksData.tasks || []).some((t) => t.source === "exam_auto");
+      if (autoSync && exams.length && !hasExamAuto) {
+        const synced = await api("/api/planner/sync-exams", { method: "POST", body: "{}" });
+        exams = synced.exams || exams;
+        tasksData = { tasks: synced.tasks || [] };
+        renderPlannerExams(exams);
+        setPlannerStatus(
+          `Synced ${exams.length} exam(s) → ${(synced.plan || []).length} tasks` +
+            (sectionLabel ? ` · ${sectionLabel}` : "")
+        );
+      } else {
+        setPlannerStatus(
+          exams.length
+            ? `${exams.length} upcoming exam(s)` + (sectionLabel ? ` · ${sectionLabel}` : "")
+            : "No upcoming exams"
+        );
+      }
+      renderPlannerTasks(tasksData.tasks || []);
+    } catch (e) {
+      setPlannerStatus(e.message || "Failed to load planner", true);
+    }
+  }
+
+  async function syncPlannerFromExams() {
+    if (!isLoggedIn()) {
+      toast("Log in to sync the planner", "warn");
+      return;
+    }
+    setPlannerStatus("Syncing from exams…");
+    try {
+      const data = await api("/api/planner/sync-exams", { method: "POST", body: "{}" });
+      renderPlannerExams(data.exams || []);
+      renderPlannerTasks(data.tasks || []);
+      const nEx = (data.exams || []).length;
+      const nPlan = (data.plan || []).length;
+      setPlannerStatus(
+        nEx
+          ? `Synced ${nEx} exam(s) → ${nPlan} study tasks`
+          : "No upcoming exams to sync"
+      );
+      toast(nEx ? "Study plan updated from exams" : "No upcoming exams", nEx ? "success" : "warn");
+    } catch (e) {
+      setPlannerStatus(e.message || "Sync failed", true);
+      toast(e.message, "warn");
+    }
+  }
+
+  async function addManualPlannerTask() {
+    if (!isLoggedIn()) {
+      toast("Log in to add tasks", "warn");
+      return;
+    }
+    const titleEl = document.getElementById("planner-task-title");
+    const dueEl = document.getElementById("planner-task-due");
+    const title = (titleEl?.value || "").trim();
+    if (!title) {
+      toast("Enter a task title", "warn");
+      return;
+    }
+    try {
+      await api("/api/planner", {
+        method: "POST",
+        body: JSON.stringify({ title, due_date: dueEl?.value || null }),
+      });
+      if (titleEl) titleEl.value = "";
+      await refreshPlanner();
+      toast("Task added", "success");
+    } catch (e) {
+      toast(e.message, "warn");
+    }
+  }
+
+  function wirePlannerUi() {
+    document.getElementById("planner-sync-btn")?.addEventListener("click", syncPlannerFromExams);
+    document.getElementById("planner-add-btn")?.addEventListener("click", addManualPlannerTask);
+    document.getElementById("planner-task-title")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addManualPlannerTask();
+      }
+    });
+  }
 
   function isEducationalQuestion(text) {
     // Prefer shared casual detector from index.html when available
@@ -579,6 +802,7 @@
   async function savePrefsFromSettings(opts) {
     if (!isLoggedIn()) return;
     const quiet = !!(opts && opts.quiet);
+    const section = document.getElementById("settings-section")?.value || "";
     const payload = {
       grade: parseInt(document.getElementById("settings-grade")?.value || localStorage.getItem("sb_grade") || "9", 10),
       language: document.getElementById("settings-language")?.value || "multi",
@@ -587,6 +811,9 @@
       highContrast: !!document.getElementById("settings-high-contrast")?.checked,
       reducedMotion: !!document.getElementById("settings-reduced-motion")?.checked,
       fontScale: parseFloat(document.getElementById("settings-font-scale")?.value || "1") || 1,
+      section,
+      dropMath: section === "Super 3" && !!document.getElementById("settings-drop-math")?.checked,
+      dropScience: section === "Super 3" && !!document.getElementById("settings-drop-science")?.checked,
     };
     try {
       const data = await api("/api/prefs", { method: "POST", body: JSON.stringify(payload) });
@@ -607,7 +834,16 @@
           notifyStreak: data.prefs.notify_streak ?? data.prefs.notifyStreak,
           notifyPuzzle: data.prefs.notify_puzzle ?? data.prefs.notifyPuzzle,
           grade: data.prefs.grade,
+          section: data.prefs.section,
+          dropMath: data.prefs.drop_math ?? data.prefs.dropMath,
+          dropScience: data.prefs.drop_science ?? data.prefs.dropScience,
         });
+        try {
+          if (payload.section) localStorage.setItem("sb_section", payload.section);
+        } catch (_) {}
+        if (typeof window.loadUpcomingExams === "function") {
+          window.loadUpcomingExams();
+        }
       }
       if (!quiet) toast("Preferences saved", "success");
       if (!quiet) await loadSummary(true);
@@ -617,6 +853,7 @@
   }
 
   function wireUi() {
+    wirePlannerUi();
     document.getElementById("nav-streak-chip")?.addEventListener("click", openStreakModal);
     document.getElementById("nav-puzzle-chip")?.addEventListener("click", openPuzzleModal);
     document.getElementById("nav-focus-chip")?.addEventListener("click", () => Focus.toggle());
@@ -655,6 +892,22 @@
         savePrefsFromSettings({ quiet: true }).catch(() => {});
       }
     });
+    ["settings-section", "settings-drop-math", "settings-drop-science"].forEach((id) => {
+      document.getElementById(id)?.addEventListener("change", () => {
+        const sec = document.getElementById("settings-section")?.value || "";
+        const wrap = document.getElementById("settings-super3-drops");
+        if (wrap) wrap.style.display = sec === "Super 3" ? "block" : "none";
+        if (sec !== "Super 3") {
+          const dm = document.getElementById("settings-drop-math");
+          const ds = document.getElementById("settings-drop-science");
+          if (dm) dm.checked = false;
+          if (ds) ds.checked = false;
+        }
+        if (isLoggedIn()) {
+          savePrefsFromSettings({ quiet: true }).catch(() => {});
+        }
+      });
+    });
     ["settings-high-contrast", "settings-reduced-motion", "settings-font-scale"].forEach((id) => {
       document.getElementById(id)?.addEventListener("change", () => {
         const prefs = {
@@ -680,6 +933,7 @@
   window.SBGame = {
     award: awardAction,
     refresh: () => loadSummary(true),
+    refreshPlanner: () => refreshPlanner({ autoSync: true }),
     isEducationalQuestion,
     onLogin() {
       summaryGen++;

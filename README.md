@@ -75,7 +75,7 @@ ADMIN_PASSWORD=your-private-admin-password
 
 > Chat uses Groq. Diagram photos use OpenAI (`OPENAI_API_KEY`); without it, diagrams fall back to Groq SVG.
 >
-> `ADMIN_USERNAME` / `ADMIN_PASSWORD` unlock the private Admin panel (Settings → Admin) to set exam dates and portions for all students. If unset, admin login returns “Admin not configured.”
+> `ADMIN_USERNAME` / `ADMIN_PASSWORD` unlock the private Admin panel (Settings → Admin) to set **multiple** exam dates with separate **Whiz** / **Super** portions (`=` means same as the other). Students pick a section (Whiz 1–3 / Super 1–3) before login; Super 3 can drop Math/Science. **Planner** uses that section’s portions. If unset, admin login returns “Admin not configured.”
 
 ### 4. Run the app
 
