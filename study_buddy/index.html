@@ -2352,6 +2352,38 @@
       font-size: 0.86rem;
     }
     .exam-upcoming-banner .exam-upcoming-item b { color: var(--text); font-weight: 700; }
+    .study-today-banner {
+      margin: 0 auto 14px;
+      max-width: 560px;
+      text-align: left;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(52, 211, 153, 0.35);
+      background: rgba(52, 211, 153, 0.08);
+      color: var(--text);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .study-today-banner strong { display: block; margin-bottom: 6px; }
+    .study-today-item {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .study-today-item:first-of-type { border-top: none; padding-top: 0; }
+    .study-today-title { font-weight: 700; font-size: 0.88rem; margin-bottom: 6px; }
+    .study-today-actions,
+    .planner-task-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .study-today-actions .qs-btn,
+    .planner-task-actions .qs-btn {
+      padding: 4px 8px;
+      font-size: 0.72rem;
+    }
+    .planner-task-body { flex: 1; min-width: 0; }
     .admin-modal-card {
       max-width: 640px;
       width: min(96vw, 640px);
@@ -4367,7 +4399,8 @@
     }
     .planner-task.done span.planner-task-title { text-decoration: line-through; color: #6a6a85; }
     .planner-task label { display: flex; align-items: flex-start; gap: 8px; flex: 1; cursor: pointer; }
-    .planner-task-meta { font-size: 0.72rem; color: #6a6a85; margin-top: 2px; }
+    .planner-task-meta { font-size: 0.72rem; color: #6a6a85; margin-top: 2px; margin-bottom: 6px; }
+    .planner-task-actions { margin-top: 4px; }
     .planner-task-badge {
       font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
       color: var(--accent); opacity: 0.85;
@@ -4912,6 +4945,7 @@
           <h2 id="welcome-title">Hi! 👋 I'm Max.</h2>
           <p id="welcome-desc">Please set your username in Settings. What would you like to learn today?</p>
           <div id="exam-upcoming-banner" class="exam-upcoming-banner" style="display:none;" aria-live="polite"></div>
+          <div id="study-today-banner" class="study-today-banner" style="display:none;" aria-live="polite"></div>
           <div id="onboard-tips" class="hint-box" style="display:none; margin: 0 auto 14px; max-width: 520px; text-align:left;">
             <strong style="display:block; margin-bottom:6px;">Start in 3 steps</strong>
             <ol style="margin:0; padding-left:18px; color:var(--muted); font-size:0.92rem; line-height:1.45;">
@@ -6217,6 +6251,11 @@
           }
           renderExamUpcomingBanner(upcomingExamsCache);
           prefillMockChaptersFromExams();
+          try {
+            if (window.SBGame && typeof window.SBGame.refreshStudyToday === "function") {
+              window.SBGame.refreshStudyToday();
+            }
+          } catch (_) {}
         } catch (_) {
           upcomingExamsCache = [];
           renderExamUpcomingBanner([]);
@@ -8930,6 +8969,7 @@
           break;
       }
     }
+    window.showSection = showSection;
 
     function generateFlashcardsFromResponse(responseText) {
       const output = document.getElementById("flashcards-output");

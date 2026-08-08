@@ -631,10 +631,152 @@
       .join("");
   }
 
+  function topicFromPlannerTitle(title) {
+    const t = String(title || "").trim();
+    if (!t) return "General";
+    // "Math: Algebra" → use full string as study topic
+    const practice = t.match(/^Practice\s+(.+?)\s+\(weakest/i);
+    if (practice) return practice[1].trim();
+    const review = t.match(/^Review mistakes.*?in\s+(.+)$/i);
+    if (review) return review[1].trim();
+    const ask = t.match(/weak\s+(.+?)\s+topic/i);
+    if (ask) return ask[1].trim();
+    return t;
+  }
+
+  function studyActionButtonsHtml(title) {
+    const topic = escapePlannerHtml(topicFromPlannerTitle(title));
+    return `<div class="planner-task-actions study-today-actions">
+      <button type="button" class="qs-btn" data-study-action="quiz" data-topic="${topic}">Quiz</button>
+      <button type="button" class="qs-btn" data-study-action="flashcards" data-topic="${topic}">Flashcards</button>
+      <button type="button" class="qs-btn" data-study-action="chat" data-topic="${topic}">Chat</button>
+    </div>`;
+  }
+
+  function wireStudyActionButtons(root) {
+    if (!root) return;
+    root.querySelectorAll("[data-study-action]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openStudyAction(btn.getAttribute("data-study-action"), btn.getAttribute("data-topic") || "");
+      });
+    });
+  }
+
+  function openStudyAction(kind, topic) {
+    const prompt = String(topic || "").trim() || "General revision";
+    const go = (section) => {
+      if (typeof window.showSection === "function") window.showSection(section);
+      else {
+        const tab = [...document.querySelectorAll(".tab-btn")].find((b) => b.dataset.tab === section);
+        if (tab) tab.click();
+      }
+    };
+    if (kind === "quiz") {
+      go("quiz");
+      const input = document.getElementById("quiz-input");
+      if (input) input.value = prompt;
+      setTimeout(() => document.getElementById("generate-quiz-btn")?.click(), 120);
+      toast(`Quiz: ${prompt}`, "success");
+      return;
+    }
+    if (kind === "flashcards") {
+      go("flashcards");
+      const input = document.getElementById("flashcard-input");
+      if (input) input.value = prompt;
+      setTimeout(() => document.getElementById("generate-flashcard-btn")?.click(), 120);
+      toast(`Flashcards: ${prompt}`, "success");
+      return;
+    }
+    // chat
+    go("chat");
+    const input = document.getElementById("user-input");
+    if (input) {
+      input.value = `Help me study this for my exam plan: ${prompt}. Explain the key ideas and give 3 practice questions.`;
+      input.focus();
+      try {
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      } catch (_) {}
+    }
+    toast("Chat ready — press Send", "success");
+  }
+
+  function pickStudyTodayTasks(tasks) {
+    const today = localDate();
+    const open = (tasks || []).filter((t) => !t.done);
+    const dueToday = open.filter((t) => t.due_date && String(t.due_date) <= today);
+    const pool = dueToday.length ? dueToday : open;
+    const ranked = [...pool].sort((a, b) => {
+      const rank = (t) =>
+        t.source === "exam_auto" ? 0 : t.source === "weakness_auto" ? 1 : 2;
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      return String(a.due_date || "9999").localeCompare(String(b.due_date || "9999"));
+    });
+    return ranked.slice(0, 2);
+  }
+
+  function renderStudyToday(tasks) {
+    const banner = document.getElementById("study-today-banner");
+    if (!banner) return;
+    if (!isLoggedIn()) {
+      banner.style.display = "none";
+      banner.innerHTML = "";
+      return;
+    }
+    const top = pickStudyTodayTasks(tasks);
+    if (!top.length) {
+      banner.innerHTML = `<strong>Study today</strong>
+        <div class="settings-hint" style="margin:0;">No open tasks yet.
+        <button type="button" class="qs-btn" id="study-today-open-planner" style="margin-left:6px;">Open Planner</button></div>`;
+      banner.style.display = "block";
+      document.getElementById("study-today-open-planner")?.addEventListener("click", () => {
+        if (typeof window.showSection === "function") window.showSection("planner");
+      });
+      return;
+    }
+    banner.innerHTML =
+      `<strong>Study today</strong>` +
+      top
+        .map(
+          (t) => `<div class="study-today-item">
+          <div class="study-today-title">${escapePlannerHtml(t.title)}</div>
+          ${studyActionButtonsHtml(t.title)}
+        </div>`
+        )
+        .join("");
+    banner.style.display = "block";
+    wireStudyActionButtons(banner);
+  }
+
+  async function refreshStudyToday() {
+    const banner = document.getElementById("study-today-banner");
+    if (!banner) return;
+    if (!isLoggedIn()) {
+      banner.style.display = "none";
+      return;
+    }
+    try {
+      let data = await api("/api/planner");
+      const hasAuto = (data.tasks || []).some(
+        (t) => t.source === "exam_auto" || t.source === "weakness_auto"
+      );
+      if (!hasAuto) {
+        try {
+          data = await api("/api/planner/sync-exams", { method: "POST", body: "{}" });
+        } catch (_) {}
+      }
+      renderStudyToday(data.tasks || []);
+    } catch (_) {
+      banner.style.display = "none";
+    }
+  }
+
   function renderPlannerTasks(tasks) {
     const list = document.getElementById("planner-task-list");
     if (!list) return;
     const rows = tasks || [];
+    renderStudyToday(rows);
     if (!rows.length) {
       list.innerHTML = `<li class="planner-empty">No tasks yet. Click “Sync study plan”.</li>`;
       return;
@@ -649,18 +791,23 @@
           badge = `<div class="planner-task-badge" style="color:#f59e0b;">Weakest subject</div>`;
         }
         return `<li class="planner-task${t.done ? " done" : ""}" data-task-id="${t.id}">
-          <label>
-            <input type="checkbox" data-planner-done ${t.done ? "checked" : ""} />
-            <span>
-              ${badge}
-              <span class="planner-task-title">${escapePlannerHtml(t.title)}</span>
-              <div class="planner-task-meta">${due}</div>
-            </span>
-          </label>
+          <div class="planner-task-body">
+            <label>
+              <input type="checkbox" data-planner-done ${t.done ? "checked" : ""} />
+              <span>
+                ${badge}
+                <span class="planner-task-title">${escapePlannerHtml(t.title)}</span>
+                <div class="planner-task-meta">${due}</div>
+              </span>
+            </label>
+            ${t.done ? "" : studyActionButtonsHtml(t.title)}
+          </div>
           <button type="button" class="planner-del" data-planner-del title="Remove">×</button>
         </li>`;
       })
       .join("");
+
+    wireStudyActionButtons(list);
 
     list.querySelectorAll("[data-planner-done]").forEach((cb) => {
       cb.addEventListener("change", async () => {
@@ -676,6 +823,7 @@
           if (cb.checked) li.classList.add("done");
           else li.classList.remove("done");
           if (cb.checked && !wasDone) awardAction("planner");
+          refreshStudyToday();
         } catch (e) {
           cb.checked = !cb.checked;
           toast(e.message, "warn");
@@ -693,6 +841,7 @@
           if (!list.querySelector(".planner-task")) {
             list.innerHTML = `<li class="planner-empty">No tasks yet. Click “Sync study plan”.</li>`;
           }
+          refreshStudyToday();
         } catch (e) {
           toast(e.message, "warn");
         }
@@ -717,6 +866,7 @@
     const autoSync = !!(opts && opts.autoSync);
     if (!isLoggedIn()) {
       renderPlannerFocus("", [], []);
+      renderStudyToday([]);
       const list = document.getElementById("planner-task-list");
       if (list) {
         list.innerHTML = `<li class="planner-empty">Log in to see your study plan.</li>`;
@@ -968,6 +1118,8 @@
     award: awardAction,
     refresh: () => loadSummary(true),
     refreshPlanner: () => refreshPlanner({ autoSync: true }),
+    refreshStudyToday,
+    openStudyAction,
     isEducationalQuestion,
     onLogin() {
       summaryGen++;
@@ -975,12 +1127,14 @@
       summaryInflight = null;
       renderNavbarGuest();
       loadSummary(true);
+      refreshStudyToday();
     },
     onLogout() {
       summaryGen++;
       summary = null;
       summaryInflight = null;
       renderNavbarGuest();
+      renderStudyToday([]);
     },
     Focus,
     toast,
@@ -993,6 +1147,7 @@
     const tryRefresh = () => {
       if (typeof window.currentUser !== "undefined" && window.currentUser?.loggedIn) {
         loadSummary(true);
+        refreshStudyToday();
       } else {
         renderNavbar();
       }
