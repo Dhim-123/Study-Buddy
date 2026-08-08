@@ -68,9 +68,14 @@ Create a `.env` file inside the `study_buddy/` folder:
 ```env
 GROQ_API_KEY=your-groq-api-key-here
 OPENAI_API_KEY=your-openai-api-key-here
+FLASK_SECRET_KEY=a-long-random-secret
+ADMIN_USERNAME=your-private-admin-username
+ADMIN_PASSWORD=your-private-admin-password
 ```
 
 > Chat uses Groq. Diagram photos use OpenAI (`OPENAI_API_KEY`); without it, diagrams fall back to Groq SVG.
+>
+> `ADMIN_USERNAME` / `ADMIN_PASSWORD` unlock the private Admin panel (Settings → Admin) to set exam dates and portions for all students. If unset, admin login returns “Admin not configured.”
 
 ### 4. Run the app
 

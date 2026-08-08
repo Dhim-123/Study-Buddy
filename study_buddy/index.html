@@ -2333,6 +2333,45 @@
       font-size: 0.85rem;
       padding: 8px 2px;
     }
+    .exam-upcoming-banner {
+      margin: 0 auto 14px;
+      max-width: 560px;
+      text-align: left;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      background: rgba(59, 130, 246, 0.08);
+      color: var(--text);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .exam-upcoming-banner strong { display: block; margin-bottom: 4px; }
+    .exam-upcoming-banner .exam-upcoming-item {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+    .exam-upcoming-banner .exam-upcoming-item b { color: var(--text); font-weight: 700; }
+    .admin-modal-card {
+      max-width: 520px;
+      width: min(96vw, 520px);
+      max-height: 88vh;
+      overflow: auto;
+    }
+    .admin-exam-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .admin-exam-row {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.03);
+      font-size: 0.88rem;
+    }
+    .admin-exam-row .admin-exam-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
     .mock-score-banner {
       font-family: var(--font-ui);
       background: #111827;
@@ -4546,7 +4585,52 @@
         <div class="settings-section-label">About</div>
         <p class="settings-hint">Study Buddy — AI study companion with streaks, XP, and daily puzzles.</p>
         <button type="button" class="btn-secondary" id="settings-save-prefs" style="width:100%;margin-top:8px;padding:10px;">Save preferences</button>
+        <button type="button" class="btn-secondary" id="settings-admin-link" style="width:100%;margin-top:8px;padding:8px;font-size:0.85rem;opacity:0.85;">Admin</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Admin login modal -->
+  <div id="admin-login-modal" class="sb-game-modal" hidden aria-hidden="true">
+    <div class="sb-game-backdrop" data-admin-close></div>
+    <div class="sb-game-card admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="admin-login-title">
+      <button type="button" class="sb-game-close" data-admin-close aria-label="Close">&times;</button>
+      <h3 id="admin-login-title">Admin login</h3>
+      <p class="settings-hint" style="margin-top:0;">Private access to set exam dates and portions for all students.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <input id="admin-username" class="input" type="text" autocomplete="username" placeholder="Admin username" />
+        <input id="admin-password" class="input" type="password" autocomplete="current-password" placeholder="Admin password" />
+        <p id="admin-login-msg" class="settings-hint" style="display:none;margin:0;"></p>
+        <button type="button" class="btn-primary" id="admin-login-btn" style="width:100%;padding:10px;">Sign in as admin</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin exam panel -->
+  <div id="admin-panel-modal" class="sb-game-modal" hidden aria-hidden="true">
+    <div class="sb-game-backdrop" data-admin-panel-close></div>
+    <div class="sb-game-card admin-modal-card wide" role="dialog" aria-modal="true" aria-labelledby="admin-panel-title">
+      <button type="button" class="sb-game-close" data-admin-panel-close aria-label="Close">&times;</button>
+      <h3 id="admin-panel-title">Exam dates &amp; portions</h3>
+      <p class="settings-hint" style="margin-top:0;">These apply to all students (chat personalization, mock-test portions, welcome banner).</p>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input id="admin-exam-id" type="hidden" value="" />
+        <input id="admin-exam-title" class="input" placeholder="Title (e.g. Mid-term Physics)" />
+        <input id="admin-exam-date" class="input" type="date" />
+        <input id="admin-exam-subject" class="input" placeholder="Subject (e.g. Physics)" />
+        <input id="admin-exam-grade" class="input" type="number" min="1" max="12" placeholder="Grade (optional)" />
+        <textarea id="admin-exam-portion" class="input" rows="4" placeholder="Portion / syllabus (chapters, topics)"></textarea>
+        <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--muted);">
+          <input type="checkbox" id="admin-exam-active" checked /> Active
+        </label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn-primary" id="admin-exam-save" style="padding:10px 14px;">Save exam</button>
+          <button type="button" class="btn-secondary" id="admin-exam-reset" style="padding:10px 14px;">New</button>
+          <button type="button" class="btn-secondary" id="admin-logout-btn" style="padding:10px 14px;margin-left:auto;">Admin logout</button>
+        </div>
+        <p id="admin-exam-msg" class="settings-hint" style="display:none;margin:0;"></p>
+      </div>
+      <div class="admin-exam-list" id="admin-exam-list"></div>
     </div>
   </div>
 
@@ -4748,6 +4832,7 @@
           <div class="welcome-icon">🤖</div>
           <h2 id="welcome-title">Hi! 👋 I'm Max.</h2>
           <p id="welcome-desc">Please set your username in Settings. What would you like to learn today?</p>
+          <div id="exam-upcoming-banner" class="exam-upcoming-banner" style="display:none;" aria-live="polite"></div>
           <div id="onboard-tips" class="hint-box" style="display:none; margin: 0 auto 14px; max-width: 520px; text-align:left;">
             <strong style="display:block; margin-bottom:6px;">Start in 3 steps</strong>
             <ol style="margin:0; padding-left:18px; color:var(--muted); font-size:0.92rem; line-height:1.45;">
@@ -5967,11 +6052,252 @@
         authMessage.style.display = "block";
       }
 
+      let isAdminSession = false;
+      let upcomingExamsCache = [];
+
+      function openSbModal(el) {
+        if (!el) return;
+        el.hidden = false;
+        el.setAttribute("aria-hidden", "false");
+        el.classList.add("open");
+      }
+      function closeSbModal(el) {
+        if (!el) return;
+        el.classList.remove("open");
+        el.setAttribute("aria-hidden", "true");
+        el.hidden = true;
+      }
+
+      function renderExamUpcomingBanner(exams) {
+        const banner = document.getElementById("exam-upcoming-banner");
+        if (!banner) return;
+        const list = Array.isArray(exams) ? exams.filter((e) => e && e.exam_date) : [];
+        if (!list.length) {
+          banner.style.display = "none";
+          banner.innerHTML = "";
+          return;
+        }
+        const items = list.slice(0, 4).map((ex) => {
+          const days = ex.days_left;
+          const when = typeof days === "number"
+            ? (days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`)
+            : `on ${ex.exam_date}`;
+          const portion = (ex.portion || "").trim();
+          return `<div class="exam-upcoming-item"><b>${escapeHtml(ex.subject || "Exam")}</b> — ${escapeHtml(ex.title || "Exam")} ${escapeHtml(when)}${portion ? ` · Portion: ${escapeHtml(portion.slice(0, 160))}` : ""}</div>`;
+        }).join("");
+        banner.innerHTML = `<strong>Upcoming exams</strong>${items}`;
+        banner.style.display = "block";
+      }
+
+      async function loadUpcomingExams() {
+        if (!currentUser?.loggedIn) {
+          upcomingExamsCache = [];
+          renderExamUpcomingBanner([]);
+          return;
+        }
+        try {
+          const res = await fetch("/api/exams/upcoming", { credentials: "include" });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            upcomingExamsCache = [];
+            renderExamUpcomingBanner([]);
+            return;
+          }
+          upcomingExamsCache = data.exams || [];
+          renderExamUpcomingBanner(upcomingExamsCache);
+          prefillMockChaptersFromExams();
+        } catch (_) {
+          upcomingExamsCache = [];
+          renderExamUpcomingBanner([]);
+        }
+      }
+
+      function prefillMockChaptersFromExams() {
+        const chaptersEl = document.getElementById("mock-chapters");
+        const subjectEl = document.getElementById("mock-subject");
+        if (!chaptersEl || chaptersEl.value.trim()) return;
+        const subject = (subjectEl?.value || "").trim().toLowerCase();
+        let match = upcomingExamsCache.find(
+          (e) => (e.portion || "").trim() && (!subject || String(e.subject || "").toLowerCase() === subject)
+        );
+        if (!match) match = upcomingExamsCache.find((e) => (e.portion || "").trim());
+        if (match?.portion) chaptersEl.value = String(match.portion).slice(0, 400);
+      }
+
+      function setAdminMsg(el, text, isError) {
+        if (!el) return;
+        if (!text) {
+          el.style.display = "none";
+          el.textContent = "";
+          return;
+        }
+        el.textContent = text;
+        el.style.color = isError ? "#f43f5e" : "#52e8a0";
+        el.style.display = "block";
+      }
+
+      async function refreshAdminExamList() {
+        const listEl = document.getElementById("admin-exam-list");
+        if (!listEl) return;
+        listEl.innerHTML = `<div class="settings-hint">Loading…</div>`;
+        try {
+          const res = await fetch("/api/admin/exams", { credentials: "include" });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Failed to load exams");
+          const exams = data.exams || [];
+          if (!exams.length) {
+            listEl.innerHTML = `<div class="settings-hint">No exams yet. Add one above.</div>`;
+            return;
+          }
+          listEl.innerHTML = exams.map((ex) => `
+            <div class="admin-exam-row" data-exam-id="${ex.id}">
+              <div><strong>${escapeHtml(ex.title)}</strong> · ${escapeHtml(ex.subject)} · ${escapeHtml(ex.exam_date)}${ex.active ? "" : " · inactive"}</div>
+              <div class="settings-hint" style="margin:4px 0 0;">${escapeHtml((ex.portion || "").slice(0, 220) || "(no portion)")}</div>
+              <div class="admin-exam-actions">
+                <button type="button" class="qs-btn" data-admin-edit="${ex.id}">Edit</button>
+                <button type="button" class="qs-btn" data-admin-delete="${ex.id}">Delete</button>
+              </div>
+            </div>`).join("");
+          listEl.querySelectorAll("[data-admin-edit]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const id = Number(btn.getAttribute("data-admin-edit"));
+              const ex = exams.find((x) => x.id === id);
+              if (!ex) return;
+              document.getElementById("admin-exam-id").value = String(ex.id);
+              document.getElementById("admin-exam-title").value = ex.title || "";
+              document.getElementById("admin-exam-date").value = ex.exam_date || "";
+              document.getElementById("admin-exam-subject").value = ex.subject || "";
+              document.getElementById("admin-exam-grade").value = ex.grade != null ? String(ex.grade) : "";
+              document.getElementById("admin-exam-portion").value = ex.portion || "";
+              document.getElementById("admin-exam-active").checked = !!ex.active;
+              setAdminMsg(document.getElementById("admin-exam-msg"), "Editing exam #" + ex.id, false);
+            });
+          });
+          listEl.querySelectorAll("[data-admin-delete]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              const id = Number(btn.getAttribute("data-admin-delete"));
+              if (!id || !confirm("Delete this exam?")) return;
+              const res = await fetch(`/api/admin/exams/${id}`, { method: "DELETE", credentials: "include" });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                setAdminMsg(document.getElementById("admin-exam-msg"), data.error || "Delete failed", true);
+                return;
+              }
+              await refreshAdminExamList();
+              loadUpcomingExams();
+              setAdminMsg(document.getElementById("admin-exam-msg"), "Deleted.", false);
+            });
+          });
+        } catch (e) {
+          listEl.innerHTML = `<div class="settings-hint" style="color:#f43f5e;">${escapeHtml(e.message || "Error")}</div>`;
+        }
+      }
+
+      function resetAdminExamForm() {
+        document.getElementById("admin-exam-id").value = "";
+        document.getElementById("admin-exam-title").value = "";
+        document.getElementById("admin-exam-date").value = "";
+        document.getElementById("admin-exam-subject").value = "";
+        document.getElementById("admin-exam-grade").value = "";
+        document.getElementById("admin-exam-portion").value = "";
+        document.getElementById("admin-exam-active").checked = true;
+        setAdminMsg(document.getElementById("admin-exam-msg"), "", false);
+      }
+
+      async function openAdminFlow() {
+        if (isAdminSession) {
+          openSbModal(document.getElementById("admin-panel-modal"));
+          await refreshAdminExamList();
+          return;
+        }
+        openSbModal(document.getElementById("admin-login-modal"));
+      }
+
+      function wireAdminUi() {
+        document.getElementById("settings-admin-link")?.addEventListener("click", () => {
+          openAdminFlow();
+        });
+        document.querySelectorAll("[data-admin-close]").forEach((el) => {
+          el.addEventListener("click", () => closeSbModal(document.getElementById("admin-login-modal")));
+        });
+        document.querySelectorAll("[data-admin-panel-close]").forEach((el) => {
+          el.addEventListener("click", () => closeSbModal(document.getElementById("admin-panel-modal")));
+        });
+        document.getElementById("admin-login-btn")?.addEventListener("click", async () => {
+          const msg = document.getElementById("admin-login-msg");
+          const username = document.getElementById("admin-username")?.value || "";
+          const password = document.getElementById("admin-password")?.value || "";
+          setAdminMsg(msg, "Signing in…", false);
+          try {
+            const res = await fetch("/api/auth/admin_login", {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username, password }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Login failed");
+            isAdminSession = true;
+            closeSbModal(document.getElementById("admin-login-modal"));
+            openSbModal(document.getElementById("admin-panel-modal"));
+            resetAdminExamForm();
+            await refreshAdminExamList();
+          } catch (e) {
+            setAdminMsg(msg, e.message || "Login failed", true);
+          }
+        });
+        document.getElementById("admin-logout-btn")?.addEventListener("click", async () => {
+          await fetch("/api/auth/admin_logout", { method: "POST", credentials: "include" });
+          isAdminSession = false;
+          closeSbModal(document.getElementById("admin-panel-modal"));
+        });
+        document.getElementById("admin-exam-reset")?.addEventListener("click", resetAdminExamForm);
+        document.getElementById("admin-exam-save")?.addEventListener("click", async () => {
+          const msg = document.getElementById("admin-exam-msg");
+          const payload = {
+            id: document.getElementById("admin-exam-id")?.value || undefined,
+            title: document.getElementById("admin-exam-title")?.value || "Exam",
+            exam_date: document.getElementById("admin-exam-date")?.value || "",
+            subject: document.getElementById("admin-exam-subject")?.value || "General",
+            portion: document.getElementById("admin-exam-portion")?.value || "",
+            grade: document.getElementById("admin-exam-grade")?.value || null,
+            active: !!document.getElementById("admin-exam-active")?.checked,
+          };
+          if (payload.id === "" || payload.id == null) delete payload.id;
+          else payload.id = Number(payload.id);
+          setAdminMsg(msg, "Saving…", false);
+          try {
+            const res = await fetch("/api/admin/exams", {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Save failed");
+            setAdminMsg(msg, "Saved.", false);
+            resetAdminExamForm();
+            await refreshAdminExamList();
+            loadUpcomingExams();
+          } catch (e) {
+            setAdminMsg(msg, e.message || "Save failed", true);
+          }
+        });
+        document.getElementById("mock-subject")?.addEventListener("change", () => {
+          const chaptersEl = document.getElementById("mock-chapters");
+          if (chaptersEl && !chaptersEl.value.trim()) prefillMockChaptersFromExams();
+        });
+        if (new URLSearchParams(location.search).get("admin") === "1") {
+          setTimeout(() => openAdminFlow(), 300);
+        }
+      }
+
       // Function to check login status on page load
       async function checkLoginStatus() {
         try {
           const res = await fetch("/api/auth/me", { credentials: "include" });
           const data = await res.json();
+          isAdminSession = !!data.isAdmin;
           if (data.loggedIn) {
             let avatarB64 = data.avatarB64 || null;
             if (!avatarB64) {
@@ -5990,13 +6316,17 @@
             };
             // Fetch and display chat history if logged in
             await fetchChatHistory();
+            await loadUpcomingExams();
           } else {
             currentUser = { loggedIn: false };
             try { localStorage.removeItem("sb_avatar_b64"); } catch (_) {}
+            upcomingExamsCache = [];
+            renderExamUpcomingBanner([]);
           }
         } catch (err) {
           console.error("Error checking login status:", err);
           currentUser = { loggedIn: false };
+          isAdminSession = false;
         } finally {
           updateAuthUI();
         }
@@ -6019,6 +6349,7 @@
 
         await initFirebaseClient();
         await checkLoginStatus();
+        wireAdminUi();
         updateNotesIndicators();
       }
 
@@ -6654,6 +6985,7 @@
             showAuthMessage(successMsg);
             updateWelcomeGreeting();
             await fetchChatHistory();
+            await loadUpcomingExams();
           } else {
             updateAuthUI({ clearMessage: false });
             const errText = (data.error || "").toLowerCase();
@@ -6760,6 +7092,7 @@
             showAuthMessage(`Login successful. Welcome, ${data.identifier || "friend"}!`);
             updateWelcomeGreeting();
             await fetchChatHistory();
+            await loadUpcomingExams();
           } catch (err) {
             updateAuthUI({ clearMessage: false });
             const msg = err?.code === "auth/popup-closed-by-user"

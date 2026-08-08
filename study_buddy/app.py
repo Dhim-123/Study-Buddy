@@ -884,6 +884,19 @@ def init_db():
             );
             CREATE INDEX IF NOT EXISTS idx_mistakes_user ON student_mistakes(user_id, subject);
             CREATE INDEX IF NOT EXISTS idx_mistakes_mastered ON student_mistakes(user_id, mastered);
+
+            CREATE TABLE IF NOT EXISTS exam_schedule (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                title       TEXT    NOT NULL DEFAULT 'Exam',
+                exam_date   TEXT    NOT NULL,
+                subject     TEXT    NOT NULL DEFAULT 'General',
+                portion     TEXT    NOT NULL DEFAULT '',
+                grade       INTEGER,
+                active      INTEGER NOT NULL DEFAULT 1,
+                updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_exam_schedule_date
+                ON exam_schedule(active, exam_date);
         """)
         try:
             conn.execute("ALTER TABLE living_notebook ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
@@ -2636,6 +2649,99 @@ def require_auth():
     return row, None
 
 
+def admin_credentials_configured():
+    """True when ADMIN_USERNAME and ADMIN_PASSWORD env vars are set."""
+    u = (os.getenv("ADMIN_USERNAME") or "").strip()
+    p = (os.getenv("ADMIN_PASSWORD") or "").strip()
+    return bool(u and p)
+
+
+def is_admin_session():
+    """True when this browser session completed admin login."""
+    return bool(session.get("is_admin"))
+
+
+def require_admin():
+    """Return (True, None) or (None, error_response)."""
+    if not admin_credentials_configured():
+        return None, (jsonify({"error": "Admin not configured."}), 503)
+    if not is_admin_session():
+        return None, (jsonify({"error": "Admin login required."}), 403)
+    return True, None
+
+
+def _parse_exam_date(value):
+    """Validate YYYY-MM-DD exam date; return normalized string or None."""
+    s = (value or "").strip()[:10]
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+        return None
+    try:
+        datetime.strptime(s, "%Y-%m-%d")
+    except Exception:
+        return None
+    return s
+
+
+def _exam_row_to_dict(row, today=None):
+    """Serialize exam_schedule row; include days_left when today is set."""
+    d = dict(row)
+    out = {
+        "id": int(d["id"]),
+        "title": d.get("title") or "Exam",
+        "exam_date": d.get("exam_date") or "",
+        "subject": d.get("subject") or "General",
+        "portion": d.get("portion") or "",
+        "grade": d.get("grade"),
+        "active": bool(int(d.get("active") or 0)),
+        "updated_at": d.get("updated_at") or "",
+    }
+    if today is not None and out["exam_date"]:
+        try:
+            ed = datetime.strptime(out["exam_date"], "%Y-%m-%d").date()
+            out["days_left"] = (ed - today).days
+        except Exception:
+            out["days_left"] = None
+    return out
+
+
+def list_upcoming_exams(limit=12, subject=None, include_inactive=False):
+    """Return upcoming/active exams for personalization (site-wide)."""
+    today = datetime.utcnow().date()
+    today_s = today.strftime("%Y-%m-%d")
+    params = [today_s]
+    sql = """
+        SELECT * FROM exam_schedule
+        WHERE exam_date >= ?
+    """
+    if not include_inactive:
+        sql += " AND active=1"
+    if subject:
+        sql += " AND LOWER(subject)=LOWER(?)"
+        params.append(str(subject).strip()[:80])
+    sql += " ORDER BY exam_date ASC, id ASC LIMIT ?"
+    params.append(int(limit))
+    with get_db() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [_exam_row_to_dict(r, today=today) for r in rows]
+
+
+def format_exams_for_prompt(exams):
+    """Short system-prompt block from upcoming exams."""
+    if not exams:
+        return ""
+    lines = ["\n\nUPCOMING EXAMS (personalize teaching toward these portions):"]
+    for ex in exams[:6]:
+        days = ex.get("days_left")
+        when = f"in {days} day(s)" if isinstance(days, int) else f"on {ex.get('exam_date')}"
+        portion = (ex.get("portion") or "").strip()
+        lines.append(
+            f"- {ex.get('subject')}: {ex.get('title')} {when}"
+            + (f". Portion: {portion[:400]}" if portion else ".")
+        )
+    lines.append("Prefer questions and revision aligned with these portions when relevant.\n")
+    return "\n".join(lines)
+
+
 def resolve_session_user_id():
     """Return a valid users.id from the session, or None.
 
@@ -2719,14 +2825,16 @@ def _row_get(row, key, default=None):
 @app.route("/api/auth/me", methods=["GET"])
 def auth_me():
     """Check if a user is logged in."""
+    admin = is_admin_session()
     uid = current_user_id()
     if not uid:
-        return jsonify({"loggedIn": False})
+        return jsonify({"loggedIn": False, "isAdmin": admin})
     with get_db() as conn:
         row = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
     if not row:
-        session.clear()
-        return jsonify({"loggedIn": False})
+        # Keep admin flag if present; only drop invalid student session
+        session.pop("user_id", None)
+        return jsonify({"loggedIn": False, "isAdmin": admin})
     pw = row["password_hash"] or ""
     return jsonify({
         "loggedIn": True,
@@ -2736,7 +2844,134 @@ def auth_me():
         "hasPassword": bool(pw) and not str(pw).startswith("firebase_only:"),
         "email": _row_get(row, "email"),
         "userId": row["id"],
+        "isAdmin": admin,
     })
+
+
+@app.route("/api/auth/admin_login", methods=["POST"])
+@rate_limit(max_calls=10, window_sec=60)
+def auth_admin_login():
+    """Private admin login via ADMIN_USERNAME / ADMIN_PASSWORD env vars."""
+    if not admin_credentials_configured():
+        return jsonify({"error": "Admin not configured."}), 503
+    data = request.get_json(force=True) or {}
+    username = (data.get("username") or data.get("identifier") or "").strip()
+    password = (data.get("password") or "").strip()
+    expect_u = (os.getenv("ADMIN_USERNAME") or "").strip()
+    expect_p = (os.getenv("ADMIN_PASSWORD") or "").strip()
+    if not username or not password or username != expect_u or password != expect_p:
+        return jsonify({"error": "Invalid admin credentials."}), 401
+    # Admin panel session only — do not invent a student user row
+    session["is_admin"] = True
+    return jsonify({"ok": True, "isAdmin": True})
+
+
+@app.route("/api/auth/admin_logout", methods=["POST"])
+def auth_admin_logout():
+    """Clear admin flag (student session untouched if still present)."""
+    session.pop("is_admin", None)
+    return jsonify({"ok": True, "isAdmin": False})
+
+
+@app.route("/api/admin/exams", methods=["GET"])
+def admin_list_exams():
+    """Admin: list all exam schedule rows."""
+    _, err = require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM exam_schedule ORDER BY exam_date ASC, id ASC"
+        ).fetchall()
+    today = datetime.utcnow().date()
+    return jsonify({"exams": [_exam_row_to_dict(r, today=today) for r in rows]})
+
+
+@app.route("/api/admin/exams", methods=["POST"])
+@rate_limit(max_calls=30, window_sec=60)
+def admin_upsert_exam():
+    """Admin: create or update an exam date + portion."""
+    _, err = require_admin()
+    if err:
+        return err
+    data = request.get_json(force=True) or {}
+    exam_date = _parse_exam_date(data.get("exam_date") or data.get("examDate"))
+    if not exam_date:
+        return jsonify({"error": "exam_date must be YYYY-MM-DD."}), 400
+    title = (data.get("title") or "Exam").strip()[:120] or "Exam"
+    subject = (data.get("subject") or "General").strip()[:80] or "General"
+    portion = (data.get("portion") or "").strip()[:4000]
+    grade = data.get("grade")
+    try:
+        grade = max(1, min(12, int(grade))) if grade is not None and str(grade).strip() != "" else None
+    except Exception:
+        grade = None
+    active = 0 if data.get("active") in (False, 0, "0", "false", "False") else 1
+    exam_id = data.get("id")
+
+    with get_db() as conn:
+        if exam_id is not None:
+            try:
+                exam_id = int(exam_id)
+            except Exception:
+                return jsonify({"error": "Invalid exam id."}), 400
+            existing = conn.execute(
+                "SELECT id FROM exam_schedule WHERE id=?", (exam_id,)
+            ).fetchone()
+            if not existing:
+                return jsonify({"error": "Exam not found."}), 404
+            conn.execute(
+                """
+                UPDATE exam_schedule SET
+                  title=?, exam_date=?, subject=?, portion=?, grade=?, active=?,
+                  updated_at=datetime('now')
+                WHERE id=?
+                """,
+                (title, exam_date, subject, portion, grade, active, exam_id),
+            )
+            row = conn.execute(
+                "SELECT * FROM exam_schedule WHERE id=?", (exam_id,)
+            ).fetchone()
+        else:
+            cur = conn.execute(
+                """
+                INSERT INTO exam_schedule (title, exam_date, subject, portion, grade, active)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (title, exam_date, subject, portion, grade, active),
+            )
+            row = conn.execute(
+                "SELECT * FROM exam_schedule WHERE id=?", (cur.lastrowid,)
+            ).fetchone()
+    today = datetime.utcnow().date()
+    return jsonify({"ok": True, "exam": _exam_row_to_dict(row, today=today)})
+
+
+@app.route("/api/admin/exams/<int:exam_id>", methods=["DELETE"])
+def admin_delete_exam(exam_id):
+    """Admin: delete an exam schedule row."""
+    _, err = require_admin()
+    if err:
+        return err
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT id FROM exam_schedule WHERE id=?", (exam_id,)
+        ).fetchone()
+        if not existing:
+            return jsonify({"error": "Exam not found."}), 404
+        conn.execute("DELETE FROM exam_schedule WHERE id=?", (exam_id,))
+    return jsonify({"ok": True, "deleted": exam_id})
+
+
+@app.route("/api/exams/upcoming", methods=["GET"])
+def exams_upcoming():
+    """Logged-in students: upcoming active exams for personalization."""
+    user, err = require_auth()
+    if err:
+        return err
+    subject = (request.args.get("subject") or "").strip()[:80] or None
+    exams = list_upcoming_exams(limit=12, subject=subject, include_inactive=False)
+    return jsonify({"exams": exams})
 
 
 @app.route("/api/auth/register", methods=["POST"])
@@ -3795,6 +4030,10 @@ def chat():
             f"\n\nSTUDENT LEVEL: Teach for Grade {grade_hint} "
             f"(age-appropriate depth, vocabulary, and examples).\n"
         )
+    try:
+        system_prompt += format_exams_for_prompt(list_upcoming_exams(limit=6))
+    except Exception as e:
+        print(f"[WARN] exam personalization prompt failed: {e}")
 
     # Clean messages (support both 'assistant' and 'ai' roles)
     messages = [
@@ -4727,6 +4966,19 @@ def api_mock_test():
     exam = (data.get("exam") or "CBSE").strip()[:80]
     grade = (data.get("grade") or "Class 10").strip()[:40]
     chapters = (data.get("chapters") or data.get("topics") or "").strip()[:400]
+    # If chapters omitted, personalize from admin exam portion for this subject
+    if not chapters:
+        try:
+            upcoming = list_upcoming_exams(limit=3, subject=subject)
+            if not upcoming:
+                upcoming = list_upcoming_exams(limit=3)
+            for ex in upcoming:
+                portion = (ex.get("portion") or "").strip()
+                if portion:
+                    chapters = portion[:400]
+                    break
+        except Exception as e:
+            print(f"[WARN] mock-test portion lookup failed: {e}")
     difficulty = (data.get("difficulty") or "Pre-boards").strip()[:40]
     size = (data.get("size") or "standard").strip().lower()
     if size not in ("quick", "standard"):
