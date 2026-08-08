@@ -1585,13 +1585,21 @@
       align-items: center;
       flex: 1 1 auto;
       min-width: 0;
-      overflow-x: auto;
-      scrollbar-width: none;
+      overflow: visible;
       padding: 0;
       background: transparent;
       border: none;
     }
-    .feature-tabs::-webkit-scrollbar { display: none; }
+    .feature-tabs-scroll {
+      display: flex;
+      gap: 2px;
+      align-items: center;
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .feature-tabs-scroll::-webkit-scrollbar { display: none; }
 
     .more-tabs-wrap {
       position: relative;
@@ -1623,8 +1631,8 @@
       box-shadow: 0 4px 12px var(--glow-accent);
     }
     .more-tabs-menu {
-      position: absolute;
-      top: calc(100% + 6px);
+      position: fixed;
+      top: 0;
       left: 0;
       min-width: 180px;
       padding: 6px;
@@ -1632,7 +1640,7 @@
       border: 1px solid var(--border);
       background: var(--surface);
       box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-      z-index: 40;
+      z-index: 300;
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -4509,11 +4517,13 @@
       </div>
     </div>
     <nav id="feature-tabs" class="feature-tabs" aria-label="Features">
-      <button class="tab-btn active" data-tab="chat" title="Chat" type="button"><span class="tab-btn-icon" aria-hidden="true">💬</span><span class="tab-btn-label">Chat</span></button>
-      <button class="tab-btn" data-tab="flashcards" title="Flashcards" type="button"><span class="tab-btn-icon" aria-hidden="true">🎯</span><span class="tab-btn-label">Flashcards</span></button>
-      <button class="tab-btn" data-tab="quiz" title="Quiz" type="button"><span class="tab-btn-icon" aria-hidden="true">❓</span><span class="tab-btn-label">Quiz</span></button>
-      <button class="tab-btn" data-tab="planner" title="Planner" type="button"><span class="tab-btn-icon" aria-hidden="true">📅</span><span class="tab-btn-label">Planner</span></button>
-      <button class="tab-btn" data-tab="mock-test" title="Mock Test" type="button"><span class="tab-btn-icon" aria-hidden="true">📝</span><span class="tab-btn-label">Mock Test</span></button>
+      <div class="feature-tabs-scroll">
+        <button class="tab-btn active" data-tab="chat" title="Chat" type="button"><span class="tab-btn-icon" aria-hidden="true">💬</span><span class="tab-btn-label">Chat</span></button>
+        <button class="tab-btn" data-tab="flashcards" title="Flashcards" type="button"><span class="tab-btn-icon" aria-hidden="true">🎯</span><span class="tab-btn-label">Flashcards</span></button>
+        <button class="tab-btn" data-tab="quiz" title="Quiz" type="button"><span class="tab-btn-icon" aria-hidden="true">❓</span><span class="tab-btn-label">Quiz</span></button>
+        <button class="tab-btn" data-tab="planner" title="Planner" type="button"><span class="tab-btn-icon" aria-hidden="true">📅</span><span class="tab-btn-label">Planner</span></button>
+        <button class="tab-btn" data-tab="mock-test" title="Mock Test" type="button"><span class="tab-btn-icon" aria-hidden="true">📝</span><span class="tab-btn-label">Mock Test</span></button>
+      </div>
       <div class="more-tabs-wrap">
         <button type="button" class="more-tabs-btn" id="more-tabs-btn" aria-haspopup="true" aria-expanded="false" aria-controls="more-tabs-menu" title="More features">
           <span aria-hidden="true">⋯</span><span class="more-tabs-label">More</span>
@@ -9941,10 +9951,26 @@
     const moreTabsBtn = document.getElementById("more-tabs-btn");
     const moreTabsMenu = document.getElementById("more-tabs-menu");
 
+    function positionMoreTabsMenu() {
+      if (!moreTabsBtn || !moreTabsMenu) return;
+      const r = moreTabsBtn.getBoundingClientRect();
+      const menuWidth = Math.max(180, moreTabsMenu.offsetWidth || 180);
+      const left = Math.min(Math.max(8, r.left), window.innerWidth - menuWidth - 8);
+      moreTabsMenu.style.top = `${Math.round(r.bottom + 6)}px`;
+      moreTabsMenu.style.left = `${Math.round(left)}px`;
+    }
+
     function setMoreTabsOpen(open) {
       if (!moreTabsBtn || !moreTabsMenu) return;
       moreTabsMenu.hidden = !open;
       moreTabsBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open) {
+        // Keep menu above clipped overflow ancestors
+        if (moreTabsMenu.parentElement !== document.body) {
+          document.body.appendChild(moreTabsMenu);
+        }
+        positionMoreTabsMenu();
+      }
     }
 
     function syncMoreTabsUi() {
@@ -9956,13 +9982,17 @@
 
     if (moreTabsBtn && moreTabsMenu) {
       moreTabsBtn.addEventListener("click", (e) => {
+        e.preventDefault();
         e.stopPropagation();
         setMoreTabsOpen(moreTabsMenu.hidden);
       });
       document.addEventListener("click", (e) => {
-        if (!moreTabsMenu.hidden && !moreTabsMenu.contains(e.target) && e.target !== moreTabsBtn) {
-          setMoreTabsOpen(false);
-        }
+        if (moreTabsMenu.hidden) return;
+        if (e.target.closest("#more-tabs-btn") || e.target.closest("#more-tabs-menu")) return;
+        setMoreTabsOpen(false);
+      });
+      window.addEventListener("resize", () => {
+        if (!moreTabsMenu.hidden) positionMoreTabsMenu();
       });
     }
 
