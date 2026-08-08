@@ -4597,7 +4597,7 @@ def _normalize_mock_question(q: dict, default_type: str, prefix: str, number: in
                 "id": str(sq.get("id") or f"{item['id']}_{j + 1}")[:40],
                 "number": str(
                     sq.get("number")
-                    or (["i", "ii", "iii", "iv"][j] if j < 4 else j + 1)
+                    or (["i", "ii", "iii", "iv", "v"][j] if j < 5 else j + 1)
                 ),
                 "type": st,
                 "question": str(sq.get("question") or "").strip()[:500],
@@ -4615,7 +4615,7 @@ def _normalize_mock_question(q: dict, default_type: str, prefix: str, number: in
             subs.append(sub)
         if len(subs) < 2:
             return {}
-        item["subquestions"] = subs[:4]
+        item["subquestions"] = subs[:5]
         item["marks"] = sum(s["marks"] for s in item["subquestions"])
         return item
 
@@ -4633,6 +4633,82 @@ def _section_qs(by_id: dict, sid: str, allowed_types: tuple, limit: int):
     sec = by_id.get(sid) or {}
     qs = [q for q in sec.get("questions") or [] if q.get("type") in allowed_types]
     return qs[:limit]
+
+
+def _normalize_mock_total_to_tens(sections_out, current_total, target_total, marks_of):
+    """Force paper total marks to a multiple of 10 (prefer target like 50 or 20)."""
+    try:
+        target = int(target_total)
+    except Exception:
+        target = 50
+    target = max(10, int(round(target / 10.0) * 10))
+
+    def _sum():
+        return sum(marks_of(q) for s in sections_out for q in (s.get("questions") or []))
+
+    total = _sum() if current_total is None else int(current_total or 0)
+    if total <= 0:
+        total = _sum()
+    if total == target:
+        return target
+
+    diff = target - total
+    adjustable = []
+    for s in sections_out:
+        for q in s.get("questions") or []:
+            if q.get("type") in ("long", "short"):
+                adjustable.append(q)
+    if not adjustable:
+        for s in sections_out:
+            for q in s.get("questions") or []:
+                if q.get("type") == "case_study":
+                    adjustable.append(q)
+
+    i = 0
+    guard = 0
+    while diff != 0 and adjustable and guard < 200:
+        q = adjustable[i % len(adjustable)]
+        cur = int(q.get("marks") or 1)
+        if q.get("type") == "case_study":
+            subs = q.get("subquestions") or []
+            if not subs:
+                i += 1
+                guard += 1
+                continue
+            sq = subs[-1]
+            sq_marks = int(sq.get("marks") or 1)
+            if diff > 0:
+                sq["marks"] = sq_marks + 1
+                diff -= 1
+            elif sq_marks > 1:
+                sq["marks"] = sq_marks - 1
+                diff += 1
+            else:
+                i += 1
+                guard += 1
+                continue
+            q["marks"] = sum(int(x.get("marks") or 1) for x in subs)
+        else:
+            if diff > 0:
+                q["marks"] = cur + 1
+                diff -= 1
+            elif cur > 1:
+                q["marks"] = cur - 1
+                diff += 1
+            else:
+                i += 1
+                guard += 1
+                continue
+        i += 1
+        guard += 1
+
+    total = _sum()
+    if total == target:
+        return target
+    if total > 0 and total % 10 == 0:
+        return total
+    # Last resort: report designed target (question marks already nudged as far as possible)
+    return target
 
 
 @app.route("/api/mock-test", methods=["POST"])
@@ -4657,26 +4733,32 @@ def api_mock_test():
         size = "standard"
 
     if size == "standard":
+        # Exact 50-mark paper (divisible by 10)
+        target_total_marks = 50
         structure_line = (
-            "FULL PRE-BOARD PAPER with sections A–E:\n"
-            "Section A (id=A): exactly 6 type=mcq (1 mark each) — conceptual + application, slightly harder than midterms.\n"
-            "Section B (id=B): exactly 3 type=assertion_reason (1 mark each) with Assertion, Reason, and the 4 standard codes as options.\n"
-            "Section C (id=C): exactly 3 type=short (3 marks each) — precise Q&A / numerical / explain.\n"
-            "Section D (id=D): exactly 1 type=case_study with a realistic passage/data/experiment and 3–4 subquestions "
-            "(mix of mcq and short, 1 mark each).\n"
-            "Section E (id=E): exactly 2 type=long (5 marks each) — structured answers with marking points.\n"
-            "total_marks around 35–40, duration_minutes=90."
+            "FULL PRE-BOARD PAPER — EXACTLY 50 MARKS (total_marks must be 50):\n"
+            "Section A (id=A): exactly 10 type=mcq (1 mark each) = 10 marks.\n"
+            "Section B (id=B): exactly 5 type=assertion_reason (1 mark each) = 5 marks "
+            "with Assertion, Reason, and the 4 standard codes as options.\n"
+            "Section C (id=C): exactly 5 type=short (3 marks each) = 15 marks.\n"
+            "Section D (id=D): exactly 1 type=case_study with a realistic passage/data/experiment "
+            "and exactly 5 subquestions (mix of mcq and short, 1 mark each) = 5 marks.\n"
+            "Section E (id=E): exactly 3 type=long (5 marks each) = 15 marks.\n"
+            "TOTAL = 10+5+15+5+15 = 50. duration_minutes=90."
         )
         duration_default = 90
     else:
+        # Exact 20-mark drill (divisible by 10)
+        target_total_marks = 20
         structure_line = (
-            "SHORT PRE-BOARD DRILL with sections A–C:\n"
-            "Section A (id=A): exactly 5 type=mcq (1 mark).\n"
-            "Section B (id=B): exactly 2 type=assertion_reason (1 mark).\n"
-            "Section C (id=C): exactly 1 type=case_study with passage + 3 subquestions.\n"
-            "No long answers. total_marks around 12–15, duration_minutes=35."
+            "SHORT PRE-BOARD DRILL — EXACTLY 20 MARKS (total_marks must be 20):\n"
+            "Section A (id=A): exactly 10 type=mcq (1 mark each) = 10 marks.\n"
+            "Section B (id=B): exactly 5 type=assertion_reason (1 mark each) = 5 marks.\n"
+            "Section C (id=C): exactly 1 type=case_study with passage + exactly 5 subquestions "
+            "(1 mark each) = 5 marks.\n"
+            "No long answers. TOTAL = 10+5+5 = 20. duration_minutes=40."
         )
-        duration_default = 35
+        duration_default = 40
 
     chapter_line = (
         f"Focus chapters/topics: {chapters}."
@@ -4758,7 +4840,7 @@ def api_mock_test():
                 {"role": "user", "content": prompt},
             ],
             temperature=0.45,
-            max_tokens=6500,
+            max_tokens=8000,
         )
         raw = (completion.choices[0].message.content or "").strip()
         if not raw:
@@ -4802,11 +4884,26 @@ def api_mock_test():
             return picked[:n]
 
         if size == "quick":
-            a_qs = _section_qs(by_id, "A", ("mcq",), 5) or take(("mcq",), 5)
-            b_qs = _section_qs(by_id, "B", ("assertion_reason",), 2) or take(("assertion_reason",), 2)
+            a_qs = _section_qs(by_id, "A", ("mcq",), 10) or take(("mcq",), 10)
+            b_qs = _section_qs(by_id, "B", ("assertion_reason",), 5) or take(("assertion_reason",), 5)
             d_qs = _section_qs(by_id, "D", ("case_study",), 1) or take(("case_study",), 1)
-            if len(a_qs) < 3:
+            if not d_qs:
+                d_qs = _section_qs(by_id, "C", ("case_study",), 1) or take(("case_study",), 1)
+            if len(a_qs) < 5:
                 return jsonify({"error": "Paper incomplete (need more MCQs). Try again."}), 500
+            # Enforce per-question marks for a clean 20
+            for q in a_qs:
+                q["marks"] = 1
+            for q in b_qs:
+                q["marks"] = 1
+            for q in d_qs:
+                subs = q.get("subquestions") or []
+                for sq in subs:
+                    sq["marks"] = 1
+                # Pad/trim to exactly 5 subquestions when possible
+                if len(subs) > 5:
+                    q["subquestions"] = subs[:5]
+                q["marks"] = sum(int(s.get("marks") or 1) for s in (q.get("subquestions") or []))
             sections_out = []
             if a_qs:
                 sections_out.append({
@@ -4828,13 +4925,28 @@ def api_mock_test():
                 })
             duration = int(payload.get("duration_minutes") or duration_default)
         else:
-            a_qs = _section_qs(by_id, "A", ("mcq",), 6) or take(("mcq",), 6)
-            b_qs = _section_qs(by_id, "B", ("assertion_reason",), 3) or take(("assertion_reason",), 3)
-            c_qs = _section_qs(by_id, "C", ("short",), 3) or take(("short",), 3)
+            a_qs = _section_qs(by_id, "A", ("mcq",), 10) or take(("mcq",), 10)
+            b_qs = _section_qs(by_id, "B", ("assertion_reason",), 5) or take(("assertion_reason",), 5)
+            c_qs = _section_qs(by_id, "C", ("short",), 5) or take(("short",), 5)
             d_qs = _section_qs(by_id, "D", ("case_study",), 1) or take(("case_study",), 1)
-            e_qs = _section_qs(by_id, "E", ("long",), 2) or take(("long",), 2)
-            if len(a_qs) < 4:
+            e_qs = _section_qs(by_id, "E", ("long",), 3) or take(("long",), 3)
+            if len(a_qs) < 6:
                 return jsonify({"error": "Paper incomplete — try generating again."}), 500
+            for q in a_qs:
+                q["marks"] = 1
+            for q in b_qs:
+                q["marks"] = 1
+            for q in c_qs:
+                q["marks"] = 3
+            for q in d_qs:
+                subs = q.get("subquestions") or []
+                for sq in subs:
+                    sq["marks"] = 1
+                if len(subs) > 5:
+                    q["subquestions"] = subs[:5]
+                q["marks"] = sum(int(s.get("marks") or 1) for s in (q.get("subquestions") or []))
+            for q in e_qs:
+                q["marks"] = 5
             sections_out = []
             for sid, title, qs in (
                 ("A", "Section A — Multiple Choice Questions", a_qs),
@@ -4854,6 +4966,10 @@ def api_mock_test():
             return int(q.get("marks") or 1)
 
         total_marks = sum(_marks_of(q) for s in sections_out for q in s["questions"])
+        # Guarantee paper total is divisible by 10 (prefer designed 50 / 20)
+        total_marks = _normalize_mock_total_to_tens(
+            sections_out, total_marks, target_total_marks, _marks_of
+        )
 
         instructions = payload.get("instructions") or []
         if not isinstance(instructions, list):
@@ -4862,6 +4978,7 @@ def api_mock_test():
         if len(instructions) < 4:
             instructions = [
                 "This is a mock test. Read every section carefully.",
+                f"Maximum Marks: {total_marks}.",
                 "Section A & B: write only the option letter (A, B, C or D).",
                 "For Assertion–Reason, use the standard codes given with the options.",
                 "Case Study: read the passage fully before attempting sub-parts.",
@@ -4881,7 +4998,7 @@ def api_mock_test():
             "difficulty": difficulty,
             "size": size,
             "paper_style": "pre-board",
-            "total_marks": int(payload.get("total_marks") or total_marks),
+            "total_marks": int(total_marks),
             "duration_minutes": duration,
             "instructions": instructions,
             "sections": sections_out,

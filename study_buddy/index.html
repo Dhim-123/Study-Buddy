@@ -2241,6 +2241,98 @@
       color: #222;
     }
     .mock-markscheme.show { display: block; }
+    .mock-results {
+      font-family: var(--font-ui);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .mock-results-score {
+      text-align: center;
+      padding: 22px 18px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+    }
+    .mock-results-score .mock-total-label {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 700;
+    }
+    .mock-results-score .mock-total-value {
+      font-size: 2.4rem;
+      font-weight: 800;
+      margin: 6px 0 4px;
+      color: var(--text);
+      line-height: 1.1;
+    }
+    .mock-results-score .mock-total-meta {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .mock-results-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    @media (max-width: 640px) {
+      .mock-results-tabs { grid-template-columns: 1fr; }
+    }
+    .mock-results-section {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background: rgba(255,255,255,0.02);
+      min-height: 120px;
+    }
+    .mock-results-section h4 {
+      margin: 0 0 10px;
+      font-size: 0.95rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .mock-results-section.correct h4 { color: #34d399; }
+    .mock-results-section.incorrect h4 { color: #f87171; }
+    .mock-results-section.skipped h4 { color: #fbbf24; }
+    .mock-results-section .mock-count {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--muted);
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+      padding: 2px 8px;
+    }
+    .mock-result-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      background: rgba(0,0,0,0.15);
+      font-size: 0.9rem;
+    }
+    .mock-result-card:last-child { margin-bottom: 0; }
+    .mock-result-card .mock-result-q {
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+      white-space: pre-wrap;
+    }
+    .mock-result-card .mock-result-line {
+      color: var(--muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+    .mock-result-card .mock-result-line strong { color: var(--text); }
+    .mock-result-empty {
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 8px 2px;
+    }
     .mock-score-banner {
       font-family: var(--font-ui);
       background: #111827;
@@ -5185,7 +5277,7 @@
       </div>
       <div id="mock-test-output"></div>
       <div id="mock-test-actions" style="display:none; margin-top:12px;">
-        <button id="submit-mock-test-btn" class="btn-primary">✅ Submit &amp; show marking scheme</button>
+        <button id="submit-mock-test-btn" class="btn-primary">✅ Submit test</button>
       </div>
     </div>
   </div>
@@ -13100,7 +13192,7 @@
       const submitBtn = document.getElementById("submit-mock-test-btn");
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.textContent = "✅ Submit & show marking scheme";
+        submitBtn.textContent = "✅ Submit test";
       }
     }
 
@@ -13134,73 +13226,162 @@
       return -1;
     }
 
+    function renderMockResultCard(item) {
+      const marksTxt = item.marks != null ? ` [${item.marks} mark${Number(item.marks) === 1 ? "" : "s"}]` : "";
+      const badge = item.badge
+        ? `<div class="mock-result-line"><strong>${escapeHtml(item.badge)}</strong></div>`
+        : "";
+      return `
+        <div class="mock-result-card">
+          <div class="mock-result-q">${escapeHtml(item.number ? `${item.number}. ` : "")}${escapeHtml(item.question || "")}${escapeHtml(marksTxt)}</div>
+          ${badge}
+          ${item.yourAnswer != null ? `<div class="mock-result-line">Your answer: <strong>${escapeHtml(item.yourAnswer || "—")}</strong></div>` : ""}
+          ${item.correctAnswer != null ? `<div class="mock-result-line">Correct answer: <strong>${escapeHtml(item.correctAnswer)}</strong></div>` : ""}
+          ${item.explanation ? `<div class="mock-result-line">${escapeHtml(item.explanation)}</div>` : ""}
+        </div>`;
+    }
+
     function submitMockTest() {
       if (!mockTestState || mockTestState.submitted) return;
       mockTestState.submitted = true;
       const out = document.getElementById("mock-test-output");
-      const paper = document.getElementById("mock-exam-paper");
+      const actions = document.getElementById("mock-test-actions");
       let earned = 0;
       let possible = 0;
       const wrongForVault = [];
-
-      // Disable all inputs
-      out.querySelectorAll(".mock-letter-input, .mock-written-answer").forEach(el => { el.disabled = true; });
+      const correctItems = [];
+      const incorrectItems = [];
+      const skippedItems = [];
 
       mockTestState.questions.forEach(q => {
-        if (q.type === "case_study") return; // scored via subquestions already flattened
-        const qid = String(q.id).replace(/"/g, "");
-        const block = out.querySelector(`.mock-exam-q[data-qid="${qid}"]`);
-        const scheme = block?.querySelector(`.mock-markscheme[data-qid="${qid}"]`) || block?.querySelector(".mock-markscheme");
-        const letterInput = block?.querySelector(".mock-letter-input");
-        const written = block?.querySelector(".mock-written-answer");
+        // Parent case_study shells are scored via flattened subquestions
+        if (q.type === "case_study") return;
+
+        const marks = Number(q.marks) || 1;
+        const num = q.number != null ? String(q.number) : "";
+        const stem = q.type === "assertion_reason"
+          ? `Assertion (A): ${q.assertion || ""}\nReason (R): ${q.reason || ""}`
+          : (q.question || "Question");
 
         if (q.type === "mcq" || q.type === "assertion_reason") {
-          const marks = Number(q.marks) || 1;
           possible += marks;
-          const chosenLetter = mockTestState.answers[q.id] || (letterInput?.value || "");
+          const chosenLetter = String(mockTestState.answers[q.id] || "").trim().toUpperCase();
           const chosenIdx = letterToIndex(chosenLetter);
-          const correct = Number(q.answer_index);
-          const correctLetter = String.fromCharCode(65 + correct);
-          const ok = chosenIdx === correct;
-          if (ok) earned += marks;
-          const stem = q.type === "assertion_reason"
-            ? `A: ${q.assertion || ""}\nR: ${q.reason || ""}`
-            : q.question;
-          if (scheme) {
-            scheme.classList.add("show");
-            scheme.innerHTML = ok
-              ? `<strong>Marking scheme — Correct (+${marks})</strong><div style="margin-top:4px;">Answer: <strong>${correctLetter}</strong> — ${escapeHtml((q.options || [])[correct] || "")}</div><div style="margin-top:4px;">${escapeHtml(q.explanation || "")}</div>`
-              : `<strong>Marking scheme — Incorrect</strong><div style="margin-top:4px;">Your answer: <strong>${escapeHtml(chosenLetter || "—")}</strong></div><div style="margin-top:4px;">Correct: <strong>${correctLetter}</strong> — ${escapeHtml((q.options || [])[correct] || "")}</div><div style="margin-top:4px;">${escapeHtml(q.explanation || "")}</div>`;
+          const correctIdx = Number(q.answer_index);
+          const correctLetter = Number.isFinite(correctIdx)
+            ? String.fromCharCode(65 + correctIdx)
+            : "?";
+          const correctText = `${correctLetter}. ${(q.options || [])[correctIdx] || ""}`.trim();
+          const yourText = chosenLetter
+            ? `${chosenLetter}. ${(q.options || [])[chosenIdx] || ""}`.trim()
+            : "";
+
+          if (!chosenLetter) {
+            skippedItems.push({
+              number: num,
+              question: stem,
+              marks,
+              yourAnswer: "(skipped)",
+              correctAnswer: correctText,
+              explanation: q.explanation || "",
+            });
+            return;
           }
-          if (!ok) {
+
+          const ok = chosenIdx === correctIdx;
+          if (ok) {
+            earned += marks;
+            correctItems.push({
+              number: num,
+              question: stem,
+              marks,
+              yourAnswer: yourText,
+              correctAnswer: correctText,
+              explanation: q.explanation || "",
+              badge: `+${marks}`,
+            });
+          } else {
+            incorrectItems.push({
+              number: num,
+              question: stem,
+              marks,
+              yourAnswer: yourText || chosenLetter,
+              correctAnswer: correctText,
+              explanation: q.explanation || "",
+            });
             wrongForVault.push({
               question: stem,
-              wrong_answer: chosenLetter ? `${chosenLetter}. ${(q.options || [])[chosenIdx] || ""}` : "(blank)",
-              correct_answer: `${correctLetter}. ${(q.options || [])[correct] || ""}`,
+              wrong_answer: yourText || chosenLetter || "(blank)",
+              correct_answer: correctText,
               explanation: q.explanation || "See marking scheme.",
             });
           }
-        } else if (q.type === "short" || q.type === "long") {
-          const student = String(mockTestState.answers[q.id] || written?.value || "").trim();
-          if (scheme) {
-            scheme.classList.add("show");
-            scheme.innerHTML = `
-              <strong>Marking scheme — Self-review (${q.marks || ""} marks)</strong>
-              <div style="margin-top:6px;"><em>Your answer:</em> ${escapeHtml(student || "(blank)")}</div>
-              <div style="margin-top:6px;"><em>Model answer:</em> ${escapeHtml(q.answer || "")}</div>
-              <div style="margin-top:6px;">${escapeHtml(q.explanation || "")}</div>`;
+          return;
+        }
+
+        if (q.type === "short" || q.type === "long") {
+          possible += marks;
+          const student = String(mockTestState.answers[q.id] || "").trim();
+          const model = String(q.answer || "").trim() || "(see explanation)";
+          if (!student) {
+            skippedItems.push({
+              number: num,
+              question: stem,
+              marks,
+              yourAnswer: "(skipped)",
+              correctAnswer: model,
+              explanation: q.explanation || "Written answer — review the model response.",
+              badge: "Written",
+            });
+          } else {
+            // Can't auto-mark prose; put in Incorrect for review with model answer
+            incorrectItems.push({
+              number: num,
+              question: stem,
+              marks,
+              yourAnswer: student,
+              correctAnswer: model,
+              explanation: q.explanation || "Written answer — compare with the model response.",
+              badge: "Self-check (not auto-marked)",
+            });
           }
         }
       });
 
-      const banner = `
-        <div class="mock-score-banner">
-          Objective score (MCQ + Assertion–Reason + case MCQs): ${earned} / ${possible}
-          <span>Short, long, and case written parts are for self-marking using the scheme below.</span>
-        </div>`;
-      if (paper) paper.insertAdjacentHTML("beforebegin", banner);
-      else out.insertAdjacentHTML("afterbegin", banner);
+      const totalMarks = Number(mockTestState.meta.total_marks) || possible || 0;
+      const scoreMax = possible || totalMarks;
+      const pct = scoreMax > 0 ? Math.round((earned / scoreMax) * 100) : 0;
 
+      const sectionHtml = (cls, title, items) => `
+        <div class="mock-results-section ${cls}">
+          <h4>${title}<span class="mock-count">${items.length}</span></h4>
+          ${items.length
+            ? items.map(renderMockResultCard).join("")
+            : `<div class="mock-result-empty">None</div>`}
+        </div>`;
+
+      out.innerHTML = `
+        <div class="mock-results">
+          <div class="mock-results-score">
+            <div class="mock-total-label">Total marks</div>
+            <div class="mock-total-value">${earned} / ${scoreMax}</div>
+            <div class="mock-total-meta">
+              ${escapeHtml(mockTestState.meta.subject || "Mock Test")}
+              · ${pct}%
+              · Paper max ${escapeHtml(String(totalMarks || scoreMax))}
+            </div>
+            <div class="mock-total-meta" style="margin-top:6px;">
+              Correct ${correctItems.length} · Incorrect ${incorrectItems.length} · Skipped ${skippedItems.length}
+            </div>
+          </div>
+          <div class="mock-results-tabs">
+            ${sectionHtml("correct", "✅ Correct", correctItems)}
+            ${sectionHtml("incorrect", "❌ Incorrect", incorrectItems)}
+            ${sectionHtml("skipped", "⏭️ Skipped", skippedItems)}
+          </div>
+        </div>`;
+
+      if (actions) actions.style.display = "none";
       const submitBtn = document.getElementById("submit-mock-test-btn");
       if (submitBtn) {
         submitBtn.disabled = true;
