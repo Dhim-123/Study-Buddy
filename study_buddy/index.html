@@ -10080,7 +10080,7 @@
 
     async function recordQuizOutcome({ questions, userAnswers, topic }) {
       try {
-        if (!window.currentUser?.loggedIn || !questions?.length) return;
+        if (!window.currentUser?.loggedIn || !questions?.length) return 0;
         const subject = inferQuizSubject(topic);
         let correct = 0;
         const wrongItems = [];
@@ -10089,16 +10089,18 @@
           const ua = userAnswers[idx];
           if (ua && ua === parsed.correctAnswer) {
             correct += 1;
-          } else {
-            const wrongOpt =
-              parsed.options.find((o) => o.charAt(0).toUpperCase() === ua) || (ua || "—");
-            wrongItems.push({
-              question: parsed.question || `Quiz question ${idx + 1}`,
-              wrong_answer: String(wrongOpt).slice(0, 500),
-              correct_answer: String(parsed.correctOpt).slice(0, 500),
-              explanation: `Correct answer is ${parsed.correctAnswer}. Review this topic.`,
-            });
+            return;
           }
+          // Only vault answered-wrong items (skip blanks)
+          if (!ua) return;
+          const wrongOpt =
+            parsed.options.find((o) => o.charAt(0).toUpperCase() === ua) || ua;
+          wrongItems.push({
+            question: (parsed.question || `Quiz question ${idx + 1}`).slice(0, 2000),
+            wrong_answer: String(wrongOpt).slice(0, 500),
+            correct_answer: String(parsed.correctOpt || parsed.correctAnswer || "—").slice(0, 500),
+            explanation: `Correct answer is ${parsed.correctAnswer}. Review this topic.`,
+          });
         });
         try {
           await fetch("/api/learning_dna/track", {
@@ -10115,10 +10117,11 @@
             }),
           });
         } catch (_) {}
-        // Cap vault writes so finishing a quiz stays snappy
+
+        let saved = 0;
         for (const item of wrongItems.slice(0, 8)) {
           try {
-            await fetch("/api/mistakes", {
+            const res = await fetch("/api/mistakes", {
               method: "POST",
               credentials: "include",
               headers: { "Content-Type": "application/json" },
@@ -10132,10 +10135,32 @@
                 source_type: "quiz",
               }),
             });
+            if (res.ok) saved += 1;
+            else {
+              const errData = await res.json().catch(() => ({}));
+              console.warn("Mistake vault save failed", res.status, errData);
+            }
+          } catch (err) {
+            console.warn("Mistake vault save error", err);
+          }
+        }
+        if (saved > 0) {
+          try {
+            if (typeof loadMistakeVault === "function") loadMistakeVault();
+          } catch (_) {}
+          try {
+            if (window.SBGame && typeof window.SBGame.toast === "function") {
+              window.SBGame.toast(
+                saved === 1 ? "Saved 1 mistake to Vault" : `Saved ${saved} mistakes to Vault`,
+                "success"
+              );
+            }
           } catch (_) {}
         }
+        return saved;
       } catch (err) {
         console.warn("recordQuizOutcome failed", err);
+        return 0;
       }
     }
 
@@ -10214,7 +10239,9 @@
         submitBtn.replaceWith(scoreDiv);
         try { scoreDiv.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (_) {}
 
-        try { recordQuizOutcome({ questions, userAnswers, topic: topic || "Quiz" }); } catch (_) {}
+        Promise.resolve()
+          .then(() => recordQuizOutcome({ questions, userAnswers, topic: topic || "Quiz" }))
+          .catch(() => {});
         try { if (window.SBGame) window.SBGame.award("quiz"); } catch (_) {}
         try {
           if (window.SBGame && typeof window.SBGame.onStudyPracticeComplete === "function") {
@@ -13173,7 +13200,7 @@
 
     async function fetchMistakes() {
       try {
-        const response = await fetch('/api/mistakes');
+        const response = await fetch('/api/mistakes', { credentials: 'include' });
         if (response.ok) {
           const data = await response.json();
           allMistakes = data.mistakes || [];

@@ -1685,6 +1685,19 @@ def fs_wipe_is_active(user_id):
     return bool(wipe_gen > 0 or wiped_at), wipe_gen, wiped_at, wipe_meta
 
 
+def current_content_wipe_gen(user_id):
+    """
+    Wipe generation to stamp on newly created local content.
+    Must be >= scrub threshold while a wipe is active, otherwise
+    GET /api/mistakes (and similar) deletes the brand-new rows.
+    """
+    active, wipe_gen, _, _ = fs_wipe_is_active(user_id)
+    wg = int(wipe_gen or 0)
+    if active and wg <= 0:
+        return 1
+    return wg
+
+
 def scrub_prewipe_local_content(user_id):
     """
     Delete local chats/notes/mistakes from before the current wipe gen.
@@ -2535,7 +2548,9 @@ def fs_pull_mistakes_into_sqlite(user_id):
             .collection("mistakes")
             .stream()
         )
+        stamp_gen = current_content_wipe_gen(user_id)
         with get_db() as conn:
+            _ensure_local_wipe_gen_columns(conn)
             for doc in docs:
                 data = doc.to_dict() or {}
                 try:
@@ -2560,6 +2575,10 @@ def fs_pull_mistakes_into_sqlite(user_id):
                 wrong_answer = data.get("wrong_answer") or ""
                 mastered = 1 if data.get("mastered") else 0
                 source_type = (data.get("source_type") or "quiz")[:50]
+                try:
+                    row_gen = max(stamp_gen, int(data.get("content_wipe_gen") or 0))
+                except (TypeError, ValueError):
+                    row_gen = stamp_gen
 
                 owned = conn.execute(
                     "SELECT id FROM student_mistakes WHERE id=? AND user_id=?",
@@ -2573,13 +2592,14 @@ def fs_pull_mistakes_into_sqlite(user_id):
                           correct_answer=?, explanation=?, mastered=?,
                           source_type=?,
                           created_at=COALESCE(?, created_at),
-                          mastered_at=?
+                          mastered_at=?,
+                          content_wipe_gen=?
                         WHERE id=? AND user_id=?
                         """,
                         (
                             subject, topic, question, wrong_answer,
                             correct_answer, explanation, mastered,
-                            source_type, created_at, mastered_at,
+                            source_type, created_at, mastered_at, row_gen,
                             mistake_id, user_id,
                         ),
                     )
@@ -2594,13 +2614,14 @@ def fs_pull_mistakes_into_sqlite(user_id):
                         """
                         INSERT INTO student_mistakes
                           (user_id, subject, topic, question, wrong_answer,
-                           correct_answer, explanation, mastered, source_type, mastered_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           correct_answer, explanation, mastered, source_type,
+                           mastered_at, content_wipe_gen)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             user_id, subject, topic, question, wrong_answer,
                             correct_answer, explanation, mastered, source_type,
-                            mastered_at,
+                            mastered_at, row_gen,
                         ),
                     )
                     new_id = cur.lastrowid
@@ -2622,13 +2643,14 @@ def fs_pull_mistakes_into_sqlite(user_id):
                             INSERT INTO student_mistakes
                               (id, user_id, subject, topic, question, wrong_answer,
                                correct_answer, explanation, mastered, source_type,
-                               created_at, mastered_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               created_at, mastered_at, content_wipe_gen)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (
                                 mistake_id, user_id, subject, topic, question,
                                 wrong_answer, correct_answer, explanation,
                                 mastered, source_type, created_at, mastered_at,
+                                row_gen,
                             ),
                         )
                     else:
@@ -2637,13 +2659,13 @@ def fs_pull_mistakes_into_sqlite(user_id):
                             INSERT INTO student_mistakes
                               (id, user_id, subject, topic, question, wrong_answer,
                                correct_answer, explanation, mastered, source_type,
-                               mastered_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               mastered_at, content_wipe_gen)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (
                                 mistake_id, user_id, subject, topic, question,
                                 wrong_answer, correct_answer, explanation,
-                                mastered, source_type, mastered_at,
+                                mastered, source_type, mastered_at, row_gen,
                             ),
                         )
     except Exception as e:
@@ -3390,11 +3412,19 @@ def save_mistake_to_vault(user_id: int, subject: str, topic: str, question: str,
                          source_type: str = "quiz"):
     """Helper function to automatically save mistakes to the vault."""
     try:
+        wipe_gen = current_content_wipe_gen(user_id)
         with get_db() as conn:
+            _ensure_local_wipe_gen_columns(conn)
             cur = conn.execute("""
-                INSERT INTO student_mistakes (user_id, subject, topic, question, wrong_answer, correct_answer, explanation, source_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (user_id, subject, topic, question, wrong_answer, correct_answer, explanation, source_type))
+                INSERT INTO student_mistakes (
+                    user_id, subject, topic, question, wrong_answer, correct_answer,
+                    explanation, source_type, content_wipe_gen
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                user_id, subject, topic, question, wrong_answer, correct_answer,
+                explanation, source_type, wipe_gen,
+            ))
             row = conn.execute(
                 "SELECT * FROM student_mistakes WHERE id=?", (cur.lastrowid,)
             ).fetchone()
@@ -7660,10 +7690,18 @@ def track_learning_dna():
 
         if mistake_text:
             # Use the new enhanced mistakes format
+            _ensure_local_wipe_gen_columns(conn)
+            mist_wipe_gen = current_content_wipe_gen(uid)
             cur = conn.execute("""
-                INSERT INTO student_mistakes (user_id, subject, topic, question, wrong_answer, correct_answer, explanation, source_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (uid, subject, 'General', 'Legacy mistake entry', 'Unknown', 'See explanation', mistake_text[:500], 'learning_dna'))
+                INSERT INTO student_mistakes (
+                    user_id, subject, topic, question, wrong_answer, correct_answer,
+                    explanation, source_type, content_wipe_gen
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                uid, subject, 'General', 'Legacy mistake entry', 'Unknown',
+                'See explanation', mistake_text[:500], 'learning_dna', mist_wipe_gen,
+            ))
             mist_row = conn.execute(
                 "SELECT * FROM student_mistakes WHERE id=?", (cur.lastrowid,)
             ).fetchone()
@@ -7738,22 +7776,30 @@ def add_mistake():
         return err
 
     data = request.get_json(force=True) or {}
-    subject = (data.get("subject") or "General").strip()
-    topic = (data.get("topic") or "General").strip()
+    subject = (data.get("subject") or "General").strip() or "General"
+    topic = (data.get("topic") or "General").strip() or "General"
     question = (data.get("question") or "").strip()
-    wrong_answer = (data.get("wrong_answer") or "").strip()
+    wrong_answer = (data.get("wrong_answer") or "").strip() or "—"
     correct_answer = (data.get("correct_answer") or "").strip()
-    explanation = (data.get("explanation") or "").strip()
-    source_type = (data.get("source_type") or "manual").strip()
+    explanation = (data.get("explanation") or "").strip() or "Review the correct answer."
+    source_type = (data.get("source_type") or "manual").strip() or "manual"
+    wipe_gen = current_content_wipe_gen(user["id"])
 
-    if not question or not correct_answer or not explanation:
-        return jsonify({"error": "Question, correct answer, and explanation are required."}), 400
+    if not question or not correct_answer:
+        return jsonify({"error": "Question and correct answer are required."}), 400
 
     with get_db() as conn:
+        _ensure_local_wipe_gen_columns(conn)
         cur = conn.execute("""
-            INSERT INTO student_mistakes (user_id, subject, topic, question, wrong_answer, correct_answer, explanation, source_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (user["id"], subject, topic, question, wrong_answer, correct_answer, explanation, source_type))
+            INSERT INTO student_mistakes (
+                user_id, subject, topic, question, wrong_answer, correct_answer,
+                explanation, source_type, content_wipe_gen
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            user["id"], subject, topic, question, wrong_answer, correct_answer,
+            explanation, source_type, wipe_gen,
+        ))
         
         mistake_id = cur.lastrowid
         row = conn.execute("SELECT * FROM student_mistakes WHERE id=?", (mistake_id,)).fetchone()
