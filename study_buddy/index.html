@@ -1645,7 +1645,11 @@
       flex-direction: column;
       gap: 2px;
     }
-    .more-tabs-menu[hidden] { display: none !important; }
+    .more-tabs-menu[hidden] {
+      display: none !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
+    }
     .more-tabs-menu .tab-btn {
       justify-content: flex-start;
       width: 100%;
@@ -9071,77 +9075,8 @@
     function generateQuizFromResponse(responseText) {
       const output = document.getElementById("quiz-output");
       if (!output || !responseText) return;
-
       try {
-        // Parse quiz questions from AI response
-        const questions = responseText.split(/(?=Q\d+:)/i).filter(q => q.trim());
-        output.innerHTML = "";
-
-        if (questions.length === 0) {
-          output.innerHTML = `<div style="color: var(--muted); text-align: center; padding: 40px;">No quiz questions found in response.</div>`;
-          return;
-        }
-
-        questions.forEach((question, idx) => {
-          const lines = question.split("\n").map(l => l.trim()).filter(l => l);
-          if (lines.length === 0) return;
-
-          const qLine = lines.find(l => l.match(/^Q\d+:/i)) || lines[0];
-          const q = qLine.replace(/^Q\d+:\s*/i, "").trim();
-          
-          const options = lines.filter(l => l.match(/^[A-D]\)/i));
-          const answerLine = lines.find(l => l.match(/^Answer:\s*[A-D]/i));
-          const correctAnswer = answerLine ? answerLine.replace(/^Answer:\s*/i, "").trim() : "";
-
-          if (q && options.length >= 2) {
-            const container = document.createElement("div");
-            container.className = "quiz-card";
-            container.innerHTML = `
-              <div class="quiz-question">${q}</div>
-              <div class="quiz-options">
-                ${options.map(opt => `
-                  <div class="quiz-option" data-option="${opt.charAt(0)}">
-                    ${opt}
-                  </div>
-                `).join('')}
-              </div>
-              <div class="quiz-feedback" style="display: none; margin-top: 10px; padding: 10px; border-radius: 4px;"></div>
-            `;
-
-            // Add click handlers for options
-            container.querySelectorAll('.quiz-option').forEach(opt => {
-              opt.addEventListener('click', function() {
-                // Clear previous selections
-                container.querySelectorAll('.quiz-option').forEach(o => o.classList.remove('selected', 'correct', 'incorrect'));
-                
-                // Mark this option as selected
-                this.classList.add('selected');
-                
-                const feedback = container.querySelector('.quiz-feedback');
-                const selectedLetter = this.dataset.option;
-                
-                if (selectedLetter === correctAnswer) {
-                  this.classList.add('correct');
-                  feedback.innerHTML = "✅ Correct!";
-                  feedback.style.backgroundColor = "rgba(34, 197, 94, 0.1)";
-                  feedback.style.color = "var(--accent3)";
-                } else {
-                  this.classList.add('incorrect');
-                  // Also highlight correct answer
-                  const correctOpt = container.querySelector(`[data-option="${correctAnswer}"]`);
-                  if (correctOpt) correctOpt.classList.add('correct');
-                  
-                  feedback.innerHTML = `❌ Incorrect. The correct answer is ${correctAnswer}.`;
-                  feedback.style.backgroundColor = "rgba(244, 63, 94, 0.1)";
-                  feedback.style.color = "#f43f5e";
-                }
-                feedback.style.display = "block";
-              });
-            });
-
-            output.appendChild(container);
-          }
-        });
+        renderInteractiveQuiz(output, responseText, "Quiz");
       } catch (error) {
         console.error("Error generating quiz:", error);
         output.innerHTML = `<div style="color: var(--accent2); text-align: center; padding: 40px;">Error generating quiz: ${error.message}</div>`;
@@ -9927,7 +9862,7 @@
     //   & becomes &amp;
 
     function escapeHtml(str) {
-      return str
+      return String(str ?? "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
@@ -10144,59 +10079,150 @@
     }
 
     async function recordQuizOutcome({ questions, userAnswers, topic }) {
-      if (!currentUser?.loggedIn || !questions?.length) return;
-      const subject = inferQuizSubject(topic);
-      let correct = 0;
-      const wrongItems = [];
-      questions.forEach((qBlock, idx) => {
-        const parsed = parseQuizQuestionBlock(qBlock);
-        const ua = userAnswers[idx];
-        if (ua && ua === parsed.correctAnswer) {
-          correct += 1;
-        } else {
-          const wrongOpt =
-            parsed.options.find((o) => o.charAt(0).toUpperCase() === ua) || (ua || "—");
-          wrongItems.push({
-            question: parsed.question || `Quiz question ${idx + 1}`,
-            wrong_answer: String(wrongOpt).slice(0, 500),
-            correct_answer: String(parsed.correctOpt).slice(0, 500),
-            explanation: `Correct answer is ${parsed.correctAnswer}. Review this topic.`,
-          });
-        }
-      });
       try {
-        await fetch("/api/learning_dna/track", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            subject,
-            quizResult: {
-              questionsTaken: questions.length,
-              questionsCorrect: correct,
-              subject,
-            },
-          }),
+        if (!window.currentUser?.loggedIn || !questions?.length) return;
+        const subject = inferQuizSubject(topic);
+        let correct = 0;
+        const wrongItems = [];
+        questions.forEach((qBlock, idx) => {
+          const parsed = parseQuizQuestionBlock(qBlock);
+          const ua = userAnswers[idx];
+          if (ua && ua === parsed.correctAnswer) {
+            correct += 1;
+          } else {
+            const wrongOpt =
+              parsed.options.find((o) => o.charAt(0).toUpperCase() === ua) || (ua || "—");
+            wrongItems.push({
+              question: parsed.question || `Quiz question ${idx + 1}`,
+              wrong_answer: String(wrongOpt).slice(0, 500),
+              correct_answer: String(parsed.correctOpt).slice(0, 500),
+              explanation: `Correct answer is ${parsed.correctAnswer}. Review this topic.`,
+            });
+          }
         });
-      } catch (_) {}
-      for (const item of wrongItems) {
         try {
-          await fetch("/api/mistakes", {
+          await fetch("/api/learning_dna/track", {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               subject,
-              topic: String(topic || "Quiz").trim().slice(0, 80) || "Quiz",
-              question: item.question,
-              wrong_answer: item.wrong_answer,
-              correct_answer: item.correct_answer,
-              explanation: item.explanation,
-              source_type: "quiz",
+              quizResult: {
+                questionsTaken: questions.length,
+                questionsCorrect: correct,
+                subject,
+              },
             }),
           });
         } catch (_) {}
+        // Cap vault writes so finishing a quiz stays snappy
+        for (const item of wrongItems.slice(0, 8)) {
+          try {
+            await fetch("/api/mistakes", {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                subject,
+                topic: String(topic || "Quiz").trim().slice(0, 80) || "Quiz",
+                question: item.question,
+                wrong_answer: item.wrong_answer,
+                correct_answer: item.correct_answer,
+                explanation: item.explanation,
+                source_type: "quiz",
+              }),
+            });
+          } catch (_) {}
+        }
+      } catch (err) {
+        console.warn("recordQuizOutcome failed", err);
       }
+    }
+
+    function renderInteractiveQuiz(output, quizText, topic) {
+      if (!output) return;
+      const questions = String(quizText || "").split(/(?=Q\d+:)/i).filter((q) => q.trim());
+      output.innerHTML = "";
+      output.dataset.quizFinished = "0";
+      if (!questions.length) {
+        output.innerHTML = `<div style="color: var(--accent2);">Could not parse quiz questions. Try generating again.</div>`;
+        return;
+      }
+
+      const userAnswers = [];
+      questions.forEach((qBlock, qIdx) => {
+        const parsed = parseQuizQuestionBlock(qBlock);
+        const qDiv = document.createElement("div");
+        qDiv.className = "quiz-question";
+        const title = document.createElement("div");
+        title.className = "quiz-question-text";
+        title.textContent = parsed.question
+          ? `Q${qIdx + 1}: ${parsed.question}`
+          : `Q${qIdx + 1}`;
+        const optionsDiv = document.createElement("div");
+        optionsDiv.className = "quiz-options";
+        (parsed.options || []).forEach((opt) => {
+          const letter = String(opt).charAt(0).toUpperCase();
+          const optBtn = document.createElement("button");
+          optBtn.type = "button";
+          optBtn.className = "quiz-option";
+          optBtn.textContent = String(opt);
+          optBtn.addEventListener("click", () => {
+            if (output.dataset.quizFinished === "1") return;
+            optionsDiv.querySelectorAll(".quiz-option").forEach((b) => b.classList.remove("selected"));
+            optBtn.classList.add("selected");
+            userAnswers[qIdx] = letter;
+          });
+          optionsDiv.appendChild(optBtn);
+        });
+        qDiv.appendChild(title);
+        qDiv.appendChild(optionsDiv);
+        output.appendChild(qDiv);
+      });
+
+      const submitBtn = document.createElement("button");
+      submitBtn.type = "button";
+      submitBtn.className = "btn-primary";
+      submitBtn.textContent = "See Score";
+      submitBtn.style.marginTop = "20px";
+      submitBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (output.dataset.quizFinished === "1") return;
+        output.dataset.quizFinished = "1";
+        submitBtn.disabled = true;
+
+        let correct = 0;
+        questions.forEach((qBlock, idx) => {
+          const parsed = parseQuizQuestionBlock(qBlock);
+          const qDiv = output.querySelectorAll(".quiz-question")[idx];
+          if (userAnswers[idx] === parsed.correctAnswer) correct += 1;
+          if (!qDiv) return;
+          qDiv.querySelectorAll(".quiz-option").forEach((btn) => {
+            const letter = String(btn.textContent || "").charAt(0).toUpperCase();
+            btn.disabled = true;
+            if (letter === parsed.correctAnswer) btn.classList.add("correct");
+            else if (userAnswers[idx] && letter === userAnswers[idx]) btn.classList.add("incorrect");
+          });
+        });
+
+        const total = questions.length || 1;
+        const percentage = Math.round((correct / total) * 100);
+        const scoreDiv = document.createElement("div");
+        scoreDiv.className = "quiz-score";
+        scoreDiv.textContent = `Score: ${correct}/${questions.length} (${percentage}%)`;
+        submitBtn.replaceWith(scoreDiv);
+        try { scoreDiv.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (_) {}
+
+        try { recordQuizOutcome({ questions, userAnswers, topic: topic || "Quiz" }); } catch (_) {}
+        try { if (window.SBGame) window.SBGame.award("quiz"); } catch (_) {}
+        try {
+          if (window.SBGame && typeof window.SBGame.onStudyPracticeComplete === "function") {
+            window.SBGame.onStudyPracticeComplete("quiz");
+          }
+        } catch (_) {}
+      });
+      output.appendChild(submitBtn);
     }
 
     function buildMessagesWithPrompt(prompt, options = {}) {
@@ -10643,79 +10669,8 @@
           return;
         }
 
-        // Reuse the existing quiz rendering by setting the reply and parsing
-        const quizText = data.reply;
-        const questions = quizText.split(/(?=Q\d+:)/i).filter(q => q.trim());
-
-        output.innerHTML = "";
-        const userAnswers = [];
-
-        questions.forEach((qBlock, qIdx) => {
-          const qDiv = document.createElement("div");
-          qDiv.className = "quiz-question";
-          const lines = qBlock.split("\n").map(l => l.trim()).filter(l => l);
-          const qText = lines[0];
-          const options = lines.filter(l => /^[A-D]\)/.test(l));
-          const answerLine = lines.find(l => l.match(/^Answer:/i));
-          const correctAnswer = answerLine ? answerLine.replace(/^Answer:\s*/i, "").trim().charAt(0).toUpperCase() : "A";
-
-          qDiv.innerHTML = `<div class="quiz-question-text">${escapeHtml(qText)}</div><div class="quiz-options"></div>`;
-          const optionsDiv = qDiv.querySelector(".quiz-options");
-
-          options.forEach(opt => {
-            const letter = opt.charAt(0);
-            const optDiv = document.createElement("button");
-            optDiv.className = "quiz-option";
-            optDiv.textContent = escapeHtml(opt);
-            optDiv.addEventListener("click", () => {
-              const prevSelected = optionsDiv.querySelector(".quiz-option.selected");
-              if (prevSelected) prevSelected.classList.remove("selected");
-              optDiv.classList.add("selected");
-              userAnswers[qIdx] = letter;
-              setTimeout(() => {
-                optionsDiv.querySelectorAll(".quiz-option").forEach((optEl) => {
-                  const optLetter = optEl.textContent.charAt(0);
-                  if (optLetter === correctAnswer) optEl.classList.add("correct");
-                  else if (optEl === optDiv && optLetter !== correctAnswer) optEl.classList.add("incorrect");
-                });
-              }, 200);
-            });
-            optionsDiv.appendChild(optDiv);
-          });
-
-          output.appendChild(qDiv);
-        });
-
-        const submitBtn = document.createElement("button");
-        submitBtn.className = "btn-primary";
-        submitBtn.textContent = "📊 See Score";
-        submitBtn.style.marginTop = "20px";
-        submitBtn.addEventListener("click", () => {
-          let correct = 0;
-          questions.forEach((qBlock, idx) => {
-            const lines = qBlock.split("\n").map(l => l.trim()).filter(l => l);
-            const answerLine = lines.find(l => l.match(/^Answer:/i));
-            const correctAnswer = answerLine ? answerLine.replace(/^Answer:\s*/i, "").trim().charAt(0).toUpperCase() : "A";
-            if (userAnswers[idx] === correctAnswer) correct++;
-          });
-          const percentage = Math.round((correct / questions.length) * 100);
-          const scoreDiv = document.createElement("div");
-          scoreDiv.className = "quiz-score";
-          scoreDiv.textContent = `🎉 Score: ${correct}/${questions.length} (${percentage}%)`;
-          output.appendChild(scoreDiv);
-          submitBtn.style.display = "none";
-          try {
-            recordQuizOutcome({ questions, userAnswers, topic: topic || "Quiz" });
-          } catch (_) {}
-        });
-        output.appendChild(submitBtn);
+        renderInteractiveQuiz(output, data.reply, topic || "Quiz");
         appendChatSources(output, data.sources);
-        try { if (window.SBGame) window.SBGame.award("quiz"); } catch (_) {}
-        try {
-          if (window.SBGame && typeof window.SBGame.onStudyPracticeComplete === "function") {
-            window.SBGame.onStudyPracticeComplete("quiz");
-          }
-        } catch (_) {}
       } catch (err) {
         output.innerHTML = `<div style="color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
@@ -10838,96 +10793,8 @@
           return;
         }
 
-        const quizText = data.reply;
-        const questions = quizText.split(/(?=Q\d+:)/i).filter(q => q.trim());
-
-        output.innerHTML = "";
-        let score = 0;
-        const userAnswers = [];
-
-        questions.forEach((qBlock, qIdx) => {
-          const qDiv = document.createElement("div");
-          qDiv.className = "quiz-question";
-
-          const lines = qBlock.split("\n").map(l => l.trim()).filter(l => l);
-          const qText = lines[0];
-          const options = lines.filter(l => /^[A-D]\)/.test(l));
-          const answerLine = lines.find(l => l.match(/^Answer:/i));
-          const correctAnswer = answerLine ? answerLine.replace(/^Answer:\s*/i, "").trim().charAt(0).toUpperCase() : "A";
-
-          qDiv.innerHTML = `<div class="quiz-question-text">${escapeHtml(qText)}</div><div class="quiz-options"></div>`;
-
-          const optionsDiv = qDiv.querySelector(".quiz-options");
-
-          options.forEach(opt => {
-            const letter = opt.charAt(0);
-            const optDiv = document.createElement("button");
-            optDiv.className = "quiz-option";
-            optDiv.textContent = escapeHtml(opt);
-
-            optDiv.addEventListener("click", () => {
-              // Remove previously selected option
-              const prevSelected = optionsDiv.querySelector(".quiz-option.selected");
-              if (prevSelected) prevSelected.classList.remove("selected");
-
-              optDiv.classList.add("selected");
-              userAnswers[qIdx] = letter;
-
-              // Show correct/incorrect
-              setTimeout(() => {
-                optionsDiv.querySelectorAll(".quiz-option").forEach((opt, idx) => {
-                  const optLetter = opt.textContent.charAt(0);
-                  if (optLetter === correctAnswer) {
-                    opt.classList.add("correct");
-                  } else if (optDiv === opt && optLetter !== correctAnswer) {
-                    opt.classList.add("incorrect");
-                  }
-                });
-              }, 200);
-            });
-
-            optionsDiv.appendChild(optDiv);
-          });
-
-          output.appendChild(qDiv);
-        });
-
-        // Add submit button
-        const submitBtn = document.createElement("button");
-        submitBtn.className = "btn-primary";
-        submitBtn.textContent = "📊 See Score";
-        submitBtn.style.marginTop = "20px";
-
-        submitBtn.addEventListener("click", () => {
-          let correct = 0;
-          questions.forEach((qBlock, idx) => {
-            const lines = qBlock.split("\n").map(l => l.trim()).filter(l => l);
-            const answerLine = lines.find(l => l.match(/^Answer:/i));
-            const correctAnswer = answerLine ? answerLine.replace(/^Answer:\s*/i, "").trim().charAt(0).toUpperCase() : "A";
-
-            if (userAnswers[idx] === correctAnswer) correct++;
-          });
-
-          const percentage = Math.round((correct / questions.length) * 100);
-          const scoreDiv = document.createElement("div");
-          scoreDiv.className = "quiz-score";
-          scoreDiv.textContent = `🎉 Score: ${correct}/${questions.length} (${percentage}%)`;
-
-          output.appendChild(scoreDiv);
-          submitBtn.style.display = "none";
-          try {
-            recordQuizOutcome({ questions, userAnswers, topic: rawInput || "Quiz" });
-          } catch (_) {}
-        });
-
-        output.appendChild(submitBtn);
+        renderInteractiveQuiz(output, data.reply, rawInput || "Quiz");
         appendChatSources(output, data.sources);
-        try { if (window.SBGame) window.SBGame.award("quiz"); } catch (_) {}
-        try {
-          if (window.SBGame && typeof window.SBGame.onStudyPracticeComplete === "function") {
-            window.SBGame.onStudyPracticeComplete("quiz");
-          }
-        } catch (_) {}
       } catch (err) {
         output.innerHTML = `<div style="color: var(--accent2);">❌ Network error: ${err.message}</div>`;
       }
