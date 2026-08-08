@@ -797,6 +797,19 @@
     return ranked.slice(0, 2);
   }
 
+  function studyTodayBuddyLine(tasks) {
+    const buddy = String(window.currentUser?.buddyName || "Max").trim() || "Max";
+    const open = (tasks || []).filter((t) => !t.done);
+    if (!open.length) return "";
+    if (open.some((t) => t.source === "weakness_auto")) {
+      return `${escapePlannerHtml(buddy)} picked this for you — focus on a weak area.`;
+    }
+    if (open.some((t) => t.source === "exam_auto")) {
+      return `${escapePlannerHtml(buddy)} picked this for you — exam prep.`;
+    }
+    return `${escapePlannerHtml(buddy)} lined these up for today.`;
+  }
+
   function renderStudyToday(tasks) {
     const banner = document.getElementById("study-today-banner");
     if (!banner) return;
@@ -806,6 +819,7 @@
       return;
     }
     const top = pickStudyTodayTasks(tasks);
+    const buddyLine = studyTodayBuddyLine(tasks);
     if (!top.length) {
       banner.innerHTML = `<strong>Study today</strong>
         <div class="settings-hint" style="margin:0;">No open tasks yet.
@@ -818,6 +832,7 @@
     }
     banner.innerHTML =
       `<strong>Study today</strong>` +
+      (buddyLine ? `<div class="settings-hint" style="margin:0 0 8px;">${buddyLine}</div>` : "") +
       top
         .map(
           (t) => `<div class="study-today-item">

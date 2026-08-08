@@ -6087,6 +6087,18 @@
         const username = (currentUser.identifier || "").trim() || "friend";
         welcomeTitle.textContent = `Welcome, ${username}! I'm ${buddyName}.`;
         welcomeDesc.textContent = "What would you like to learn today?";
+        // Soft personalization from Learning DNA (weakest subject)
+        fetch("/api/learning_dna", { credentials: "include" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((dna) => {
+            if (!dna || !welcomeDesc || !currentUser?.loggedIn) return;
+            const weak = (dna.weakestSubjects || [])[0];
+            const subj = (weak && (weak.subject || weak.name || "")).toString().trim();
+            if (subj && subj.toLowerCase() !== "general") {
+              welcomeDesc.textContent = `${buddyName} thinks a little ${subj} practice would help today. What would you like to learn?`;
+            }
+          })
+          .catch(() => {});
       }
 
       const tips = document.getElementById("onboard-tips");
@@ -10103,6 +10115,90 @@
       return `Create a 5-question multiple choice quiz in English about "${t}" only. Do not use or continue any prior chat topics. Ignore anything unrelated to "${t}".`;
     }
 
+    function inferQuizSubject(topic) {
+      const t = String(topic || "").toLowerCase();
+      const pairs = [
+        ["physics", "Physics"], ["chemistry", "Chemistry"], ["biology", "Biology"],
+        ["math", "Math"], ["algebra", "Math"], ["geometry", "Math"], ["calculus", "Math"],
+        ["english", "English"], ["grammar", "English"], ["history", "History"],
+        ["geography", "Geo"], ["hindi", "Hindi"], ["science", "Science"], ["civics", "Civics"],
+      ];
+      for (const [key, label] of pairs) {
+        if (t.includes(key)) return label;
+      }
+      const cleaned = String(topic || "").trim().replace(/\s+/g, " ").slice(0, 40);
+      return cleaned || "General";
+    }
+
+    function parseQuizQuestionBlock(qBlock) {
+      const lines = String(qBlock || "").split("\n").map((l) => l.trim()).filter(Boolean);
+      const qLine = lines.find((l) => /^Q\d+:/i.test(l)) || lines[0] || "";
+      const question = qLine.replace(/^Q\d+:\s*/i, "").trim();
+      const options = lines.filter((l) => /^[A-D]\)/.test(l));
+      const answerLine = lines.find((l) => /^Answer:/i.test(l));
+      const correctAnswer = answerLine
+        ? answerLine.replace(/^Answer:\s*/i, "").trim().charAt(0).toUpperCase()
+        : "A";
+      const correctOpt = options.find((o) => o.charAt(0).toUpperCase() === correctAnswer) || correctAnswer;
+      return { question, options, correctAnswer, correctOpt };
+    }
+
+    async function recordQuizOutcome({ questions, userAnswers, topic }) {
+      if (!currentUser?.loggedIn || !questions?.length) return;
+      const subject = inferQuizSubject(topic);
+      let correct = 0;
+      const wrongItems = [];
+      questions.forEach((qBlock, idx) => {
+        const parsed = parseQuizQuestionBlock(qBlock);
+        const ua = userAnswers[idx];
+        if (ua && ua === parsed.correctAnswer) {
+          correct += 1;
+        } else {
+          const wrongOpt =
+            parsed.options.find((o) => o.charAt(0).toUpperCase() === ua) || (ua || "—");
+          wrongItems.push({
+            question: parsed.question || `Quiz question ${idx + 1}`,
+            wrong_answer: String(wrongOpt).slice(0, 500),
+            correct_answer: String(parsed.correctOpt).slice(0, 500),
+            explanation: `Correct answer is ${parsed.correctAnswer}. Review this topic.`,
+          });
+        }
+      });
+      try {
+        await fetch("/api/learning_dna/track", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subject,
+            quizResult: {
+              questionsTaken: questions.length,
+              questionsCorrect: correct,
+              subject,
+            },
+          }),
+        });
+      } catch (_) {}
+      for (const item of wrongItems) {
+        try {
+          await fetch("/api/mistakes", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              subject,
+              topic: String(topic || "Quiz").trim().slice(0, 80) || "Quiz",
+              question: item.question,
+              wrong_answer: item.wrong_answer,
+              correct_answer: item.correct_answer,
+              explanation: item.explanation,
+              source_type: "quiz",
+            }),
+          });
+        } catch (_) {}
+      }
+    }
+
     function buildMessagesWithPrompt(prompt, options = {}) {
       const cleaned = (prompt || "").trim();
       const includeHistory = options.includeHistory !== false;
@@ -10608,6 +10704,9 @@
           scoreDiv.textContent = `🎉 Score: ${correct}/${questions.length} (${percentage}%)`;
           output.appendChild(scoreDiv);
           submitBtn.style.display = "none";
+          try {
+            recordQuizOutcome({ questions, userAnswers, topic: topic || "Quiz" });
+          } catch (_) {}
         });
         output.appendChild(submitBtn);
         appendChatSources(output, data.sources);
@@ -10816,6 +10915,9 @@
 
           output.appendChild(scoreDiv);
           submitBtn.style.display = "none";
+          try {
+            recordQuizOutcome({ questions, userAnswers, topic: rawInput || "Quiz" });
+          } catch (_) {}
         });
 
         output.appendChild(submitBtn);

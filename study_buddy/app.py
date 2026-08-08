@@ -696,7 +696,10 @@ SYSTEM_PROMPT = os.getenv(
     "Teach clearly at the student's grade level. Prefer short, structured explanations, "
     "worked examples, and checks for understanding over long lectures. "
     "When a syllabus/board is implied (CBSE/ICSE/IB), stay aligned with typical school topics "
-    "for that level — do not invent board-official papers or claim official mark schemes."
+    "for that level — do not invent board-official papers or claim official mark schemes. "
+    "After a hard explanation, ask one short check-for-understanding question. "
+    "If the student seems stuck, prefer a hint before dumping the full answer. "
+    "When the topic matches a known misconception from their recent mistakes, briefly warn about it."
 )
 
 # Minor-safe rails (always appended for generative study endpoints)
@@ -3299,6 +3302,72 @@ def format_exams_for_prompt(exams):
     return "\n".join(lines)
 
 
+def format_student_context_for_prompt(user_id):
+    """Compact personalization: buddy, style, weak subjects, recent mistakes."""
+    if not user_id:
+        return ""
+    try:
+        with get_db() as conn:
+            urow = conn.execute(
+                "SELECT buddy_name FROM users WHERE id=?", (user_id,)
+            ).fetchone()
+            buddy = ((urow["buddy_name"] if urow else None) or "Max").strip() or "Max"
+            profile = get_or_create_learning_dna(conn, user_id)
+            style = (profile.get("preferred_style") or "Step-by-Step").strip() or "Step-by-Step"
+            mistakes = conn.execute(
+                """
+                SELECT subject, topic, question, wrong_answer, correct_answer
+                FROM student_mistakes
+                WHERE user_id=? AND COALESCE(mastered, 0)=0
+                ORDER BY created_at DESC
+                LIMIT 5
+                """,
+                (user_id,),
+            ).fetchall()
+        weakest = get_weakest_subjects_for_user(user_id, limit=3)
+
+        lines = [
+            "\n\nPERSONAL TUTOR CONTEXT:",
+            f"- You are {buddy}, this student's study buddy. Be warm and personal, but stay focused on learning.",
+            f"- Preferred explanation style: {style}.",
+        ]
+        if weakest:
+            bits = []
+            for w in weakest:
+                subj = (w.get("subject") or "").strip()
+                if not subj:
+                    continue
+                bit = f"{subj} (~{float(w.get('accuracy') or 0):.0f}% accuracy)"
+                om = int(w.get("open_mistakes") or 0)
+                if om:
+                    bit += f", {om} open mistakes"
+                bits.append(bit)
+            if bits:
+                lines.append(
+                    "- Reinforce these focus subjects when relevant: " + "; ".join(bits) + "."
+                )
+        if mistakes:
+            lines.append(
+                "- Recent unmastered mistakes (mention gently only when the topic matches; "
+                "do not dump this whole list):"
+            )
+            for m in mistakes:
+                q = (m["question"] or "")[:120].replace("\n", " ")
+                wrong = (m["wrong_answer"] or "")[:60].replace("\n", " ")
+                right = (m["correct_answer"] or "")[:60].replace("\n", " ")
+                subj = (m["subject"] or "General")[:40]
+                topic = (m["topic"] or "General")[:40]
+                lines.append(f"  • [{subj}/{topic}] Q: {q} | Wrong: {wrong} | Right: {right}")
+        lines.append(
+            "- After hard explanations, ask one short check-for-understanding question. "
+            "If stuck, hint first. Reuse known mistakes when the topic matches.\n"
+        )
+        return "\n".join(lines)
+    except Exception as e:
+        print(f"[WARN] student context prompt failed: {e}")
+        return ""
+
+
 def resolve_session_user_id():
     """Return a valid users.id from the session, or None.
 
@@ -4758,6 +4827,7 @@ def chat():
             system_prompt += format_exams_for_prompt(
                 list_upcoming_exams_for_user(uid, limit=8)
             )
+            system_prompt += format_student_context_for_prompt(uid)
         else:
             system_prompt += format_exams_for_prompt(list_upcoming_exams(limit=6))
     except Exception as e:
