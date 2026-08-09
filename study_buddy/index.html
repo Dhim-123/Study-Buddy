@@ -2261,14 +2261,35 @@
       }
       .msg {
         max-width: 100%;
-        gap: 8px;
-        padding-left: 6px;
-        padding-right: 6px;
+        gap: 10px;
+        padding-left: 4px;
+        padding-right: 4px;
+        box-sizing: border-box;
       }
       .msg .avatar {
         width: 30px;
         height: 30px;
         font-size: 0.95rem;
+      }
+      .msg .bubble {
+        max-width: calc(100% - 40px);
+        min-width: 0;
+      }
+      .ai-nb-suggestion {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .ai-nb-suggestion > span {
+        min-width: 0;
+        line-height: 1.4;
+      }
+      .ai-nb-suggestion-actions {
+        flex-wrap: wrap;
+        width: 100%;
+      }
+      .ai-nb-suggestion-actions .ce-btn-sm {
+        flex: 1 1 auto;
       }
       #welcome {
         padding: 20px 14px 24px;
@@ -2319,12 +2340,15 @@
         transform: translateX(0);
       }
       #sidebar.hidden {
-        width: min(320px, 88vw) !important;
-        min-width: min(320px, 88vw) !important;
-        max-width: min(320px, 88vw) !important;
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        flex: 0 0 0 !important;
+        overflow: hidden !important;
         transform: translateX(-105%);
         pointer-events: none;
         border-right-width: 0;
+        box-shadow: none;
       }
       #dict-sidebar {
         right: 0;
@@ -2333,12 +2357,15 @@
         transform: translateX(0);
       }
       #dict-sidebar.hidden {
-        width: min(320px, 88vw) !important;
-        min-width: min(320px, 88vw) !important;
-        max-width: min(320px, 88vw) !important;
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        flex: 0 0 0 !important;
+        overflow: hidden !important;
         transform: translateX(105%);
         pointer-events: none;
         border-left-width: 0;
+        box-shadow: none;
       }
 
       /* Safari bottom toolbar clearance — keep modest so chat isn't floated mid-screen */
@@ -2365,17 +2392,20 @@
         padding-left: 0;
         padding-right: 0;
         padding-bottom: 0;
+        min-width: 0;
+        flex: 1 1 auto;
       }
       #messages {
-        padding: 16px 18px 10px;
-        gap: 16px;
+        padding: 16px 20px 12px;
+        gap: 18px;
       }
       #chat-area {
         min-height: 0;
+        min-width: 0;
       }
       .msg.ai .bubble,
       .msg.user .bubble {
-        padding: 12px 14px;
+        padding: 14px 16px;
       }
       .bubble-actions {
         margin-top: 10px;
