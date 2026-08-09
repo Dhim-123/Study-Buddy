@@ -1599,30 +1599,47 @@ def _fs_is_after_wipe(stamp, wiped_at):
     return st > wt
 
 
+# Process-lifetime cache so a brief meta miss doesn't stamp new chats as gen 0
+# and then scrub them when meta becomes readable again.
+_WIPE_META_CACHE = {}
+
+
 def fs_get_content_wipe_meta(user_id):
     """Return {wiped_at, wipe_gen, meta_ok} for content clears.
 
     meta_ok=False means Firestore was unreachable / read failed — callers must
     fail closed (skip content pull imports and bulk pushes) so old rows cannot
-    be restamped as post-wipe survivors.
+    be restamped as post-wipe survivors. When meta_ok=False but a prior successful
+    read is cached, return the cached wipe_gen/wiped_at with meta_ok=False still
+    set so bulk push stays fail-closed, while stamp helpers can reuse the cache.
     """
     db = get_firestore()
     if not db:
+        cached = _WIPE_META_CACHE.get(int(user_id) if user_id is not None else user_id)
+        if cached:
+            return {**cached, "meta_ok": False, "from_cache": True}
         return {"wiped_at": None, "wipe_gen": 0, "meta_ok": False}
     try:
         owner_key = _fs_owner_key_for_user_id(user_id)
         snap = _fs_meta_ref(db, user_id, owner_key=owner_key).get()
         if not snap.exists:
-            return {"wiped_at": None, "wipe_gen": 0, "meta_ok": True}
+            meta = {"wiped_at": None, "wipe_gen": 0, "meta_ok": True}
+            _WIPE_META_CACHE[int(user_id)] = {"wiped_at": None, "wipe_gen": 0}
+            return meta
         data = snap.to_dict() or {}
         wiped_at = data.get("content_wiped_at") or data.get("chat_wiped_at") or None
         try:
             wipe_gen = int(data.get("content_wipe_gen") or 0)
         except Exception:
             wipe_gen = 0
-        return {"wiped_at": wiped_at, "wipe_gen": max(0, wipe_gen), "meta_ok": True}
+        wipe_gen = max(0, wipe_gen)
+        _WIPE_META_CACHE[int(user_id)] = {"wiped_at": wiped_at, "wipe_gen": wipe_gen}
+        return {"wiped_at": wiped_at, "wipe_gen": wipe_gen, "meta_ok": True}
     except Exception as e:
         print(f"[Firestore] get content wipe meta failed: {e}")
+        cached = _WIPE_META_CACHE.get(int(user_id) if user_id is not None else user_id)
+        if cached:
+            return {**cached, "meta_ok": False, "from_cache": True}
         return {"wiped_at": None, "wipe_gen": 0, "meta_ok": False}
 
 
@@ -1646,6 +1663,7 @@ def fs_mark_chats_wiped(user_id):
             },
             merge=True,
         )
+        _WIPE_META_CACHE[int(user_id)] = {"wiped_at": wiped_at, "wipe_gen": wipe_gen}
         return {
             "ok": True,
             "owner_key": owner_key,
@@ -1725,9 +1743,17 @@ def current_content_wipe_gen(user_id):
     Wipe generation to stamp on newly created local content.
     Must be >= scrub threshold while a wipe is active, otherwise
     GET /api/mistakes (and similar) deletes the brand-new rows.
+    Uses process cache when live meta is unreadable.
     """
-    active, wipe_gen, _, _ = fs_wipe_is_active(user_id)
-    wg = int(wipe_gen or 0)
+    wipe_meta = fs_get_content_wipe_meta(user_id)
+    wiped_at = wipe_meta.get("wiped_at")
+    wg = int(wipe_meta.get("wipe_gen") or 0)
+    active = bool(wg > 0 or wiped_at)
+    if not active and wipe_meta.get("meta_ok") is False:
+        cached = _WIPE_META_CACHE.get(int(user_id) if user_id is not None else user_id) or {}
+        wg = int(cached.get("wipe_gen") or 0)
+        wiped_at = cached.get("wiped_at")
+        active = bool(wg > 0 or wiped_at)
     if active and wg <= 0:
         return 1
     return wg
@@ -1737,13 +1763,44 @@ def scrub_prewipe_local_content(user_id):
     """
     Delete local chats/notes/mistakes/DNA from before the current wipe gen.
     Stops hard-refresh from showing resurrected rows left on ephemeral disks.
+    Heals gen-0 conversations that clearly have messages after wiped_at by
+    upgrading their wipe gen instead of deleting them.
     """
-    active, wipe_gen, wiped_at, _ = fs_wipe_is_active(user_id)
+    wipe_meta = fs_get_content_wipe_meta(user_id)
+    if wipe_meta.get("meta_ok") is False and not wipe_meta.get("from_cache"):
+        # Cannot know wipe state — do not scrub
+        return {"conversations": 0, "notebook": 0, "mistakes": 0, "learning_dna": 0, "subject_analytics": 0, "skipped": "meta_unreadable"}
+    wiped_at = wipe_meta.get("wiped_at")
+    wipe_gen = int(wipe_meta.get("wipe_gen") or 0)
+    active = bool(wipe_gen > 0 or wiped_at)
     if not active:
         return {"conversations": 0, "notebook": 0, "mistakes": 0, "learning_dna": 0, "subject_analytics": 0}
     threshold = wipe_gen if wipe_gen > 0 else 1
+    healed = 0
     with get_db() as conn:
         _ensure_local_wipe_gen_columns(conn)
+        # Upgrade post-wipe gen-0 chats (created during meta outage) instead of deleting
+        if wiped_at:
+            try:
+                rows = conn.execute(
+                    """
+                    SELECT c.id FROM conversations c
+                    WHERE c.user_id=? AND COALESCE(c.content_wipe_gen, 0) < ?
+                      AND EXISTS (
+                        SELECT 1 FROM messages m
+                        WHERE m.conversation_id=c.id AND m.created_at > ?
+                      )
+                    """,
+                    (user_id, threshold, wiped_at[:19].replace("T", " ") if wiped_at else ""),
+                ).fetchall()
+                for r in rows:
+                    conn.execute(
+                        "UPDATE conversations SET content_wipe_gen=? WHERE id=? AND user_id=?",
+                        (threshold, r["id"], user_id),
+                    )
+                    healed += 1
+            except Exception as e:
+                print(f"[wipe] heal gen-0 conversations soft-failed: {e}")
         c1 = conn.execute(
             "DELETE FROM conversations WHERE user_id=? AND COALESCE(content_wipe_gen, 0) < ?",
             (user_id, threshold),
@@ -1770,6 +1827,7 @@ def scrub_prewipe_local_content(user_id):
         "mistakes": int(c3 or 0),
         "learning_dna": int(c4 or 0),
         "subject_analytics": int(c5 or 0),
+        "healed_conversations": int(healed or 0),
         "threshold": threshold,
     }
 
@@ -4177,14 +4235,11 @@ def list_conversations():
         return err
 
     uid = user["id"]
-    # Scrub any pre-wipe local leftovers FIRST (ephemeral disk / race survivors)
+    # Scrub → push (post-wipe locals to cloud) → pull (rehydrate) → list
     scrub_stats = scrub_prewipe_local_content(uid)
+    fs_push_all_conversations(uid)
     pull_stats = fs_pull_conversations_into_sqlite(uid) or {}
     active, wipe_gen, wiped_at, _ = fs_wipe_is_active(uid)
-
-    # Always catch up post-wipe rows (helper filters by content_wipe_gen threshold).
-    # Skipping push while wipe-active left new chats local-only and easy to lose.
-    fs_push_all_conversations(uid)
 
     with get_db() as conn:
         rows = conn.execute("""

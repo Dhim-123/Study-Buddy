@@ -370,11 +370,17 @@
       gap: 8px;
     }
     .sb-conv-empty {
-      padding: 18px 14px;
+      padding: 28px 16px;
       color: var(--muted);
-      font-size: 0.82rem;
-      line-height: 1.45;
+      font-size: 0.88rem;
+      line-height: 1.5;
       text-align: center;
+    }
+    .sb-conv-empty strong {
+      display: block;
+      color: var(--text);
+      font-size: 0.92rem;
+      margin-bottom: 6px;
     }
 
     .sb-conv-group {
@@ -521,12 +527,26 @@
       flex-shrink: 0;
       margin-top: 0;
     }
-    /* Signed-in: left footer collapses — tools moved to right sidebar */
+    /* Signed-in: chat list fills space; tools sit in footer below */
+    #sidebar[data-logged-in="1"] .sb-conv-list {
+      flex: 1 1 auto;
+      min-height: 0;
+      padding-bottom: 8px;
+    }
     #sidebar[data-logged-in="1"] .sb-footer {
+      display: block;
+      padding-top: 8px;
+    }
+    #sidebar[data-logged-in="1"] .sb-footer .auth-card {
+      display: none !important;
+    }
+    #sidebar .sb-left-tools {
       display: none;
     }
-    #sidebar[data-logged-in="1"] .sb-conv-list {
-      padding-bottom: 12px;
+    #sidebar[data-logged-in="1"] .sb-left-tools {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
 
     .sidebar-tools {
@@ -4708,13 +4728,54 @@
     .clear-history-flyout {
       z-index: 1300;
     }
-    .settings-block { margin-top: 14px; }
+    .settings-block { margin-top: 10px; }
     .settings-row {
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      padding: 8px 0; font-size: 0.85rem;
+      padding: 6px 0; font-size: 0.85rem;
     }
     .settings-row select, .settings-row input[type="range"] { max-width: 140px; }
     .settings-toggle { accent-color: var(--accent); }
+    .settings-acc {
+      border-top: 1px solid var(--border);
+      margin-top: 10px;
+      padding-top: 2px;
+    }
+    .settings-acc-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: transparent;
+      border: none;
+      color: var(--secondary);
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 10px 0 6px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .settings-acc-toggle:hover { color: var(--text); }
+    .settings-acc-chevron {
+      font-size: 0.7rem;
+      transition: transform 0.18s ease;
+      opacity: 0.75;
+    }
+    .settings-acc.open .settings-acc-chevron { transform: rotate(90deg); }
+    .settings-acc-body {
+      display: none;
+      padding-bottom: 4px;
+    }
+    .settings-acc.open .settings-acc-body { display: block; }
+    .settings-acc-body.settings-acc-body-always { display: block; }
+    #settings-account-block { margin-top: 10px; }
+    #settings-password-acc { border-top: 1px dashed var(--border); margin-top: 8px; }
+    #settings-password-acc .settings-acc-toggle {
+      font-size: 0.72rem;
+      padding: 8px 0 4px;
+    }
 
     .planner-box {
       background: rgba(59, 130, 246, 0.06);
@@ -4915,132 +4976,155 @@
           System
         </button>
       </div>
-      <p class="settings-hint">Shortcut: <kbd>Ctrl</kbd> + <kbd>,</kbd></p>
 
-      <div class="settings-divider"></div>
-      <div class="settings-block">
-        <div class="settings-section-label">Notifications</div>
-        <div class="settings-row"><span>Streak reminders</span><input type="checkbox" class="settings-toggle" id="settings-notify-streak" checked /></div>
-        <div class="settings-row"><span>Daily Puzzle</span><input type="checkbox" class="settings-toggle" id="settings-notify-puzzle" checked /></div>
-      </div>
-
-      <div class="settings-divider"></div>
-      <div class="settings-block">
-        <div class="settings-section-label">Study</div>
-        <div class="settings-row">
-          <span>Grade</span>
-          <select id="settings-grade" class="input" style="padding:6px 8px;width:auto;">
-            <option value="6">6</option><option value="7">7</option><option value="8">8</option>
-            <option value="9" selected>9</option><option value="10">10</option>
-            <option value="11">11</option><option value="12">12</option>
-          </select>
-        </div>
-        <div class="settings-row">
-          <span>Section</span>
-          <select id="settings-section" class="input" style="padding:6px 8px;width:auto;">
-            <option value="">Select…</option>
-            <option value="Whiz 1">Whiz 1</option>
-            <option value="Whiz 2">Whiz 2</option>
-            <option value="Whiz 3">Whiz 3</option>
-            <option value="Super 1">Super 1</option>
-            <option value="Super 2">Super 2</option>
-            <option value="Super 3">Super 3</option>
-          </select>
-        </div>
-        <div id="settings-super3-drops" style="display:none;">
-          <div class="settings-row"><span>Drop Math</span><input type="checkbox" class="settings-toggle" id="settings-drop-math" /></div>
-          <div class="settings-row"><span>Drop Science</span><input type="checkbox" class="settings-toggle" id="settings-drop-science" /></div>
-          <p class="settings-hint" style="margin:0 0 8px;">Super 3 only — dropped subjects are hidden from Planner &amp; exam portions.</p>
-        </div>
-      </div>
-
-      <div class="settings-divider"></div>
-      <div class="settings-block">
-        <div class="settings-section-label">Language</div>
-        <div class="settings-row">
-          <span>App language</span>
-          <select id="settings-language" class="input" style="padding:6px 8px;width:auto;">
-            <option value="multi">Multilingual</option>
-            <option value="en">English</option>
-            <option value="hi">Hindi</option>
-            <option value="te">Telugu</option>
-            <option value="es">Spanish</option>
-            <option value="fr">French</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="settings-divider"></div>
-      <div class="settings-block">
-        <div class="settings-section-label">Accessibility</div>
-        <div class="settings-row"><span>High contrast</span><input type="checkbox" class="settings-toggle" id="settings-high-contrast" /></div>
-        <div class="settings-row"><span>Reduced motion</span><input type="checkbox" class="settings-toggle" id="settings-reduced-motion" /></div>
-        <div class="settings-row">
-          <span>Font scale</span>
-          <input type="range" id="settings-font-scale" min="0.9" max="1.25" step="0.05" value="1" />
-        </div>
-      </div>
-
-      <div class="settings-divider"></div>
-      <div class="settings-block">
-        <div class="settings-section-label">Rewards</div>
-        <button type="button" class="btn-primary" id="settings-open-shop" style="width:100%;padding:10px;">🛍️ Open XP Shop</button>
-      </div>
-
-      <div class="settings-divider"></div>
-      <div class="settings-block">
-        <div class="settings-section-label">History</div>
-        <div class="settings-clear-wrap" id="settings-clear-wrap">
-          <button type="button" class="settings-clear-trigger" id="settings-clear-trigger" aria-haspopup="menu" aria-expanded="false">
-            <span>🗑️ Clear History</span>
-            <span class="chevron">›</span>
-          </button>
-          <div class="clear-history-flyout" id="clear-history-flyout" role="menu" aria-label="Clear history options">
-            <div class="clear-history-menu" id="clear-history-menu-desktop"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="settings-divider"></div>
       <div class="settings-block" id="settings-account-block">
         <div class="settings-section-label">Account</div>
-        <p class="settings-hint">Buddy name, username, and logout live here.</p>
-        <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;margin-bottom:12px;">
+        <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:6px;">
           <label for="buddy-name-input" style="font-size:0.82rem;font-weight:700;">Buddy name</label>
           <input type="text" class="input" id="buddy-name-input" placeholder="Buddy name" style="width:100%;padding:8px 10px;" />
           <label for="username-input" style="font-size:0.82rem;font-weight:700;">Username</label>
           <input type="text" class="input" id="username-input" placeholder="Username" autocomplete="username" style="width:100%;padding:8px 10px;" />
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px;">
             <button type="button" class="btn-primary" id="save-settings-btn" style="width:100%;padding:10px;">Save</button>
             <button type="button" class="btn-icon" id="logout-btn" style="width:100%;padding:10px;justify-content:center;background:rgba(244,63,94,0.1);border-color:rgba(244,63,94,0.2);color:#f43f5e;">Log out</button>
           </div>
-        </div>
-        <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;">
-          <label for="settings-username-input" style="font-size:0.82rem;font-weight:700;">Quick username</label>
-          <input type="text" id="settings-username-input" class="input" placeholder="New username" autocomplete="username" style="width:100%;padding:8px 10px;" />
-          <button type="button" class="btn-primary" id="settings-change-username-btn" style="width:100%;padding:10px;">Save username</button>
           <p id="settings-username-msg" class="settings-hint" style="margin:0;display:none;"></p>
         </div>
-        <div class="settings-divider" style="margin:14px 0;"></div>
-        <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;">
-          <div class="settings-section-label" style="margin-bottom:0;">Change password</div>
-          <label for="settings-old-password" style="font-size:0.78rem;font-weight:700;">Old password</label>
-          <input type="password" id="settings-old-password" class="input" autocomplete="current-password" style="width:100%;padding:8px 10px;" />
-          <label for="settings-new-password" style="font-size:0.78rem;font-weight:700;">New password</label>
-          <input type="password" id="settings-new-password" class="input" autocomplete="new-password" style="width:100%;padding:8px 10px;" />
-          <label for="settings-confirm-password" style="font-size:0.78rem;font-weight:700;">Confirm new password</label>
-          <input type="password" id="settings-confirm-password" class="input" autocomplete="new-password" style="width:100%;padding:8px 10px;" />
-          <button type="button" class="btn-primary" id="settings-change-password-btn" style="width:100%;padding:10px;">Update password</button>
-          <p id="settings-password-msg" class="settings-hint" style="margin:0;display:none;"></p>
+        <div class="settings-acc" id="settings-password-acc">
+          <button type="button" class="settings-acc-toggle" data-settings-acc="settings-password-acc" aria-expanded="false">
+            <span>Change password</span>
+            <span class="settings-acc-chevron">›</span>
+          </button>
+          <div class="settings-acc-body" style="flex-direction:column;align-items:stretch;gap:6px;">
+            <label for="settings-old-password" style="font-size:0.78rem;font-weight:700;">Old password</label>
+            <input type="password" id="settings-old-password" class="input" autocomplete="current-password" style="width:100%;padding:8px 10px;" />
+            <label for="settings-new-password" style="font-size:0.78rem;font-weight:700;">New password</label>
+            <input type="password" id="settings-new-password" class="input" autocomplete="new-password" style="width:100%;padding:8px 10px;" />
+            <label for="settings-confirm-password" style="font-size:0.78rem;font-weight:700;">Confirm new password</label>
+            <input type="password" id="settings-confirm-password" class="input" autocomplete="new-password" style="width:100%;padding:8px 10px;" />
+            <button type="button" class="btn-primary" id="settings-change-password-btn" style="width:100%;padding:10px;margin-top:4px;">Update password</button>
+            <p id="settings-password-msg" class="settings-hint" style="margin:0;display:none;"></p>
+          </div>
         </div>
       </div>
 
-      <div class="settings-divider"></div>
-      <div class="settings-block">
-        <div class="settings-section-label">About</div>
-        <p class="settings-hint">Study Buddy — AI study companion with streaks, XP, and daily puzzles.</p>
-        <button type="button" class="btn-secondary" id="settings-save-prefs" style="width:100%;margin-top:8px;padding:10px;">Save preferences</button>
-        <button type="button" class="btn-secondary" id="settings-admin-link" style="width:100%;margin-top:8px;padding:8px;font-size:0.85rem;opacity:0.85;">Admin</button>
+      <div class="settings-acc" id="settings-acc-study">
+        <button type="button" class="settings-acc-toggle" data-settings-acc="settings-acc-study" aria-expanded="false">
+          <span>Study</span>
+          <span class="settings-acc-chevron">›</span>
+        </button>
+        <div class="settings-acc-body">
+          <div class="settings-row">
+            <span>Grade</span>
+            <select id="settings-grade" class="input" style="padding:6px 8px;width:auto;">
+              <option value="6">6</option><option value="7">7</option><option value="8">8</option>
+              <option value="9" selected>9</option><option value="10">10</option>
+              <option value="11">11</option><option value="12">12</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <span>Section</span>
+            <select id="settings-section" class="input" style="padding:6px 8px;width:auto;">
+              <option value="">Select…</option>
+              <option value="Whiz 1">Whiz 1</option>
+              <option value="Whiz 2">Whiz 2</option>
+              <option value="Whiz 3">Whiz 3</option>
+              <option value="Super 1">Super 1</option>
+              <option value="Super 2">Super 2</option>
+              <option value="Super 3">Super 3</option>
+            </select>
+          </div>
+          <div id="settings-super3-drops" style="display:none;">
+            <div class="settings-row"><span>Drop Math</span><input type="checkbox" class="settings-toggle" id="settings-drop-math" /></div>
+            <div class="settings-row"><span>Drop Science</span><input type="checkbox" class="settings-toggle" id="settings-drop-science" /></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-acc" id="settings-acc-language">
+        <button type="button" class="settings-acc-toggle" data-settings-acc="settings-acc-language" aria-expanded="false">
+          <span>Language</span>
+          <span class="settings-acc-chevron">›</span>
+        </button>
+        <div class="settings-acc-body">
+          <div class="settings-row">
+            <span>App language</span>
+            <select id="settings-language" class="input" style="padding:6px 8px;width:auto;">
+              <option value="multi">Multilingual</option>
+              <option value="en">English</option>
+              <option value="hi">Hindi</option>
+              <option value="te">Telugu</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-acc" id="settings-acc-notifications">
+        <button type="button" class="settings-acc-toggle" data-settings-acc="settings-acc-notifications" aria-expanded="false">
+          <span>Notifications</span>
+          <span class="settings-acc-chevron">›</span>
+        </button>
+        <div class="settings-acc-body">
+          <div class="settings-row"><span>Streak reminders</span><input type="checkbox" class="settings-toggle" id="settings-notify-streak" checked /></div>
+          <div class="settings-row"><span>Daily Puzzle</span><input type="checkbox" class="settings-toggle" id="settings-notify-puzzle" checked /></div>
+        </div>
+      </div>
+
+      <div class="settings-acc" id="settings-acc-a11y">
+        <button type="button" class="settings-acc-toggle" data-settings-acc="settings-acc-a11y" aria-expanded="false">
+          <span>Accessibility</span>
+          <span class="settings-acc-chevron">›</span>
+        </button>
+        <div class="settings-acc-body">
+          <div class="settings-row"><span>High contrast</span><input type="checkbox" class="settings-toggle" id="settings-high-contrast" /></div>
+          <div class="settings-row"><span>Reduced motion</span><input type="checkbox" class="settings-toggle" id="settings-reduced-motion" /></div>
+          <div class="settings-row">
+            <span>Font scale</span>
+            <input type="range" id="settings-font-scale" min="0.9" max="1.25" step="0.05" value="1" />
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-acc" id="settings-acc-rewards">
+        <button type="button" class="settings-acc-toggle" data-settings-acc="settings-acc-rewards" aria-expanded="false">
+          <span>Rewards</span>
+          <span class="settings-acc-chevron">›</span>
+        </button>
+        <div class="settings-acc-body">
+          <button type="button" class="btn-primary" id="settings-open-shop" style="width:100%;padding:10px;">🛍️ Open XP Shop</button>
+        </div>
+      </div>
+
+      <div class="settings-acc" id="settings-acc-history">
+        <button type="button" class="settings-acc-toggle" data-settings-acc="settings-acc-history" aria-expanded="false">
+          <span>History</span>
+          <span class="settings-acc-chevron">›</span>
+        </button>
+        <div class="settings-acc-body">
+          <div class="settings-clear-wrap" id="settings-clear-wrap">
+            <button type="button" class="settings-clear-trigger" id="settings-clear-trigger" aria-haspopup="menu" aria-expanded="false">
+              <span>🗑️ Clear History</span>
+              <span class="chevron">›</span>
+            </button>
+            <div class="clear-history-flyout" id="clear-history-flyout" role="menu" aria-label="Clear history options">
+              <div class="clear-history-menu" id="clear-history-menu-desktop"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-acc" id="settings-acc-about">
+        <button type="button" class="settings-acc-toggle" data-settings-acc="settings-acc-about" aria-expanded="false">
+          <span>About</span>
+          <span class="settings-acc-chevron">›</span>
+        </button>
+        <div class="settings-acc-body">
+          <p class="settings-hint" style="margin:0 0 8px;">Study Buddy — streaks, XP, and daily puzzles.</p>
+          <button type="button" class="btn-secondary" id="settings-save-prefs" style="width:100%;padding:10px;">Save preferences</button>
+          <button type="button" class="btn-secondary" id="settings-admin-link" style="width:100%;margin-top:8px;padding:8px;font-size:0.85rem;opacity:0.85;">Admin</button>
+        </div>
       </div>
     </div>
   </div>
@@ -5241,6 +5325,57 @@
                 </button>
               </div>
               <div id="auth-message" class="hint-box" style="display:none; margin-top: 10px;"></div>
+            </div>
+
+            <!-- Signed-in study tools (kept compact under chat list) -->
+            <div class="sb-left-tools sidebar-tools">
+              <div class="compact-focus-bar">
+                <span class="focus-label">
+                  Focus <span id="timer-display">25:00</span>
+                </span>
+                <div style="display: flex; gap: 4px; align-items: center;">
+                  <button id="timer-toggle-btn" class="btn-primary" type="button" style="padding: 4px 10px; font-size: 0.72rem; font-weight: 700;">Start</button>
+                  <button id="timer-reset-btn" class="btn-icon" type="button" style="padding: 4px 7px; font-size: 0.72rem;" title="Reset Timer">↺</button>
+                </div>
+              </div>
+              <div class="sidebar-tool-row">
+                <button class="sidebar-chip-btn" id="sidebar-learning-dna-btn" type="button">Learning DNA</button>
+                <button class="sidebar-chip-btn" id="sidebar-mistake-vault-btn" type="button">Mistake Vault</button>
+              </div>
+              <div class="sidebar-prefs-row">
+                <div class="field">
+                  <label for="tools-section">Section</label>
+                  <select class="input" id="tools-section">
+                    <option value="">Select…</option>
+                    <option value="Whiz 1">Whiz 1</option>
+                    <option value="Whiz 2">Whiz 2</option>
+                    <option value="Whiz 3">Whiz 3</option>
+                    <option value="Super 1">Super 1</option>
+                    <option value="Super 2">Super 2</option>
+                    <option value="Super 3">Super 3</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="tools-reply-language">Language</label>
+                  <select class="input" id="tools-reply-language">
+                    <option value="multi">Match msg</option>
+                    <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="te">Telugu</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field" id="tools-super3-drops" style="display:none;">
+                <label style="display:block;margin-bottom:4px;font-size:0.72rem;color:var(--muted);">Super 3 — drop</label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--muted);margin-bottom:4px;">
+                  <input type="checkbox" id="tools-drop-math" /> Math
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--muted);">
+                  <input type="checkbox" id="tools-drop-science" /> Science
+                </label>
+              </div>
             </div>
 
         </div>
@@ -5841,72 +5976,9 @@
 
     </div><!-- /#main-content -->
 
-      <!-- RIGHT SIDEBAR: TOOLS + DICTIONARY + NOTEBOOK -->
+      <!-- RIGHT SIDEBAR: DICTIONARY + NOTEBOOK -->
       <div id="dict-sidebar">
         <div class="sidebar-content">
-          <!-- 0. STUDY TOOLS (signed-in) — collapsed by default -->
-          <div class="sidebar-section-container logged-in-only" id="tools-section-container" style="display:none;">
-            <div class="sidebar-section-header" id="tools-section-toggle">
-              <div class="dict-title" style="margin-bottom:0;">⚡ <span>Study tools</span></div>
-              <span class="section-toggle-icon collapsed" id="tools-toggle-icon">▼</span>
-            </div>
-            <div id="tools-section-content" class="sidebar-section-content collapsed">
-              <div class="settings-notes-panel sidebar-tools" style="padding: 0 12px 10px;">
-                <div class="compact-focus-bar">
-                  <span class="focus-label">
-                    Focus <span id="timer-display">25:00</span>
-                  </span>
-                  <div style="display: flex; gap: 4px; align-items: center;">
-                    <button id="timer-toggle-btn" class="btn-primary" type="button" style="padding: 4px 10px; font-size: 0.72rem; font-weight: 700;">Start</button>
-                    <button id="timer-reset-btn" class="btn-icon" type="button" style="padding: 4px 7px; font-size: 0.72rem;" title="Reset Timer">↺</button>
-                  </div>
-                </div>
-
-                <div class="sidebar-tool-row">
-                  <button class="sidebar-chip-btn" id="sidebar-learning-dna-btn" type="button">Learning DNA</button>
-                  <button class="sidebar-chip-btn" id="sidebar-mistake-vault-btn" type="button">Mistake Vault</button>
-                </div>
-
-                <div class="sidebar-prefs-row">
-                  <div class="field">
-                    <label for="tools-section">Section</label>
-                    <select class="input" id="tools-section">
-                      <option value="">Select…</option>
-                      <option value="Whiz 1">Whiz 1</option>
-                      <option value="Whiz 2">Whiz 2</option>
-                      <option value="Whiz 3">Whiz 3</option>
-                      <option value="Super 1">Super 1</option>
-                      <option value="Super 2">Super 2</option>
-                      <option value="Super 3">Super 3</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label for="tools-reply-language">Language</label>
-                    <select class="input" id="tools-reply-language">
-                      <option value="multi">Match msg</option>
-                      <option value="en">English</option>
-                      <option value="hi">Hindi</option>
-                      <option value="te">Telugu</option>
-                      <option value="es">Spanish</option>
-                      <option value="fr">French</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="field" id="tools-super3-drops" style="display:none;">
-                  <label style="display:block;margin-bottom:4px;font-size:0.72rem;color:var(--muted);">Super 3 — drop</label>
-                  <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--muted);margin-bottom:4px;">
-                    <input type="checkbox" id="tools-drop-math" /> Math
-                  </label>
-                  <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--muted);">
-                    <input type="checkbox" id="tools-drop-science" /> Science
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="logged-in-only tools-dict-divider" style="display:none; border-top: 1px solid var(--border); margin: 2px 0;"></div>
-
           <!-- 1. DICTIONARY SECTION — collapsed when signed in -->
           <div class="sidebar-section-container" id="dict-section-container">
             <div class="sidebar-section-header" id="dict-section-toggle">
@@ -6330,7 +6402,23 @@
       if (typeof window.refreshClearHistoryCounts === "function") {
         window.refreshClearHistoryCounts();
       }
+      try {
+        const card = settingsPanel.querySelector(".settings-panel-card");
+        if (card) card.scrollTop = 0;
+      } catch (_) {}
     }
+
+    // Settings accordion (Study / Language / … + Change password)
+    document.querySelectorAll(".settings-acc-toggle").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-settings-acc");
+        const panel = id ? document.getElementById(id) : btn.closest(".settings-acc");
+        if (!panel) return;
+        const open = !panel.classList.contains("open");
+        panel.classList.toggle("open", open);
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+    });
 
     function closeSettingsPanel() {
       if (!settingsPanel || !settingsToggleBtn) return;
@@ -6565,15 +6653,11 @@
           if (googleWrap) googleWrap.style.display = "none";
 
           loggedInOnlyElements.forEach((el) => {
-            if (el.id === "tools-section-container") el.style.display = "";
-            else if (el.classList.contains("tools-dict-divider")) el.style.display = "block";
-            else if (el.classList.contains("sidebar-tool-row")) el.style.display = "grid";
-            else if (el.id === "tools-account-content" || el.classList.contains("sidebar-account-card")) {
-              // Keep CSS .collapsed control; don't force display:flex
-              el.style.display = "";
-            }
+            if (el.classList.contains("sidebar-tool-row")) el.style.display = "grid";
             else el.style.display = "";
           });
+          // Keep left chat sidebar visible after login
+          if (leftSidebarEl) leftSidebarEl.classList.remove("hidden");
           if (logoutBtn) logoutBtn.style.display = "";
           if (buddyNameEl) buddyNameEl.value = currentUser.buddyName || "Nova";
           if (usernameInputEl) usernameInputEl.value = currentUser.identifier || "";
@@ -6581,9 +6665,7 @@
           localStorage.setItem("sb_config", JSON.stringify({ buddyName: cfg.buddyName }));
           if (typeof syncToolsSectionFromAuth === "function") syncToolsSectionFromAuth();
           if (typeof syncToolsReplyLanguageUi === "function") syncToolsReplyLanguageUi();
-          // Signed-in right sidebar: Notebook open; Tools + Dictionary collapsed
-          document.getElementById("tools-section-content")?.classList.add("collapsed");
-          document.getElementById("tools-toggle-icon")?.classList.add("collapsed");
+          // Signed-in right sidebar: Notebook open; Dictionary collapsed
           document.getElementById("dict-section-content")?.classList.add("collapsed");
           document.getElementById("dict-toggle-icon")?.classList.add("collapsed");
           document.getElementById("nb-section-content")?.classList.remove("collapsed");
@@ -6595,8 +6677,6 @@
           const profileWrap = document.getElementById("profile-menu-wrap");
           if (profileWrap) profileWrap.hidden = false;
           if (typeof syncProfileMenuUI === "function") syncProfileMenuUI();
-          const settingsUser = document.getElementById("settings-username-input");
-          if (settingsUser) settingsUser.value = currentUser.identifier || "";
           updateWelcomeGreeting();
         } else {
           if (authCard) authCard.style.display = "";
@@ -8291,20 +8371,7 @@
           }
         }
 
-        // Settings → Account: change username
-        const settingsUserInput = document.getElementById("settings-username-input");
-        const settingsUserBtn = document.getElementById("settings-change-username-btn");
-        const settingsUserMsg = document.getElementById("settings-username-msg");
-        function showSettingsUsernameMsg(text, isError) {
-          if (!settingsUserMsg) return;
-          settingsUserMsg.style.display = "block";
-          settingsUserMsg.textContent = text;
-          settingsUserMsg.style.color = isError ? "var(--accent2)" : "var(--accent3)";
-        }
-        if (settingsUserInput && currentUser?.identifier) {
-          settingsUserInput.value = currentUser.identifier;
-        }
-        // Settings → Account: change password
+        // Settings → Account: change password (collapsed by default)
         const settingsPwMsg = document.getElementById("settings-password-msg");
         function showSettingsPasswordMsg(text, isError) {
           if (!settingsPwMsg) return;
@@ -8356,42 +8423,6 @@
             showSettingsPasswordMsg("Password updated.", false);
           } catch (err) {
             showSettingsPasswordMsg(err.message || "Network error.", true);
-          }
-        });
-
-        settingsUserBtn?.addEventListener("click", async () => {
-          if (!currentUser?.loggedIn) {
-            showSettingsUsernameMsg("Log in to change username.", true);
-            return;
-          }
-          const identifier = (settingsUserInput?.value || "").trim();
-          if (!identifier) {
-            showSettingsUsernameMsg("Username is required.", true);
-            return;
-          }
-          if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(identifier)) {
-            showSettingsUsernameMsg("Please use a username, not an email.", true);
-            return;
-          }
-          try {
-            const res = await fetch("/api/auth/update_username", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({ identifier }),
-            });
-            const data = await res.json();
-            if (!res.ok) {
-              showSettingsUsernameMsg(data.error || "Failed to update username.", true);
-              return;
-            }
-            currentUser.identifier = data.identifier || identifier;
-            if (typeof syncProfileMenuUI === "function") syncProfileMenuUI();
-            const sidebarUser = document.getElementById("username-input");
-            if (sidebarUser) sidebarUser.value = currentUser.identifier;
-            showSettingsUsernameMsg("Username updated.", false);
-          } catch (err) {
-            showSettingsUsernameMsg(err.message || "Network error.", true);
           }
         });
 
@@ -8484,12 +8515,13 @@
             sbRenderConversations();
             return true;
           }
+          // Keep last-known chats on transient/API failure (don't blank the left list)
           console.error("Error loading conversations", data?.error || res.status);
-          sbResetChatState();
+          if (typeof sbRenderConversations === "function") sbRenderConversations();
           return false;
         } catch (e) {
           console.error("Error loading conversations", e);
-          sbResetChatState();
+          if (typeof sbRenderConversations === "function") sbRenderConversations();
           return false;
         }
       }
@@ -8624,7 +8656,7 @@
         if (conversations.length === 0) {
           const empty = document.createElement("div");
           empty.className = "sb-conv-empty";
-          empty.textContent = "No chats yet — send a message to start";
+          empty.innerHTML = "<strong>No chats yet</strong>Send a message to start a conversation. Your history will show up here.";
           listEl.appendChild(empty);
           return;
         }
@@ -13714,10 +13746,9 @@
         nbAddEntry(subj, cat, cnt);
       });
 
-      // Accordion: only one of Tools / Dictionary / Notebook open at a time
+      // Accordion: only one of Dictionary / Notebook open at a time
       function setRightSidebarSection(openKey) {
         const sections = [
-          { key: "tools", content: "tools-section-content", icon: "tools-toggle-icon" },
           { key: "dict", content: "dict-section-content", icon: "dict-toggle-icon" },
           { key: "nb", content: "nb-section-content", icon: "nb-toggle-icon" },
         ];
@@ -13729,16 +13760,6 @@
           if (i) i.classList.toggle("collapsed", !open);
         });
       }
-
-      document.getElementById("tools-section-toggle")?.addEventListener("click", () => {
-        const content = document.getElementById("tools-section-content");
-        const opening = content?.classList.contains("collapsed");
-        if (opening) setRightSidebarSection("tools");
-        else {
-          content?.classList.add("collapsed");
-          document.getElementById("tools-toggle-icon")?.classList.add("collapsed");
-        }
-      });
 
       document.getElementById("dict-section-toggle")?.addEventListener("click", () => {
         const content = document.getElementById("dict-section-content");
