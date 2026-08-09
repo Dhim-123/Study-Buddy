@@ -514,6 +514,13 @@
       flex-shrink: 0;
       margin-top: 0;
     }
+    /* Signed-in: left footer collapses — tools moved to right sidebar */
+    #sidebar[data-logged-in="1"] .sb-footer {
+      display: none;
+    }
+    #sidebar[data-logged-in="1"] .sb-conv-list {
+      padding-bottom: 12px;
+    }
 
     .sidebar-tools {
       display: flex;
@@ -5085,6 +5092,7 @@
           </div>
           <div class="sb-footer">
 
+            <!-- Login/register only — account tools live in the right sidebar when signed in -->
             <div class="auth-card" id="auth-card" data-mode="login" data-logged-in="0">
               <h3 id="auth-mode-title">Login</h3>
               <div class="field">
@@ -5139,40 +5147,6 @@
                 </button>
               </div>
               <div id="auth-message" class="hint-box" style="display:none; margin-top: 10px;"></div>
-              
-            </div>
-            
-            <!-- SETTINGS & NOTES PANEL -->
-            <div class="settings-notes-panel sidebar-tools" style="margin-top: 12px;">
-              <div class="compact-focus-bar">
-                <span class="focus-label">
-                  Focus <span id="timer-display">25:00</span>
-                </span>
-                <div style="display: flex; gap: 4px; align-items: center;">
-                  <button id="timer-toggle-btn" class="btn-primary" type="button" style="padding: 4px 10px; font-size: 0.72rem; font-weight: 700;">Start</button>
-                  <button id="timer-reset-btn" class="btn-icon" type="button" style="padding: 4px 7px; font-size: 0.72rem;" title="Reset Timer">↺</button>
-                </div>
-              </div>
-
-              <div class="sidebar-tool-row logged-in-only" style="display:none;">
-                <button class="sidebar-chip-btn" id="sidebar-learning-dna-btn" type="button">Learning DNA</button>
-                <button class="sidebar-chip-btn" id="sidebar-mistake-vault-btn" type="button">Mistake Vault</button>
-              </div>
-
-              <div class="sidebar-account-card logged-in-only" style="display:none;">
-                <div class="field">
-                  <label for="buddy-name-input">Buddy</label>
-                  <input type="text" class="input" id="buddy-name-input" placeholder="Buddy name" />
-                </div>
-                <div class="field">
-                  <label for="username-input">Username</label>
-                  <input type="text" class="input" id="username-input" placeholder="Username" />
-                </div>
-                <div class="sidebar-account-actions">
-                  <button class="btn-primary" id="save-settings-btn" type="button">Save</button>
-                  <button class="btn-icon" id="logout-btn" type="button" style="background:rgba(244,63,94,0.1); border-color:rgba(244,63,94,0.2); color:#f43f5e;">Log out</button>
-                </div>
-              </div>
             </div>
 
         </div>
@@ -5773,10 +5747,85 @@
 
     </div><!-- /#main-content -->
 
-      <!-- RIGHT SIDEBAR: DICTIONARY & LIVING NOTEBOOK -->
+      <!-- RIGHT SIDEBAR: TOOLS + DICTIONARY + NOTEBOOK -->
       <div id="dict-sidebar">
         <div class="sidebar-content">
-          <!-- 1. DICTIONARY SECTION (TOP) -->
+          <!-- 0. STUDY TOOLS (signed-in) — keeps left sidebar short -->
+          <div class="sidebar-section-container logged-in-only" id="tools-section-container" style="display:none;">
+            <div class="sidebar-section-header" id="tools-section-toggle">
+              <div class="dict-title" style="margin-bottom:0;">⚡ <span>Study tools</span></div>
+              <span class="section-toggle-icon" id="tools-toggle-icon">▼</span>
+            </div>
+            <div id="tools-section-content" class="sidebar-section-content">
+              <div class="settings-notes-panel sidebar-tools" style="padding: 0 12px 14px;">
+                <div class="compact-focus-bar">
+                  <span class="focus-label">
+                    Focus <span id="timer-display">25:00</span>
+                  </span>
+                  <div style="display: flex; gap: 4px; align-items: center;">
+                    <button id="timer-toggle-btn" class="btn-primary" type="button" style="padding: 4px 10px; font-size: 0.72rem; font-weight: 700;">Start</button>
+                    <button id="timer-reset-btn" class="btn-icon" type="button" style="padding: 4px 7px; font-size: 0.72rem;" title="Reset Timer">↺</button>
+                  </div>
+                </div>
+
+                <div class="sidebar-tool-row">
+                  <button class="sidebar-chip-btn" id="sidebar-learning-dna-btn" type="button">Learning DNA</button>
+                  <button class="sidebar-chip-btn" id="sidebar-mistake-vault-btn" type="button">Mistake Vault</button>
+                </div>
+
+                <div class="sidebar-account-card">
+                  <div class="field">
+                    <label for="tools-section">Section</label>
+                    <select class="input" id="tools-section">
+                      <option value="">Select section…</option>
+                      <option value="Whiz 1">Whiz 1</option>
+                      <option value="Whiz 2">Whiz 2</option>
+                      <option value="Whiz 3">Whiz 3</option>
+                      <option value="Super 1">Super 1</option>
+                      <option value="Super 2">Super 2</option>
+                      <option value="Super 3">Super 3</option>
+                    </select>
+                  </div>
+                  <div class="field" id="tools-super3-drops" style="display:none;">
+                    <label style="display:block;margin-bottom:6px;">Super 3 — drop</label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;color:var(--muted);margin-bottom:4px;">
+                      <input type="checkbox" id="tools-drop-math" /> Math
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;color:var(--muted);">
+                      <input type="checkbox" id="tools-drop-science" /> Science
+                    </label>
+                  </div>
+                  <div class="field">
+                    <label for="buddy-name-input">Buddy</label>
+                    <input type="text" class="input" id="buddy-name-input" placeholder="Buddy name" />
+                  </div>
+                  <div class="field">
+                    <label for="username-input">Username</label>
+                    <input type="text" class="input" id="username-input" placeholder="Username" />
+                  </div>
+                  <div class="field">
+                    <label for="tools-reply-language">Reply language</label>
+                    <select class="input" id="tools-reply-language">
+                      <option value="multi">Match my message</option>
+                      <option value="en">Always English</option>
+                      <option value="hi">Always Hindi</option>
+                      <option value="te">Always Telugu</option>
+                      <option value="es">Always Spanish</option>
+                      <option value="fr">Always French</option>
+                    </select>
+                  </div>
+                  <div class="sidebar-account-actions">
+                    <button class="btn-primary" id="save-settings-btn" type="button">Save</button>
+                    <button class="btn-icon" id="logout-btn" type="button" style="background:rgba(244,63,94,0.1); border-color:rgba(244,63,94,0.2); color:#f43f5e;">Log out</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="logged-in-only tools-dict-divider" style="display:none; border-top: 1px solid var(--border); margin: 4px 0 8px;"></div>
+
+          <!-- 1. DICTIONARY SECTION -->
           <div class="sidebar-section-container" id="dict-section-container">
             <div class="sidebar-section-header" id="dict-section-toggle">
               <div class="dict-title" style="margin-bottom:0;">📚 <span>Dictionary</span></div>
@@ -5981,11 +6030,50 @@
     }
     function getReplyLang() {
       return (
-        document.getElementById("settings-language")?.value
+        document.getElementById("tools-reply-language")?.value
+        || document.getElementById("settings-language")?.value
         || localStorage.getItem("sb_reply_language")
         || "multi"
       ).trim() || "multi";
     }
+    function syncToolsReplyLanguageUi() {
+      const lang = (
+        localStorage.getItem("sb_reply_language")
+        || document.getElementById("settings-language")?.value
+        || "multi"
+      ).trim() || "multi";
+      const toolsLang = document.getElementById("tools-reply-language");
+      if (toolsLang) toolsLang.value = lang;
+      const settingsLang = document.getElementById("settings-language");
+      if (settingsLang && settingsLang.value !== lang) settingsLang.value = lang;
+    }
+    window.syncToolsReplyLanguageUi = syncToolsReplyLanguageUi;
+
+    function syncToolsSectionFromAuth() {
+      const toolsSec = document.getElementById("tools-section");
+      const authSec = document.getElementById("auth-section");
+      let section = "";
+      try { section = localStorage.getItem("sb_section") || ""; } catch (_) {}
+      if (!section) section = (authSec?.value || "").trim();
+      if (toolsSec && section) toolsSec.value = section;
+      if (authSec && section && !authSec.value) authSec.value = section;
+      const dropMath = (() => { try { return localStorage.getItem("sb_drop_math") === "1"; } catch (_) { return false; } })();
+      const dropScience = (() => { try { return localStorage.getItem("sb_drop_science") === "1"; } catch (_) { return false; } })();
+      const tdm = document.getElementById("tools-drop-math");
+      const tds = document.getElementById("tools-drop-science");
+      const adm = document.getElementById("auth-drop-math");
+      const ads = document.getElementById("auth-drop-science");
+      if (tdm) tdm.checked = dropMath;
+      if (tds) tds.checked = dropScience;
+      if (adm) adm.checked = dropMath;
+      if (ads) ads.checked = dropScience;
+      const isSuper3 = section === "Super 3";
+      const toolsDrops = document.getElementById("tools-super3-drops");
+      if (toolsDrops) toolsDrops.style.display = isSuper3 ? "block" : "none";
+      const authDrops = document.getElementById("auth-super3-drops");
+      if (authDrops && currentUser?.loggedIn) authDrops.style.display = "none";
+    }
+    window.syncToolsSectionFromAuth = syncToolsSectionFromAuth;
     function studyBody(extra) {
       return {
         model: cfg.model,
@@ -6379,7 +6467,11 @@
           authBuddyNameInput.value = currentUser?.buddyName || "Nova";
         }
 
+        const leftSidebarEl = document.getElementById("sidebar");
+        if (leftSidebarEl) leftSidebarEl.dataset.loggedIn = currentUser?.loggedIn ? "1" : "0";
+
         if (currentUser?.loggedIn) {
+          if (authCard) authCard.style.display = "none";
           if (authModeTitle) authModeTitle.textContent = currentUser.identifier
             ? `Signed in · ${currentUser.identifier}`
             : "Signed in";
@@ -6392,7 +6484,9 @@
           if (googleWrap) googleWrap.style.display = "none";
 
           loggedInOnlyElements.forEach((el) => {
-            if (el.classList.contains("sidebar-tool-row")) el.style.display = "grid";
+            if (el.id === "tools-section-container") el.style.display = "";
+            else if (el.classList.contains("tools-dict-divider")) el.style.display = "block";
+            else if (el.classList.contains("sidebar-tool-row")) el.style.display = "grid";
             else if (el.classList.contains("sidebar-account-card")) el.style.display = "flex";
             else el.style.display = "";
           });
@@ -6401,6 +6495,8 @@
           if (usernameInputEl) usernameInputEl.value = currentUser.identifier || "";
           cfg.buddyName = currentUser.buddyName || "Nova";
           localStorage.setItem("sb_config", JSON.stringify({ buddyName: cfg.buddyName }));
+          if (typeof syncToolsSectionFromAuth === "function") syncToolsSectionFromAuth();
+          if (typeof syncToolsReplyLanguageUi === "function") syncToolsReplyLanguageUi();
           try { if (window.SBGame) window.SBGame.onLogin(); } catch (_) {}
           if (headerAuthBtn) {
             headerAuthBtn.style.display = "none";
@@ -6412,6 +6508,7 @@
           if (settingsUser) settingsUser.value = currentUser.identifier || "";
           updateWelcomeGreeting();
         } else {
+          if (authCard) authCard.style.display = "";
           if (authModeTitle) authModeTitle.textContent = "Login";
           if (authSubmitBtn) authSubmitBtn.style.display = "block";
           if (authToggleBtn) authToggleBtn.style.display = "block";
@@ -7148,6 +7245,44 @@
 
         if (typeof currentUser !== 'undefined' && currentUser?.loggedIn) {
           currentUser.buddyName = newBuddyName;
+
+          // Persist reply language + section from right-sidebar tools
+          const replyLang = (document.getElementById("tools-reply-language")?.value || getReplyLang() || "multi").trim();
+          try { localStorage.setItem("sb_reply_language", replyLang); } catch (_) {}
+          const settingsLang = document.getElementById("settings-language");
+          if (settingsLang) settingsLang.value = replyLang;
+          try {
+            const toolsSec = document.getElementById("tools-section");
+            const section = (toolsSec?.value || "").trim();
+            const dropMath = section === "Super 3" && !!document.getElementById("tools-drop-math")?.checked;
+            const dropScience = section === "Super 3" && !!document.getElementById("tools-drop-science")?.checked;
+            if (section) {
+              localStorage.setItem("sb_section", section);
+              localStorage.setItem("sb_drop_math", dropMath ? "1" : "0");
+              localStorage.setItem("sb_drop_science", dropScience ? "1" : "0");
+            }
+            const authSec = document.getElementById("auth-section");
+            if (authSec && section) authSec.value = section;
+            const settingsSec = document.getElementById("settings-section");
+            if (settingsSec && section) settingsSec.value = section;
+            const sdm = document.getElementById("settings-drop-math");
+            const sds = document.getElementById("settings-drop-science");
+            if (sdm) sdm.checked = dropMath;
+            if (sds) sds.checked = dropScience;
+            await fetch("/api/prefs", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                language: replyLang,
+                section,
+                dropMath,
+                dropScience,
+              }),
+            });
+          } catch (err) {
+            console.warn("Section/language save soft-failed:", err);
+          }
           
           // 1. Save Buddy Name
           try {
@@ -7373,10 +7508,32 @@
         }
       }
 
+      function syncToolsSuper3DropsUi() {
+        const toolsSec = document.getElementById("tools-section");
+        const isSuper3 = (toolsSec?.value || "") === "Super 3";
+        const wrap = document.getElementById("tools-super3-drops");
+        if (wrap) wrap.style.display = isSuper3 ? "block" : "none";
+        if (!isSuper3) {
+          const tdm = document.getElementById("tools-drop-math");
+          const tds = document.getElementById("tools-drop-science");
+          if (tdm) tdm.checked = false;
+          if (tds) tds.checked = false;
+        }
+      }
+
       function readAuthSectionPayload() {
-        const section = (authSectionEl?.value || "").trim();
-        const dropMath = section === "Super 3" && !!authDropMathEl?.checked;
-        const dropScience = section === "Super 3" && !!authDropScienceEl?.checked;
+        // Prefer right-sidebar tools when signed in (left auth form is hidden)
+        const toolsSec = document.getElementById("tools-section");
+        const useTools = !!(currentUser?.loggedIn && toolsSec);
+        const section = (useTools ? toolsSec.value : (authSectionEl?.value || "")).trim();
+        const dropMathEl = useTools
+          ? document.getElementById("tools-drop-math")
+          : authDropMathEl;
+        const dropScienceEl = useTools
+          ? document.getElementById("tools-drop-science")
+          : authDropScienceEl;
+        const dropMath = section === "Super 3" && !!dropMathEl?.checked;
+        const dropScience = section === "Super 3" && !!dropScienceEl?.checked;
         return { section, dropMath, dropScience };
       }
 
@@ -7422,14 +7579,44 @@
         syncAuthSuper3DropsUi();
         const p = readAuthSectionPayload();
         rememberAuthSectionLocally(p.section, p.dropMath, p.dropScience);
+        const toolsSec = document.getElementById("tools-section");
+        if (toolsSec) toolsSec.value = p.section;
+        syncToolsSuper3DropsUi();
       });
       authDropMathEl?.addEventListener("change", () => {
         const p = readAuthSectionPayload();
         rememberAuthSectionLocally(p.section, p.dropMath, p.dropScience);
+        const tdm = document.getElementById("tools-drop-math");
+        if (tdm) tdm.checked = p.dropMath;
       });
       authDropScienceEl?.addEventListener("change", () => {
         const p = readAuthSectionPayload();
         rememberAuthSectionLocally(p.section, p.dropMath, p.dropScience);
+        const tds = document.getElementById("tools-drop-science");
+        if (tds) tds.checked = p.dropScience;
+      });
+      document.getElementById("tools-section")?.addEventListener("change", () => {
+        syncToolsSuper3DropsUi();
+        const p = readAuthSectionPayload();
+        rememberAuthSectionLocally(p.section, p.dropMath, p.dropScience);
+        if (authSectionEl) authSectionEl.value = p.section;
+        syncAuthSuper3DropsUi();
+      });
+      document.getElementById("tools-drop-math")?.addEventListener("change", () => {
+        const p = readAuthSectionPayload();
+        rememberAuthSectionLocally(p.section, p.dropMath, p.dropScience);
+        if (authDropMathEl) authDropMathEl.checked = p.dropMath;
+      });
+      document.getElementById("tools-drop-science")?.addEventListener("change", () => {
+        const p = readAuthSectionPayload();
+        rememberAuthSectionLocally(p.section, p.dropMath, p.dropScience);
+        if (authDropScienceEl) authDropScienceEl.checked = p.dropScience;
+      });
+      document.getElementById("tools-reply-language")?.addEventListener("change", (e) => {
+        const v = (e.target?.value || "multi").trim() || "multi";
+        try { localStorage.setItem("sb_reply_language", v); } catch (_) {}
+        const settingsLang = document.getElementById("settings-language");
+        if (settingsLang) settingsLang.value = v;
       });
       document.getElementById("settings-section")?.addEventListener("change", syncSettingsSuper3DropsUi);
       
@@ -7982,15 +8169,20 @@
         function openSidebarAccountSettings() {
           closeProfileMenu();
           if (typeof closeSettingsPanel === "function") closeSettingsPanel();
-          if (sidebarEl) {
-            sidebarEl.classList.remove("hidden");
-            if (typeof updateLeftSidebarState === "function") updateLeftSidebarState();
+          const dictEl = document.getElementById("dict-sidebar");
+          if (dictEl) {
+            dictEl.classList.remove("hidden");
+            if (typeof updateRightSidebarState === "function") updateRightSidebarState();
           }
+          const toolsContent = document.getElementById("tools-section-content");
+          const toolsIcon = document.getElementById("tools-toggle-icon");
+          if (toolsContent) toolsContent.classList.remove("collapsed");
+          if (toolsIcon) toolsIcon.classList.remove("collapsed");
           const target =
             document.getElementById("username-input") ||
             document.getElementById("buddy-name-input") ||
             document.getElementById("save-settings-btn");
-          const scrollRoot = document.querySelector("#sidebar .sidebar-content") || sidebarEl;
+          const scrollRoot = document.querySelector("#dict-sidebar .sidebar-content") || dictEl;
           const focusField = () => {
             if (!target) return;
             try {
@@ -8004,7 +8196,6 @@
             target.classList.add("sb-focus-pulse");
             setTimeout(() => target.classList.remove("sb-focus-pulse"), 1800);
           };
-          // Allow sidebar expand animation before scrolling
           setTimeout(focusField, 80);
           if (scrollRoot && target) {
             setTimeout(() => {
@@ -13454,6 +13645,15 @@
       });
 
       // Section Collapsible Handlers for Right Sidebar
+      document.getElementById("tools-section-toggle")?.addEventListener("click", () => {
+        const content = document.getElementById("tools-section-content");
+        const icon = document.getElementById("tools-toggle-icon");
+        if (content && icon) {
+          content.classList.toggle("collapsed");
+          icon.classList.toggle("collapsed");
+        }
+      });
+
       document.getElementById("dict-section-toggle")?.addEventListener("click", () => {
         const content = document.getElementById("dict-section-content");
         const icon = document.getElementById("dict-toggle-icon");

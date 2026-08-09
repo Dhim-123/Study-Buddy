@@ -139,12 +139,31 @@
       localStorage.setItem("sb_drop_science", section === "Super 3" && dropScience ? "1" : "0");
     } catch (_) {}
     const langEl = document.getElementById("settings-language");
-    if (langEl) {
+    const toolsLangEl = document.getElementById("tools-reply-language");
+    if (langEl || toolsLangEl) {
       const lang = prefs.language || localStorage.getItem("sb_reply_language") || "multi";
-      langEl.value = lang;
-      // If server sent an unknown/empty value, fall back so Multilingual stays selected
-      if (langEl.value !== lang) langEl.value = "multi";
-      try { localStorage.setItem("sb_reply_language", langEl.value); } catch (_) {}
+      if (langEl) {
+        langEl.value = lang;
+        // If server sent an unknown/empty value, fall back so Multilingual stays selected
+        if (langEl.value !== lang) langEl.value = "multi";
+      }
+      if (toolsLangEl) {
+        toolsLangEl.value = (langEl && langEl.value) || lang;
+        if (toolsLangEl.value !== lang && toolsLangEl.value !== ((langEl && langEl.value) || "")) {
+          toolsLangEl.value = "multi";
+        }
+      }
+      try { localStorage.setItem("sb_reply_language", (langEl && langEl.value) || (toolsLangEl && toolsLangEl.value) || "multi"); } catch (_) {}
+    }
+    const toolsSec = document.getElementById("tools-section");
+    if (toolsSec && section) {
+      toolsSec.value = section;
+      const toolsDrops = document.getElementById("tools-super3-drops");
+      if (toolsDrops) toolsDrops.style.display = section === "Super 3" ? "block" : "none";
+      const tdm = document.getElementById("tools-drop-math");
+      const tds = document.getElementById("tools-drop-science");
+      if (tdm) tdm.checked = section === "Super 3" && dropMath;
+      if (tds) tds.checked = section === "Super 3" && dropScience;
     }
     const ns = document.getElementById("settings-notify-streak");
     if (ns) ns.checked = !!prefs.notifyStreak;
@@ -1082,18 +1101,33 @@
   async function savePrefsFromSettings(opts) {
     if (!isLoggedIn()) return;
     const quiet = !!(opts && opts.quiet);
-    const section = document.getElementById("settings-section")?.value || "";
+    const toolsSec = document.getElementById("tools-section")?.value || "";
+    const settingsSec = document.getElementById("settings-section")?.value || "";
+    const section = toolsSec || settingsSec || "";
+    const language = (
+      document.getElementById("tools-reply-language")?.value
+      || document.getElementById("settings-language")?.value
+      || "multi"
+    );
+    const dropMath = section === "Super 3" && !!(
+      document.getElementById("tools-drop-math")?.checked
+      || document.getElementById("settings-drop-math")?.checked
+    );
+    const dropScience = section === "Super 3" && !!(
+      document.getElementById("tools-drop-science")?.checked
+      || document.getElementById("settings-drop-science")?.checked
+    );
     const payload = {
       grade: parseInt(document.getElementById("settings-grade")?.value || localStorage.getItem("sb_grade") || "9", 10),
-      language: document.getElementById("settings-language")?.value || "multi",
+      language,
       notifyStreak: !!document.getElementById("settings-notify-streak")?.checked,
       notifyPuzzle: !!document.getElementById("settings-notify-puzzle")?.checked,
       highContrast: !!document.getElementById("settings-high-contrast")?.checked,
       reducedMotion: !!document.getElementById("settings-reduced-motion")?.checked,
       fontScale: parseFloat(document.getElementById("settings-font-scale")?.value || "1") || 1,
       section,
-      dropMath: section === "Super 3" && !!document.getElementById("settings-drop-math")?.checked,
-      dropScience: section === "Super 3" && !!document.getElementById("settings-drop-science")?.checked,
+      dropMath,
+      dropScience,
     };
     try {
       const data = await api("/api/prefs", { method: "POST", body: JSON.stringify(payload) });
@@ -1167,7 +1201,18 @@
     document.getElementById("settings-language")?.addEventListener("change", (e) => {
       const v = e.target.value || "multi";
       try { localStorage.setItem("sb_reply_language", v); } catch (_) {}
+      const toolsLang = document.getElementById("tools-reply-language");
+      if (toolsLang) toolsLang.value = v;
       // Persist immediately so Multilingual is not overwritten by a later prefs reload
+      if (isLoggedIn()) {
+        savePrefsFromSettings({ quiet: true }).catch(() => {});
+      }
+    });
+    document.getElementById("tools-reply-language")?.addEventListener("change", (e) => {
+      const v = e.target.value || "multi";
+      try { localStorage.setItem("sb_reply_language", v); } catch (_) {}
+      const settingsLang = document.getElementById("settings-language");
+      if (settingsLang) settingsLang.value = v;
       if (isLoggedIn()) {
         savePrefsFromSettings({ quiet: true }).catch(() => {});
       }

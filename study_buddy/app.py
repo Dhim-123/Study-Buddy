@@ -4993,10 +4993,15 @@ def chat():
         return t[:800]
 
     def _detect_message_language(text: str) -> str:
-        """Best-effort language name for the latest user message."""
+        """Best-effort language name for the latest user message.
+
+        Short English study prompts (e.g. "newtons laws") must NOT fall through
+        as "unknown" — models then invent Dutch/German. Latin/ASCII with no
+        strong non-English signal defaults to English.
+        """
         t = _text_for_lang_detect(text)
         if not t:
-            return ""
+            return "English"
         if re.search(r"[\u0C00-\u0C7F]", t):
             return "Telugu"
         if re.search(r"[\u0900-\u097F]", t):
@@ -5034,55 +5039,63 @@ def chat():
                 if re.search(rf"\b{re.escape(word)}\b", low):
                     scores[lang] += w
 
+        # Prefer distinctive function words — avoid ultra-common tokens that
+        # false-positive on short English study phrases.
         _hit("German", [
-            "ich", "nicht", "und", "die", "der", "das", "ist", "ein", "eine",
-            "wie", "was", "warum", "kann", "können", "bitte", "danke", "hallo",
-            "erklären", "hilfe", "für", "mit", "auch", "oder", "aber", "wenn",
-            "haben", "sind", "mein", "dein", "gut", "heute", "lernen",
+            "ich", "nicht", "können", "bitte", "danke", "hallo",
+            "erklären", "hilfe", "warum", "heute", "lernen", "gesetz",
+            "gesetze", "erklärung",
         ], 2)
         _hit("Spanish", [
-            "hola", "gracias", "qué", "que", "cómo", "como", "por", "para",
-            "está", "esta", "esto", "hola", "ayuda", "explicar", "porque",
-            "tengo", "quiero", "hacer", "dónde", "donde",
+            "hola", "gracias", "qué", "cómo", "ayuda", "explicar", "porque",
+            "tengo", "quiero", "dónde", "leyes", "explica",
         ], 2)
         _hit("French", [
-            "bonjour", "merci", "je", "tu", "nous", "vous", "est", "pas",
-            "pour", "avec", "quoi", "comment", "pourquoi", "aide", "expliquer",
-            "s'il", "ça", "une", "les", "des",
+            "bonjour", "merci", "pourquoi", "aide", "expliquer",
+            "s'il", "loi", "lois", "qu'est",
         ], 2)
         _hit("English", [
             "the", "what", "how", "why", "please", "thanks", "thank", "hello",
             "hi", "explain", "help", "can", "could", "would", "does", "don't",
             "dont", "isn't", "about", "this", "that", "with", "from", "have",
             "there", "their", "which", "where", "when", "because",
+            "law", "laws", "newton", "newtons", "force", "motion", "define",
+            "definition", "meaning", "formula", "solve", "chapter", "topic",
+            "quiz", "test", "homework", "notes", "revise", "revision",
         ], 2)
         _hit("Hindi", [
             "hai", "kya", "kaise", "kyun", "kyunki", "nahi", "nahin", "mera",
-            "tera", "aap", "tum", "matlab", "samjhao", "batao", "please",
-            "haan", "ji", "aur", "par", "se",
+            "tera", "aap", "tum", "matlab", "samjhao", "batao",
+            "haan", "ji",
         ], 2)
 
-        best = max(scores.items(), key=lambda kv: kv[1])
-        if best[1] >= 2:
-            return best[0]
-        return ""
+        best_lang, best_score = max(scores.items(), key=lambda kv: kv[1])
+        non_en = max(scores["German"], scores["Spanish"], scores["French"], scores["Hindi"])
+        # Clear non-English win
+        if best_lang != "English" and best_score >= 2 and best_score > scores["English"]:
+            return best_lang
+        if scores["English"] >= 2 and scores["English"] >= non_en:
+            return "English"
+
+        # Latin / ASCII study text with no clear foreign signal → English
+        letters = re.sub(r"[^A-Za-z]+", "", t)
+        if letters and re.fullmatch(r"[A-Za-z0-9\s.,!?'\"()\-/:%]+", t.strip()):
+            return "English"
+        if best_score >= 2:
+            return best_lang
+        return "English"
 
     def _script_language_hint(text: str) -> str:
         """Stronger multilingual cue from the latest user message only."""
-        detected = _detect_message_language(text)
+        detected = _detect_message_language(text) or "English"
         sample = _text_for_lang_detect(text)
         sample_q = (sample[:160] + "…") if len(sample) > 160 else sample
         sample_q = sample_q.replace("\n", " ").strip()
-        if detected:
-            return (
-                f"Detected language of the LATEST student message: {detected}. "
-                f'Reply entirely in {detected}. '
-                f'Latest message sample: "{sample_q}"'
-            )
         return (
-            "Identify the language of ONLY the student's latest message "
-            "(German, English, Hindi, Spanish, French, Telugu, etc.) and reply in that language. "
-            "If they switched languages mid-chat, follow the new language immediately. "
+            f"Detected language of the LATEST student message: {detected}. "
+            f"Reply entirely in {detected}. "
+            "Do NOT switch to Dutch, German, French, Spanish, or any other language "
+            "unless that is the detected language of this latest message. "
             f'Latest message sample: "{sample_q}"'
         )
 
@@ -5094,19 +5107,19 @@ def chat():
                 last_user_text = m.get("content") or ""
                 break
         if multilingual:
-            detected_lang = _detect_message_language(last_user_text)
+            detected_lang = _detect_message_language(last_user_text) or "English"
             lang_rule = (
                 "OUTPUT LANGUAGE (mandatory — overrides earlier chat language):\n"
                 "- Reply in the SAME language as the student's MOST RECENT message only.\n"
-                "- If earlier turns were German/Hindi/etc. but the latest message is English, reply in English.\n"
+                "- Short English study prompts (e.g. 'newtons laws', 'photosynthesis') → English.\n"
+                "- If earlier turns were German/Hindi/Dutch/etc. but the latest message is English, reply in English.\n"
                 "- If the latest message is German, reply in German — even if earlier turns were English.\n"
                 "- Do NOT keep using a previous reply language out of habit from chat history.\n"
+                "- Never invent Dutch/German/French when the latest message is English.\n"
                 "- Keep math expressions/formulas readable.\n"
                 f"{_script_language_hint(last_user_text)}\n"
+                f"- Final check: your entire answer must be in {detected_lang}.\n\n"
             )
-            if detected_lang:
-                lang_rule += f"- Final check: your entire answer must be in {detected_lang}.\n"
-            lang_rule += "\n"
         else:
             lang_rule = (
                 f"OUTPUT LANGUAGE (mandatory): Reply entirely in {reply_lang_name}. "
