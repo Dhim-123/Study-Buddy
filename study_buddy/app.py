@@ -2135,12 +2135,12 @@ def fs_pull_conversations_into_sqlite(user_id):
                 created_at = data.get("created_at") or None
                 updated_at = data.get("updated_at") or None
 
-                # After Clear: only import docs stamped with current wipe gen
-                # (or strictly post-wipe timestamps for legacy docs).
+                # After Clear: only import docs stamped with current wipe gen.
+                # Skip import only — do NOT hard-delete remotes here. Explicit
+                # Clear already wipes cloud; pull-purge was destroying valid chats.
                 if wiped_at or int(wipe_meta.get("wipe_gen") or 0) > 0:
                     if not fs_doc_survives_wipe(data, wipe_meta):
                         stats["skipped_wiped"] += 1
-                        fs_purge_remote_conversation_doc(conv_doc)
                         continue
 
                 stats["imported"] += 1
@@ -4182,11 +4182,9 @@ def list_conversations():
     pull_stats = fs_pull_conversations_into_sqlite(uid) or {}
     active, wipe_gen, wiped_at, _ = fs_wipe_is_active(uid)
 
-    # CRITICAL: never bulk-push while a wipe tombstone exists.
-    # Bulk push was restamping cleared chats with the current wipe_gen,
-    # which made them look "new" and resurrected them on every hard refresh.
-    if not active:
-        fs_push_all_conversations(uid)
+    # Always catch up post-wipe rows (helper filters by content_wipe_gen threshold).
+    # Skipping push while wipe-active left new chats local-only and easy to lose.
+    fs_push_all_conversations(uid)
 
     with get_db() as conn:
         rows = conn.execute("""
@@ -4915,6 +4913,44 @@ def _is_groq_payload_too_large(err: Exception) -> bool:
 
 # ── Chat (main AI endpoint) ───────────────────────────────────────────
 
+_CASUAL_TURN_RE = re.compile(
+    r"\b("
+    r"jokes?|knock[\s-]?knock|riddles?|meme|song|lyrics|movie|bored|"
+    r"(let'?s|lets|wanna|want to|can we)\s+play|play\s+(a\s+)?game|"
+    r"hang\s*out|just\s+chat|banter|tell\s+me\s+(a\s+)?jokes?|"
+    r"make\s+me\s+laugh|entertain\s+me|story\s+time|lol|haha+|lmao"
+    r")\b",
+    re.I,
+)
+_GREETING_TURN_RE = re.compile(
+    r"^\s*(hi+|hello+|hey+|howdy|good\s*(morning|afternoon|evening|night)|"
+    r"thanks?|thank\s*you|ty|thx|bye+|ok(ay)?|cool|nice|lol|haha+)\s*[!?.]*\s*$",
+    re.I,
+)
+
+
+def _is_entertainment_or_casual_turn(text: str) -> bool:
+    """True for games/jokes/greetings — skip study reinforce and force topic switch."""
+    t = (text or "").strip()
+    if not t:
+        return True
+    core = re.split(r"\n\n?--- EXTRACTED PAGE TEXT ---", t, maxsplit=1)[0].strip()
+    if not core:
+        return True
+    if _GREETING_TURN_RE.match(core):
+        return True
+    if _CASUAL_TURN_RE.search(core):
+        return True
+    # Short non-study banter (no clear academic cue)
+    if len(core) <= 72 and not re.search(
+        r"\b(explain|define|solve|newton|law|photosynthesis|math|physics|"
+        r"chemistry|biology|what is|what are|how do|how does|formula|chapter)\b",
+        core,
+        re.I,
+    ):
+        return True
+    return False
+
 
 @app.route("/api/chat", methods=["POST"])
 @app.route("/api/podcast", methods=["POST"])
@@ -4951,13 +4987,26 @@ def chat():
             f"\n\nSTUDENT LEVEL: Teach for Grade {grade_hint} "
             f"(age-appropriate depth, vocabulary, and examples).\n"
         )
+    # Peek at latest user text early (before personalization) for casual/topic gates
+    _raw_messages = data.get("messages") if isinstance(data.get("messages"), list) else messages
+    _peek_last_user = ""
+    for _m in reversed(_raw_messages or []):
+        if isinstance(_m, dict) and _m.get("role") == "user" and isinstance(_m.get("content"), str):
+            _peek_last_user = _m.get("content") or ""
+            break
+    _latest_is_casual = (
+        endpoint == "chat" and _is_entertainment_or_casual_turn(_peek_last_user)
+    )
+
     try:
         uid = user.get("id") if isinstance(user, dict) else None
         if uid:
             system_prompt += format_exams_for_prompt(
                 list_upcoming_exams_for_user(uid, limit=8)
             )
-            system_prompt += format_student_context_for_prompt(uid)
+            # Don't pull Mistake Vault / weak-subject reinforce into joke/game turns
+            if not _latest_is_casual:
+                system_prompt += format_student_context_for_prompt(uid)
         else:
             system_prompt += format_exams_for_prompt(list_upcoming_exams(limit=6))
     except Exception as e:
@@ -5141,6 +5190,23 @@ def chat():
                 f"Even if the student writes in another language, answer in {reply_lang_name}. "
                 "Keep math expressions/formulas readable.\n\n"
             )
+        topic_rule = (
+            "TOPIC FOCUS (mandatory — overrides earlier chat subject):\n"
+            "- Answer the student's MOST RECENT message as the primary request.\n"
+            "- If the latest message is a NEW topic, entertainment, games, jokes, greetings, or banter "
+            "(e.g. 'lets play a game', 'tell me knock knock jokes'):\n"
+            "  → Do NOT continue, summarize, quiz, or teach the previous academic subject "
+            "(physics, math, etc.) unless they explicitly ask to return "
+            "(e.g. 'back to Newton', 'continue where we left off').\n"
+            "- For entertainment: play along briefly in 1–3 short turns; do not force a study wrap-up "
+            "or check-for-understanding.\n"
+            "- Prior turns are context only when the latest message continues that subject.\n\n"
+        )
+        if _latest_is_casual or _is_entertainment_or_casual_turn(last_user_text):
+            topic_rule += (
+                "Latest message is entertainment/topic-change — "
+                "do not continue the prior study topic.\n\n"
+            )
         system_prompt = (
             f"{system_prompt}\n\n"
             "RESPONSE STYLE RULES — follow these precisely:\n\n"
@@ -5157,6 +5223,7 @@ def chat():
             "IMPORTANT: Never end any response with 'say move to next step', "
             "'type move to next step', 'hint for next step', or 'explain in simpler terms' "
             "as a prompt for the user. The interface provides those buttons automatically.\n\n"
+            f"{topic_rule}"
             f"{lang_rule}"
         )
     elif endpoint == "podcast":

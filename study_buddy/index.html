@@ -369,6 +369,13 @@
       flex-direction: column;
       gap: 8px;
     }
+    .sb-conv-empty {
+      padding: 18px 14px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.45;
+      text-align: center;
+    }
 
     .sb-conv-group {
       display: flex;
@@ -3529,6 +3536,34 @@
       position: relative;
       transition: all 0.2s ease;
     }
+    #dict-sidebar .nb-entry-card {
+      padding: 6px 8px;
+      gap: 4px;
+      border-radius: 8px;
+    }
+    #dict-sidebar .nb-entry-textarea {
+      font-size: 0.8rem;
+      line-height: 1.35;
+      max-height: 2.7em;
+      overflow: hidden;
+      min-height: 28px;
+    }
+    #dict-sidebar .nb-entry-card.is-editing .nb-entry-textarea {
+      max-height: none;
+    }
+    #dict-sidebar .nb-entry-footer {
+      display: none;
+    }
+    #dict-sidebar .nb-entry-card.is-editing .nb-entry-footer {
+      display: flex;
+    }
+    #dict-sidebar #nb-sidebar-body {
+      gap: 6px !important;
+    }
+    #dict-sidebar .nb-sidebar-cat-card {
+      padding: 8px 10px;
+      gap: 6px;
+    }
 
     .nb-entry-card:hover {
       border-color: rgba(59, 130, 246, 0.4);
@@ -4967,11 +5002,21 @@
       </div>
 
       <div class="settings-divider"></div>
-      <div class="settings-block">
+      <div class="settings-block" id="settings-account-block">
         <div class="settings-section-label">Account</div>
-        <p class="settings-hint">Buddy name can still be edited in the left sidebar.</p>
+        <p class="settings-hint">Buddy name, username, and logout live here.</p>
+        <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;margin-bottom:12px;">
+          <label for="buddy-name-input" style="font-size:0.82rem;font-weight:700;">Buddy name</label>
+          <input type="text" class="input" id="buddy-name-input" placeholder="Buddy name" style="width:100%;padding:8px 10px;" />
+          <label for="username-input" style="font-size:0.82rem;font-weight:700;">Username</label>
+          <input type="text" class="input" id="username-input" placeholder="Username" autocomplete="username" style="width:100%;padding:8px 10px;" />
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <button type="button" class="btn-primary" id="save-settings-btn" style="width:100%;padding:10px;">Save</button>
+            <button type="button" class="btn-icon" id="logout-btn" style="width:100%;padding:10px;justify-content:center;background:rgba(244,63,94,0.1);border-color:rgba(244,63,94,0.2);color:#f43f5e;">Log out</button>
+          </div>
+        </div>
         <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px;">
-          <label for="settings-username-input" style="font-size:0.82rem;font-weight:700;">Username</label>
+          <label for="settings-username-input" style="font-size:0.82rem;font-weight:700;">Quick username</label>
           <input type="text" id="settings-username-input" class="input" placeholder="New username" autocomplete="username" style="width:100%;padding:8px 10px;" />
           <button type="button" class="btn-primary" id="settings-change-username-btn" style="width:100%;padding:10px;">Save username</button>
           <p id="settings-username-msg" class="settings-hint" style="margin:0;display:none;"></p>
@@ -5799,13 +5844,13 @@
       <!-- RIGHT SIDEBAR: TOOLS + DICTIONARY + NOTEBOOK -->
       <div id="dict-sidebar">
         <div class="sidebar-content">
-          <!-- 0. STUDY TOOLS (signed-in) — keeps left sidebar short -->
+          <!-- 0. STUDY TOOLS (signed-in) — collapsed by default -->
           <div class="sidebar-section-container logged-in-only" id="tools-section-container" style="display:none;">
             <div class="sidebar-section-header" id="tools-section-toggle">
               <div class="dict-title" style="margin-bottom:0;">⚡ <span>Study tools</span></div>
-              <span class="section-toggle-icon" id="tools-toggle-icon">▼</span>
+              <span class="section-toggle-icon collapsed" id="tools-toggle-icon">▼</span>
             </div>
-            <div id="tools-section-content" class="sidebar-section-content">
+            <div id="tools-section-content" class="sidebar-section-content collapsed">
               <div class="settings-notes-panel sidebar-tools" style="padding: 0 12px 10px;">
                 <div class="compact-focus-bar">
                   <span class="focus-label">
@@ -5856,53 +5901,33 @@
                     <input type="checkbox" id="tools-drop-science" /> Science
                   </label>
                 </div>
-
-                <button type="button" class="tools-account-toggle" id="tools-account-toggle" aria-expanded="false">
-                  <span>Account</span>
-                  <span class="section-toggle-icon collapsed" id="tools-account-icon">▼</span>
-                </button>
-                <div id="tools-account-content" class="sidebar-account-card collapsed">
-                  <div class="field">
-                    <label for="buddy-name-input">Buddy</label>
-                    <input type="text" class="input" id="buddy-name-input" placeholder="Buddy name" />
-                  </div>
-                  <div class="field">
-                    <label for="username-input">Username</label>
-                    <input type="text" class="input" id="username-input" placeholder="Username" />
-                  </div>
-                  <div class="sidebar-account-actions">
-                    <button class="btn-primary" id="save-settings-btn" type="button">Save</button>
-                    <button class="btn-icon" id="logout-btn" type="button" style="background:rgba(244,63,94,0.1); border-color:rgba(244,63,94,0.2); color:#f43f5e;">Log out</button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
 
-          <div class="logged-in-only tools-dict-divider" style="display:none; border-top: 1px solid var(--border); margin: 4px 0 8px;"></div>
+          <div class="logged-in-only tools-dict-divider" style="display:none; border-top: 1px solid var(--border); margin: 2px 0;"></div>
 
-          <!-- 1. DICTIONARY SECTION -->
+          <!-- 1. DICTIONARY SECTION — collapsed when signed in -->
           <div class="sidebar-section-container" id="dict-section-container">
             <div class="sidebar-section-header" id="dict-section-toggle">
               <div class="dict-title" style="margin-bottom:0;">📚 <span>Dictionary</span></div>
-              <span class="section-toggle-icon" id="dict-toggle-icon">▼</span>
+              <span class="section-toggle-icon collapsed" id="dict-toggle-icon">▼</span>
             </div>
 
-            <div id="dict-section-content" class="sidebar-section-content">
-              <div class="dict-search-row" style="padding: 0 16px 12px;">
+            <div id="dict-section-content" class="sidebar-section-content collapsed">
+              <div class="dict-search-row" style="padding: 0 12px 8px;">
                 <input id="dict-input" type="text" placeholder="Type a word…" autocomplete="off" />
                 <button id="dict-search-btn" title="Look up">🔍</button>
               </div>
-              <div class="dict-body" id="dict-body" style="padding: 0 16px 14px;">
+              <div class="dict-body" id="dict-body" style="padding: 0 12px 8px;">
                 <div class="dict-empty">
-                  <span class="dict-empty-icon">📖</span>
-                  Type any word above to instantly see its meaning, pronunciation, and an example sentence.
+                  Type a word to look it up.
                 </div>
               </div>
             </div>
           </div>
 
-          <div style="border-top: 1px solid var(--border); margin: 12px 0 8px;"></div>
+          <div style="border-top: 1px solid var(--border); margin: 2px 0;"></div>
 
           <!-- 2. LIVING NOTEBOOK SECTION (BELOW DICTIONARY) -->
           <div class="sidebar-section-container" id="nb-section-container">
@@ -6556,6 +6581,13 @@
           localStorage.setItem("sb_config", JSON.stringify({ buddyName: cfg.buddyName }));
           if (typeof syncToolsSectionFromAuth === "function") syncToolsSectionFromAuth();
           if (typeof syncToolsReplyLanguageUi === "function") syncToolsReplyLanguageUi();
+          // Signed-in right sidebar: Notebook open; Tools + Dictionary collapsed
+          document.getElementById("tools-section-content")?.classList.add("collapsed");
+          document.getElementById("tools-toggle-icon")?.classList.add("collapsed");
+          document.getElementById("dict-section-content")?.classList.add("collapsed");
+          document.getElementById("dict-toggle-icon")?.classList.add("collapsed");
+          document.getElementById("nb-section-content")?.classList.remove("collapsed");
+          document.getElementById("nb-toggle-icon")?.classList.remove("collapsed");
           try { if (window.SBGame) window.SBGame.onLogin(); } catch (_) {}
           if (headerAuthBtn) {
             headerAuthBtn.style.display = "none";
@@ -6581,6 +6613,9 @@
           loggedInOnlyElements.forEach(el => el.style.display = "none");
           if (buddyNameEl) buddyNameEl.value = "";
           if (usernameInputEl) usernameInputEl.value = "";
+          // Logged out: Dictionary open for guests
+          document.getElementById("dict-section-content")?.classList.remove("collapsed");
+          document.getElementById("dict-toggle-icon")?.classList.remove("collapsed");
           if (headerAuthBtn) {
             headerAuthBtn.style.display = "";
             headerAuthBtn.textContent = "🚪 Login / Register";
@@ -8227,27 +8262,12 @@
 
         function openSidebarAccountSettings() {
           closeProfileMenu();
-          if (typeof closeSettingsPanel === "function") closeSettingsPanel();
-          const dictEl = document.getElementById("dict-sidebar");
-          if (dictEl) {
-            dictEl.classList.remove("hidden");
-            if (typeof updateRightSidebarState === "function") updateRightSidebarState();
-          }
-          const toolsContent = document.getElementById("tools-section-content");
-          const toolsIcon = document.getElementById("tools-toggle-icon");
-          if (toolsContent) toolsContent.classList.remove("collapsed");
-          if (toolsIcon) toolsIcon.classList.remove("collapsed");
-          const accountContent = document.getElementById("tools-account-content");
-          const accountIcon = document.getElementById("tools-account-icon");
-          const accountToggle = document.getElementById("tools-account-toggle");
-          if (accountContent) accountContent.classList.remove("collapsed");
-          if (accountIcon) accountIcon.classList.remove("collapsed");
-          if (accountToggle) accountToggle.setAttribute("aria-expanded", "true");
+          if (typeof openSettingsPanel === "function") openSettingsPanel();
           const target =
-            document.getElementById("username-input") ||
             document.getElementById("buddy-name-input") ||
-            document.getElementById("save-settings-btn");
-          const scrollRoot = document.querySelector("#dict-sidebar .sidebar-content") || dictEl;
+            document.getElementById("username-input") ||
+            document.getElementById("settings-account-block");
+          const scrollRoot = document.querySelector("#settings-panel .settings-panel-card");
           const focusField = () => {
             if (!target) return;
             try {
@@ -8258,10 +8278,8 @@
             if (typeof target.focus === "function") {
               try { target.focus({ preventScroll: true }); } catch (_) { target.focus(); }
             }
-            target.classList.add("sb-focus-pulse");
-            setTimeout(() => target.classList.remove("sb-focus-pulse"), 1800);
           };
-          setTimeout(focusField, 80);
+          setTimeout(focusField, 120);
           if (scrollRoot && target) {
             setTimeout(() => {
               try {
@@ -8269,7 +8287,7 @@
                 const tRect = target.getBoundingClientRect();
                 scrollRoot.scrollTop += (tRect.top - rootRect.top) - 24;
               } catch (_) { /* ignore */ }
-            }, 100);
+            }, 140);
           }
         }
 
@@ -8601,6 +8619,14 @@
             group.appendChild(item);
           });
           listEl.appendChild(group);
+        }
+
+        if (conversations.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "sb-conv-empty";
+          empty.textContent = "No chats yet — send a message to start";
+          listEl.appendChild(empty);
+          return;
         }
 
         renderGroup("Pinned", pinned);
@@ -9880,8 +9906,8 @@
     // number-like character.
     const GREETING_RE = /^\s*(hi+|hello+|hey+|howdy|good\s*(morning|afternoon|evening|night)|greetings|what'?s\s*up|whats\s*up|wassup|wazzup|how\s*are\s*you(\s*doing)?|how'?s\s*it\s*going|sup|yo|hiya|thanks?|thank\s*you|ty|thx|cheers|ok(ay)?|great|awesome|cool|nice|bye+|goodbye|see\s*ya|later|cya|got\s*it|sure|no\s*problem|np|alright|ok+|nm|not\s*much|lol|haha+)\s*[!?.]*\s*$/i;
 
-    const STUDY_INTENT_RE = /\b(solve|explain|define|derive|prove|calculate|compute|formula|chapter|homework|exam|revise|revision|photosynthesis|newton|newtons?|algebra|geometry|trigonometry|calculus|velocity|acceleration|molecule|atom|cell|equation|theorem|differentiate|integrate|gravity|force|ohm|voltage|resistance|quiz|test|notes?|laws?|law of|class\s*\d+|grade\s*\d+|math|physics|chemistry|biology|history|geography|english grammar|what is|what are|why is|why are|how do|how does|how to|tell me about|summarize|summarise|describe|teach|understand|mean by|difference between|example of|mitosis|meiosis|osmosis|inertia|momentum|photosynthesis)\b/i;
-    const CHITCHAT_RE = /\b(song|lyrics|movie|meme|joke|nod if you can hear|anybody (home|in there)|comfortably numb|lol|haha|lmao)\b/i;
+    const STUDY_INTENT_RE = /\b(solve|explain|define|derive|prove|calculate|compute|formula|chapter|homework|exam|revise|revision|photosynthesis|newton|newtons?|algebra|geometry|trigonometry|calculus|velocity|acceleration|molecule|atom|cell|equation|theorem|differentiate|integrate|gravity|force|ohm|voltage|resistance|quiz|test|notes?|laws?|law of|class\s*\d+|grade\s*\d+|math|physics|chemistry|biology|history|geography|english grammar|what is|what are|why is|why are|how do|how does|how to|tell me about|summarize|summarise|describe|teach|understand|mean by|difference between|example of|mitosis|meiosis|osmosis|inertia|momentum)\b/i;
+    const CASUAL_INTENT_RE = /\b(jokes?|knock[\s-]?knock|riddles?|meme|song|lyrics|movie|bored|(let'?s|lets|wanna|want to|can we)\s+play|play\s+(a\s+)?game|hang\s*out|just\s+chat|banter|tell\s+me\s+(a\s+)?jokes?|make\s+me\s+laugh|entertain\s+me|story\s+time|lol|haha+|lmao)\b/i;
 
     function isGreeting(userMsg) {
       return isCasualConversation(userMsg);
@@ -9890,27 +9916,30 @@
     function isCasualConversation(userMsg) {
       const t = String(userMsg || "").trim();
       if (!t) return true;
-      // Strip referral wrapper for intent check
       const core = t.replace(/--- EXTRACTED PAGE TEXT ---[\s\S]*$/i, "").trim();
       if (!core) return true;
       if (GREETING_RE.test(core)) return true;
-      // Clear chitchat / lyrics without study intent
-      if (CHITCHAT_RE.test(core) && !STUDY_INTENT_RE.test(core)) return true;
-      // Lyrics / chitchat: starts with hello/hey and no study intent
-      if (/^(hi|hello|hey|yo|sup)\b/i.test(core) && !STUDY_INTENT_RE.test(core) && core.length < 80) {
+
+      const hasStudy = STUDY_INTENT_RE.test(core);
+      const hasCasual = CASUAL_INTENT_RE.test(core);
+
+      // Entertainment wins unless clearly also a study ask
+      if (hasCasual && !hasStudy) return true;
+      if (/^(hi|hello|hey|yo|sup)\b/i.test(core) && !hasStudy && core.length < 80) {
         return true;
       }
-      if (STUDY_INTENT_RE.test(core)) return false;
+      if (hasStudy) return false;
       // Homework-like: numbers + operators / units
       if (/\d+\s*[\+\-\u00d7\u00f7\*\/=]/.test(core) || /\d+\s*(m\/s|kg|n|j|w|mol|cm|mm)\b/i.test(core)) {
         return false;
       }
-      // WH-questions default educational unless obvious chitchat
+      // Short non-study → casual (banter, "nope", games without keywords)
+      if (core.length <= 72 && !hasStudy) return true;
+      // WH-questions: educational unless casual markers
       if (/\?/.test(core) && /\b(what|why|how|when|where|which|who)\b/i.test(core) && core.length < 200) {
-        return CHITCHAT_RE.test(core);
+        return hasCasual;
       }
-      // Default: treat normal typed prompts as educational so Living Notebook /
-      // Podcast / Quiz actions appear for school topics like "newtons laws".
+      // Longer ambiguous prompts → educational (topic dumps)
       return false;
     }
 
@@ -13094,9 +13123,13 @@
 
       const autoResize = function() {
         this.style.height = "auto";
-        this.style.height = Math.max(this.scrollHeight, 48) + "px";
+        this.style.height = Math.max(this.scrollHeight, 28) + "px";
       };
 
+      textarea.addEventListener("focus", () => entryEl.classList.add("is-editing"));
+      textarea.addEventListener("blur", () => {
+        setTimeout(() => entryEl.classList.remove("is-editing"), 150);
+      });
       textarea.addEventListener("input", function() {
         autoResize.call(this);
         if (isBulletFragment) {
@@ -13135,29 +13168,8 @@
       const subjects = Object.keys(subjectGroups);
       const totalEntries = subjects.reduce((n, s) => n + subjectGroups[s].length, 0);
 
-      // Collapse empty categories to a quiet header row (no heavy empty cards)
-      if (subjects.length === 0) {
-        const quiet = document.createElement("div");
-        quiet.className = "nb-sidebar-cat-card nb-cat-empty";
-        const header = document.createElement("div");
-        header.className = "nb-sidebar-cat-header nb-cat-empty-header";
-        header.innerHTML = `<span style="display:flex;align-items:center;gap:6px;"><span>${icon}</span><span>${escapeHtml(displayName)}</span></span>`;
-        const addBtn = document.createElement("button");
-        addBtn.className = "ce-btn-sm ce-btn-sm-ghost";
-        addBtn.type = "button";
-        addBtn.style.cssText = "padding:4px 10px; font-size:0.72rem; min-height:28px;";
-        addBtn.textContent = "+";
-        addBtn.title = `Add ${displayName}`;
-        addBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const subj = nbSelectedSubject === "All" ? "General" : nbSelectedSubject;
-          nbOpenAddForm(subj, category);
-        });
-        header.appendChild(addBtn);
-        quiet.appendChild(header);
-        container.appendChild(quiet);
-        return;
-      }
+      // Hide empty categories entirely (use + Note to add)
+      if (subjects.length === 0) return;
 
       const card = document.createElement("div");
       card.className = "nb-sidebar-cat-card";
@@ -13190,7 +13202,7 @@
         const subjectEntries = subjectGroups[subject];
 
         const subjectHeading = document.createElement("div");
-        subjectHeading.style.cssText = "font-weight: 700; font-size: 0.85rem; color: var(--text); margin: 8px 0 4px 0; padding: 6px 10px; background: rgba(255,255,255,0.04); border-radius: 6px; border-left: 3px solid var(--accent);";
+        subjectHeading.style.cssText = "font-weight: 700; font-size: 0.78rem; color: var(--text); margin: 4px 0 2px 0; padding: 4px 8px; background: rgba(255,255,255,0.04); border-radius: 6px; border-left: 3px solid var(--accent);";
         subjectHeading.textContent = subject;
         list.appendChild(subjectHeading);
 
@@ -13702,43 +13714,49 @@
         nbAddEntry(subj, cat, cnt);
       });
 
-      // Section Collapsible Handlers for Right Sidebar
+      // Accordion: only one of Tools / Dictionary / Notebook open at a time
+      function setRightSidebarSection(openKey) {
+        const sections = [
+          { key: "tools", content: "tools-section-content", icon: "tools-toggle-icon" },
+          { key: "dict", content: "dict-section-content", icon: "dict-toggle-icon" },
+          { key: "nb", content: "nb-section-content", icon: "nb-toggle-icon" },
+        ];
+        sections.forEach(({ key, content, icon }) => {
+          const c = document.getElementById(content);
+          const i = document.getElementById(icon);
+          const open = key === openKey;
+          if (c) c.classList.toggle("collapsed", !open);
+          if (i) i.classList.toggle("collapsed", !open);
+        });
+      }
+
       document.getElementById("tools-section-toggle")?.addEventListener("click", () => {
         const content = document.getElementById("tools-section-content");
-        const icon = document.getElementById("tools-toggle-icon");
-        if (content && icon) {
-          content.classList.toggle("collapsed");
-          icon.classList.toggle("collapsed");
+        const opening = content?.classList.contains("collapsed");
+        if (opening) setRightSidebarSection("tools");
+        else {
+          content?.classList.add("collapsed");
+          document.getElementById("tools-toggle-icon")?.classList.add("collapsed");
         }
-      });
-
-      document.getElementById("tools-account-toggle")?.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const content = document.getElementById("tools-account-content");
-        const icon = document.getElementById("tools-account-icon");
-        const toggle = document.getElementById("tools-account-toggle");
-        if (!content) return;
-        const open = content.classList.toggle("collapsed") === false;
-        if (icon) icon.classList.toggle("collapsed", !open);
-        if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
       });
 
       document.getElementById("dict-section-toggle")?.addEventListener("click", () => {
         const content = document.getElementById("dict-section-content");
-        const icon = document.getElementById("dict-toggle-icon");
-        if (content && icon) {
-          content.classList.toggle("collapsed");
-          icon.classList.toggle("collapsed");
+        const opening = content?.classList.contains("collapsed");
+        if (opening) setRightSidebarSection("dict");
+        else {
+          content?.classList.add("collapsed");
+          document.getElementById("dict-toggle-icon")?.classList.add("collapsed");
         }
       });
 
       document.getElementById("nb-section-toggle")?.addEventListener("click", () => {
         const content = document.getElementById("nb-section-content");
-        const icon = document.getElementById("nb-toggle-icon");
-        if (content && icon) {
-          content.classList.toggle("collapsed");
-          icon.classList.toggle("collapsed");
+        const opening = content?.classList.contains("collapsed");
+        if (opening) setRightSidebarSection("nb");
+        else {
+          content?.classList.add("collapsed");
+          document.getElementById("nb-toggle-icon")?.classList.add("collapsed");
         }
       });
     }
