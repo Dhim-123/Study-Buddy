@@ -540,8 +540,146 @@
     #sidebar[data-logged-in="1"] .sb-footer .auth-card {
       display: none !important;
     }
+    #sidebar:not([data-logged-in="1"]) .sb-footer {
+      display: none;
+    }
     #sidebar .sb-left-tools {
       display: none;
+    }
+
+    /* Centered auth gate (logged out) */
+    .auth-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 9000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    .auth-gate[hidden] {
+      display: none !important;
+    }
+    .auth-gate-backdrop {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 20%, rgba(56, 189, 248, 0.12), transparent 55%),
+        rgba(6, 10, 20, 0.82);
+      backdrop-filter: blur(6px);
+    }
+    .auth-gate-panel {
+      position: relative;
+      z-index: 1;
+      width: min(400px, calc(100vw - 24px));
+      max-height: min(92vh, 720px);
+      overflow: auto;
+      padding: 22px 20px 20px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: linear-gradient(165deg, rgba(22, 32, 52, 0.98), rgba(12, 18, 32, 0.98));
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+    }
+    .auth-gate-brand {
+      font-family: var(--font-display, var(--font-ui));
+      font-size: 1.65rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      text-align: center;
+      margin: 0 0 4px;
+      color: var(--text);
+    }
+    .auth-gate-brand span {
+      color: var(--accent);
+    }
+    .auth-gate-sub {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin: 0 0 16px;
+      line-height: 1.4;
+    }
+    .auth-gate .auth-card {
+      border: none;
+      background: transparent;
+      padding: 0;
+      box-shadow: none;
+    }
+    .auth-gate .auth-card h3 {
+      text-align: center;
+      font-size: 1.05rem;
+      margin-bottom: 12px;
+    }
+    body.auth-gate-open {
+      overflow: hidden;
+    }
+
+    /* First-time product tour */
+    .sb-tour {
+      position: fixed;
+      inset: 0;
+      z-index: 9200;
+      pointer-events: none;
+    }
+    .sb-tour[hidden] {
+      display: none !important;
+    }
+    .sb-tour-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(4, 8, 18, 0.55);
+      pointer-events: auto;
+    }
+    .sb-tour-card {
+      position: absolute;
+      left: 50%;
+      bottom: max(20px, env(safe-area-inset-bottom, 0px));
+      transform: translateX(-50%);
+      width: min(400px, calc(100vw - 24px));
+      padding: 18px 18px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(18, 26, 42, 0.98);
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+      pointer-events: auto;
+      z-index: 2;
+    }
+    .sb-tour-step {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .sb-tour-card h3 {
+      margin: 0 0 8px;
+      font-size: 1.15rem;
+      color: var(--text);
+    }
+    .sb-tour-card p {
+      margin: 0 0 14px;
+      font-size: 0.92rem;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+    .sb-tour-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    .sb-tour-actions .sb-tour-skip {
+      margin-right: auto;
+    }
+    .sb-tour-spotlight {
+      position: relative;
+      z-index: 9201 !important;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.85), 0 0 0 8px rgba(56, 189, 248, 0.2) !important;
+      border-radius: 10px;
+      transition: box-shadow 0.2s ease;
     }
     #sidebar[data-logged-in="1"] .sb-left-tools {
       display: flex;
@@ -4920,7 +5058,7 @@
   </style>
 </head>
 
-<body>
+<body class="auth-gate-open">
 
   <!-- ═══════════════════════════════════════════════
      ✏️  CUSTOMISE YOUR STUDY BUDDY HERE (Step 1)
@@ -5321,6 +5459,85 @@
 
   <div id="clear-toast" class="clear-toast" role="status" aria-live="polite"></div>
 
+  <!-- Centered login / register gate (logged-out) -->
+  <div id="auth-gate" class="auth-gate" aria-hidden="false">
+    <div class="auth-gate-backdrop" aria-hidden="true"></div>
+    <div class="auth-gate-panel" role="dialog" aria-modal="true" aria-labelledby="auth-gate-brand">
+      <h1 class="auth-gate-brand" id="auth-gate-brand">Study<span>Buddy</span></h1>
+      <p class="auth-gate-sub">Sign in to chat, save notes, and keep your streak.</p>
+      <div class="auth-card" id="auth-card" data-mode="login" data-logged-in="0">
+        <h3 id="auth-mode-title">Login</h3>
+        <div class="field">
+          <label for="auth-section">Your section</label>
+          <select class="input" id="auth-section">
+            <option value="">Select section…</option>
+            <option value="Whiz 1">Whiz 1</option>
+            <option value="Whiz 2">Whiz 2</option>
+            <option value="Whiz 3">Whiz 3</option>
+            <option value="Super 1">Super 1</option>
+            <option value="Super 2">Super 2</option>
+            <option value="Super 3">Super 3</option>
+          </select>
+        </div>
+        <div class="field" id="auth-super3-drops" style="display:none; margin-top:10px;">
+          <label style="display:block;margin-bottom:6px;">Super 3 — subjects to drop</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--muted);margin-bottom:4px;">
+            <input type="checkbox" id="auth-drop-math" /> Drop Math
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--muted);">
+            <input type="checkbox" id="auth-drop-science" /> Drop Science
+          </label>
+        </div>
+        <div class="field" style="margin-top: 10px;">
+          <label for="auth-identifier">Username</label>
+          <input type="text" class="input" id="auth-identifier" placeholder="Choose a username" />
+        </div>
+        <div class="field" style="margin-top: 10px;">
+          <label for="auth-password">Password</label>
+          <input type="password" class="input" id="auth-password" placeholder="Minimum 6 characters" />
+        </div>
+        <div class="field register-only-field" id="password-confirm-field" style="margin-top: 10px;">
+          <label for="auth-password-confirm">Confirm Password</label>
+          <input type="password" class="input" id="auth-password-confirm" placeholder="Re-type the same password" autocomplete="new-password" />
+        </div>
+        <div class="field register-only-field" id="buddy-name-field" style="margin-top: 10px;">
+          <label for="auth-buddy-name">Buddy Name <small>(for new accounts)</small></label>
+          <input type="text" class="input" id="auth-buddy-name" placeholder="Enter name" />
+        </div>
+        <div style="display:flex; gap:10px; margin-top:15px;">
+          <button class="btn-primary" id="auth-submit-btn" style="flex:1;">Login</button>
+          <button class="btn-icon" id="auth-toggle-btn" type="button" style="flex:1; justify-content:center;">Register</button>
+        </div>
+        <div id="auth-google-wrap" class="logged-out-only" style="margin-top:12px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; color:var(--muted); font-size:0.78rem;">
+            <span style="flex:1; height:1px; background:var(--border);"></span>
+            <span>or</span>
+            <span style="flex:1; height:1px; background:var(--border);"></span>
+          </div>
+          <button class="btn-primary" id="auth-google-btn" type="button" style="width:100%; justify-content:center; font-weight:700;">
+            Continue with Google
+          </button>
+        </div>
+        <div id="auth-message" class="hint-box" style="display:none; margin-top: 10px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- First-time overlay tour -->
+  <div id="sb-tour" class="sb-tour" hidden aria-hidden="true">
+    <div class="sb-tour-backdrop" id="sb-tour-backdrop"></div>
+    <div class="sb-tour-card" role="dialog" aria-modal="true" aria-labelledby="sb-tour-title">
+      <div class="sb-tour-step" id="sb-tour-step">1 / 4</div>
+      <h3 id="sb-tour-title">Chat</h3>
+      <p id="sb-tour-body">Ask anything — your buddy answers for your grade and section.</p>
+      <div class="sb-tour-actions">
+        <button type="button" class="btn-icon sb-tour-skip" id="sb-tour-skip">Skip</button>
+        <button type="button" class="btn-icon" id="sb-tour-back">Back</button>
+        <button type="button" class="btn-primary" id="sb-tour-next">Next</button>
+      </div>
+    </div>
+  </div>
+
   <main>
 
     <button id="left-sidebar-handle" class="sidebar-handle" type="button" title="Collapse left sidebar" aria-label="Toggle left sidebar">
@@ -5342,63 +5559,7 @@
             <!-- Conversations injected here -->
           </div>
           <div class="sb-footer">
-
-            <!-- Login/register only — account tools live in the right sidebar when signed in -->
-            <div class="auth-card" id="auth-card" data-mode="login" data-logged-in="0">
-              <h3 id="auth-mode-title">Login</h3>
-              <div class="field">
-                <label for="auth-section">Your section</label>
-                <select class="input" id="auth-section">
-                  <option value="">Select section…</option>
-                  <option value="Whiz 1">Whiz 1</option>
-                  <option value="Whiz 2">Whiz 2</option>
-                  <option value="Whiz 3">Whiz 3</option>
-                  <option value="Super 1">Super 1</option>
-                  <option value="Super 2">Super 2</option>
-                  <option value="Super 3">Super 3</option>
-                </select>
-              </div>
-              <div class="field" id="auth-super3-drops" style="display:none; margin-top:10px;">
-                <label style="display:block;margin-bottom:6px;">Super 3 — subjects to drop</label>
-                <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--muted);margin-bottom:4px;">
-                  <input type="checkbox" id="auth-drop-math" /> Drop Math
-                </label>
-                <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--muted);">
-                  <input type="checkbox" id="auth-drop-science" /> Drop Science
-                </label>
-              </div>
-              <div class="field" style="margin-top: 10px;">
-                <label for="auth-identifier">Username</label>
-                <input type="text" class="input" id="auth-identifier" placeholder="Choose a username" />
-              </div>
-              <div class="field" style="margin-top: 10px;">
-                <label for="auth-password">Password</label>
-                <input type="password" class="input" id="auth-password" placeholder="Minimum 6 characters" />
-              </div>
-              <div class="field register-only-field" id="password-confirm-field" style="margin-top: 10px;">
-                <label for="auth-password-confirm">Confirm Password</label>
-                <input type="password" class="input" id="auth-password-confirm" placeholder="Re-type the same password" autocomplete="new-password" />
-              </div>
-              <div class="field register-only-field" id="buddy-name-field" style="margin-top: 10px;">
-                <label for="auth-buddy-name">Buddy Name <small>(for new accounts)</small></label>
-                <input type="text" class="input" id="auth-buddy-name" placeholder="Enter name" />
-              </div>
-              <div style="display:flex; gap:10px; margin-top:15px;">
-                <button class="btn-primary" id="auth-submit-btn" style="flex:1;">Login</button>
-                <button class="btn-icon" id="auth-toggle-btn" type="button" style="flex:1; justify-content:center;">Register</button>
-              </div>
-              <div id="auth-google-wrap" class="logged-out-only" style="margin-top:12px;">
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; color:var(--muted); font-size:0.78rem;">
-                  <span style="flex:1; height:1px; background:var(--border);"></span>
-                  <span>or</span>
-                  <span style="flex:1; height:1px; background:var(--border);"></span>
-                </div>
-                <button class="btn-primary" id="auth-google-btn" type="button" style="width:100%; justify-content:center; font-weight:700;">
-                  Continue with Google
-                </button>
-              </div>
-              <div id="auth-message" class="hint-box" style="display:none; margin-top: 10px;"></div>
-            </div>
+            <!-- Auth form lives in #auth-gate when logged out -->
 
             <!-- Signed-in study tools (kept compact under chat list) -->
             <div class="sb-left-tools sidebar-tools">
@@ -5472,15 +5633,6 @@
           <div id="exam-upcoming-banner" class="exam-upcoming-banner" style="display:none;" aria-live="polite"></div>
           <div id="exam-week-banner" class="exam-week-banner" style="display:none;" aria-live="polite"></div>
           <div id="study-today-banner" class="study-today-banner" style="display:none;" aria-live="polite"></div>
-          <div id="onboard-tips" class="hint-box" style="display:none; margin: 0 auto 14px; max-width: 520px; text-align:left;">
-            <strong style="display:block; margin-bottom:6px;">Start in 3 steps</strong>
-            <ol style="margin:0; padding-left:18px; color:var(--muted); font-size:0.92rem; line-height:1.45;">
-              <li>Select your section, then log in</li>
-              <li>Set your grade in Settings (gear)</li>
-              <li>Ask a question — or upload notes below</li>
-            </ol>
-            <button type="button" id="onboard-dismiss-btn" class="qs-btn" style="margin-top:10px;">Got it</button>
-          </div>
           <div class="upload-card">
             <strong>Upload study notes or a page photo</strong>
             <p>Upload a .txt file, or a photo of a textbook/notes page (OCR). The AI will prioritize this material.</p>
@@ -6657,23 +6809,154 @@
           .catch(() => {});
       }
 
-      const tips = document.getElementById("onboard-tips");
-      if (tips) {
-        const seen = localStorage.getItem("sb_onboard_v1") === "1";
-        tips.style.display = seen ? "none" : "block";
-      }
     }
-    document.getElementById("onboard-dismiss-btn")?.addEventListener("click", () => {
-      try { localStorage.setItem("sb_onboard_v1", "1"); } catch (_) {}
-      const tips = document.getElementById("onboard-tips");
-      if (tips) tips.style.display = "none";
-    });
 
 
       // =====================================================================
       //  AUTH STATE & UI UPDATES
       // =====================================================================
       let currentUser = null;
+      let pendingTour = false;
+      let tourActive = false;
+      let tourScheduled = false;
+      let tourStepIndex = 0;
+
+      function hasSeenTour() {
+        try {
+          if (localStorage.getItem("sb_tour_v1") === "1") return true;
+          // Legacy onboard tips dismiss counts as seen
+          if (localStorage.getItem("sb_onboard_v1") === "1") return true;
+        } catch (_) {}
+        return false;
+      }
+
+      function markTourSeen() {
+        try {
+          localStorage.setItem("sb_tour_v1", "1");
+          localStorage.setItem("sb_onboard_v1", "1");
+        } catch (_) {}
+      }
+
+      function setAuthGateVisible(show) {
+        const gate = document.getElementById("auth-gate");
+        if (!gate) return;
+        if (show) {
+          gate.hidden = false;
+          gate.setAttribute("aria-hidden", "false");
+          document.body.classList.add("auth-gate-open");
+        } else {
+          gate.hidden = true;
+          gate.setAttribute("aria-hidden", "true");
+          document.body.classList.remove("auth-gate-open");
+        }
+      }
+
+      const SB_TOUR_STEPS = [
+        {
+          title: "Chat",
+          body: "Ask anything — your buddy answers for your grade and section.",
+          spotlight: ["#feature-tabs .tab-btn[data-tab='chat']", "#feature-tabs"],
+        },
+        {
+          title: "Living Notebook",
+          body: "Save Important Points and Formulas from chats. Open Living Notebook from More, or use the notebook in the right sidebar.",
+          spotlight: ["#more-tabs-btn", "#nb-section-container"],
+        },
+        {
+          title: "Daily Puzzle + Streak",
+          body: "Tap Puzzle in the header for today’s challenge, and keep your streak going.",
+          spotlight: ["#nav-puzzle-chip", "#nav-streak-chip"],
+        },
+        {
+          title: "Settings",
+          body: "Set your grade, section, and account details from the gear icon.",
+          spotlight: ["#settings-toggle-btn"],
+        },
+      ];
+
+      function clearTourSpotlights() {
+        document.querySelectorAll(".sb-tour-spotlight").forEach((el) => {
+          el.classList.remove("sb-tour-spotlight");
+        });
+      }
+
+      function applyTourSpotlights(selectors) {
+        clearTourSpotlights();
+        (selectors || []).forEach((sel) => {
+          const el = document.querySelector(sel);
+          if (el) el.classList.add("sb-tour-spotlight");
+        });
+      }
+
+      function renderTourStep() {
+        const step = SB_TOUR_STEPS[tourStepIndex];
+        if (!step) return;
+        const stepEl = document.getElementById("sb-tour-step");
+        const titleEl = document.getElementById("sb-tour-title");
+        const bodyEl = document.getElementById("sb-tour-body");
+        const nextBtn = document.getElementById("sb-tour-next");
+        const backBtn = document.getElementById("sb-tour-back");
+        if (stepEl) stepEl.textContent = `${tourStepIndex + 1} / ${SB_TOUR_STEPS.length}`;
+        if (titleEl) titleEl.textContent = step.title;
+        if (bodyEl) bodyEl.textContent = step.body;
+        if (nextBtn) nextBtn.textContent = tourStepIndex >= SB_TOUR_STEPS.length - 1 ? "Finish" : "Next";
+        if (backBtn) backBtn.style.visibility = tourStepIndex === 0 ? "hidden" : "visible";
+        applyTourSpotlights(step.spotlight);
+      }
+
+      function closeSbTour(markSeen = true) {
+        const tour = document.getElementById("sb-tour");
+        if (tour) {
+          tour.hidden = true;
+          tour.setAttribute("aria-hidden", "true");
+        }
+        clearTourSpotlights();
+        tourActive = false;
+        if (markSeen) markTourSeen();
+      }
+
+      function startSbTour() {
+        if (!currentUser?.loggedIn || tourActive) return;
+        const tour = document.getElementById("sb-tour");
+        if (!tour) return;
+        tourActive = true;
+        tourStepIndex = 0;
+        tour.hidden = false;
+        tour.setAttribute("aria-hidden", "false");
+        renderTourStep();
+      }
+
+      function scheduleTour({ force = false } = {}) {
+        if (!currentUser?.loggedIn || tourActive || tourScheduled) return;
+        if (!force && hasSeenTour()) return;
+        tourScheduled = true;
+        setTimeout(() => {
+          if (!currentUser?.loggedIn) {
+            tourScheduled = false;
+            return;
+          }
+          startSbTour();
+        }, 350);
+      }
+
+      function wireSbTourControls() {
+        document.getElementById("sb-tour-skip")?.addEventListener("click", () => closeSbTour(true));
+        document.getElementById("sb-tour-back")?.addEventListener("click", () => {
+          if (tourStepIndex > 0) {
+            tourStepIndex -= 1;
+            renderTourStep();
+          }
+        });
+        document.getElementById("sb-tour-next")?.addEventListener("click", () => {
+          if (tourStepIndex >= SB_TOUR_STEPS.length - 1) {
+            closeSbTour(true);
+            return;
+          }
+          tourStepIndex += 1;
+          renderTourStep();
+        });
+      }
+      wireSbTourControls();
       // Expose for gamification layer
       Object.defineProperty(window, "currentUser", {
         get() { return currentUser; },
@@ -6713,6 +6996,7 @@
 
       function updateAuthUI(options = {}) {
         const clearMessage = options.clearMessage !== false;
+        const offerTour = !!options.offerTour;
         const authCard = document.getElementById("auth-card");
         const authModeTitle = document.getElementById("auth-mode-title");
         const authSubmitBtn = document.getElementById("auth-submit-btn");
@@ -6746,7 +7030,8 @@
         if (leftSidebarEl) leftSidebarEl.dataset.loggedIn = currentUser?.loggedIn ? "1" : "0";
 
         if (currentUser?.loggedIn) {
-          if (authCard) authCard.style.display = "none";
+          setAuthGateVisible(false);
+          if (authCard) authCard.style.display = "";
           if (authModeTitle) authModeTitle.textContent = currentUser.identifier
             ? `Signed in · ${currentUser.identifier}`
             : "Signed in";
@@ -6784,7 +7069,16 @@
           if (profileWrap) profileWrap.hidden = false;
           if (typeof syncProfileMenuUI === "function") syncProfileMenuUI();
           updateWelcomeGreeting();
+
+          const forceTour = pendingTour;
+          if (pendingTour || offerTour) {
+            pendingTour = false;
+            scheduleTour({ force: forceTour });
+          }
         } else {
+          setAuthGateVisible(true);
+          closeSbTour(false);
+          tourScheduled = false;
           if (authCard) authCard.style.display = "";
           if (authModeTitle) authModeTitle.textContent = "Login";
           if (authSubmitBtn) authSubmitBtn.style.display = "block";
@@ -7217,7 +7511,7 @@
           currentUser = { loggedIn: false };
           isAdminSession = false;
         } finally {
-          updateAuthUI();
+          updateAuthUI({ offerTour: !!currentUser?.loggedIn });
         }
       }
 
@@ -7771,16 +8065,14 @@
 
     if (authBtn) {
       authBtn.onclick = () => {
-        sidebarEl.classList.remove("hidden");
-        updateLeftSidebarState();
-        const card = document.getElementById("auth-card");
-        if (card) {
-          card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        }
         if (!currentUser?.loggedIn) {
+          setAuthGateVisible(true);
           const idInput = document.getElementById("auth-identifier");
           setTimeout(() => idInput?.focus(), 150);
+          return;
         }
+        sidebarEl.classList.remove("hidden");
+        updateLeftSidebarState();
       };
     }
 
@@ -8084,11 +8376,12 @@
             let successMsg = `Login successful. Welcome, ${uname}! (${currentUser.section})`;
             if (mode === "register") {
               successMsg = `Registration successful. Welcome, ${uname}! Section: ${currentUser.section}.`;
+              pendingTour = true;
             }
             authPasswordInput.value = "";
             const confirmEl = document.getElementById("auth-password-confirm");
             if (confirmEl) confirmEl.value = "";
-            updateAuthUI({ clearMessage: false });
+            updateAuthUI({ clearMessage: false, offerTour: mode !== "register" });
             showAuthMessage(successMsg);
             updateWelcomeGreeting();
             try { if (window.SBGame) window.SBGame.onLogin(); } catch (_) {}
@@ -8215,7 +8508,7 @@
               dropScience: !!data.dropScience,
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || "");
-            updateAuthUI({ clearMessage: false });
+            updateAuthUI({ clearMessage: false, offerTour: true });
             showAuthMessage(`Login successful. Welcome, ${data.identifier || "friend"}! (${currentUser.section})`);
             updateWelcomeGreeting();
             try { if (window.SBGame) window.SBGame.onLogin(); } catch (_) {}
