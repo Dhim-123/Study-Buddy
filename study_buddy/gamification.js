@@ -1170,6 +1170,9 @@
     wirePlannerUi();
     document.getElementById("nav-streak-chip")?.addEventListener("click", openStreakModal);
     document.getElementById("nav-shop-chip")?.addEventListener("click", openShopModal);
+    document.getElementById("nav-puzzle-chip")?.addEventListener("click", () => {
+      openPuzzleModal();
+    });
     document.getElementById("profile-daily-puzzle-btn")?.addEventListener("click", () => {
       try {
         const wrap = document.getElementById("profile-menu-wrap");

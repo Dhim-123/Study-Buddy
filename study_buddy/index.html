@@ -3571,6 +3571,60 @@
     #dict-sidebar .nb-entry-card.is-editing .nb-entry-textarea {
       max-height: none;
     }
+    .nb-teaser-open-btn {
+      width: 100%;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.82rem;
+      padding: 8px 10px;
+    }
+    .nb-teaser-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      font-size: 0.82rem;
+      cursor: pointer;
+      color: var(--text);
+    }
+    .nb-teaser-row:hover {
+      border-color: rgba(59, 130, 246, 0.4);
+      background: rgba(59, 130, 246, 0.08);
+    }
+    .nb-teaser-row .nb-teaser-count {
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: var(--muted);
+    }
+    .nb-teaser-preview {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.35;
+      padding: 0 4px;
+    }
+    #living-notebook-section .nb-sidebar-cat-card {
+      padding: 14px 16px;
+      gap: 10px;
+    }
+    #living-notebook-section .nb-entry-card {
+      padding: 10px 12px;
+    }
+    #living-notebook-section .nb-entry-textarea {
+      max-height: none;
+      min-height: 36px;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    #living-notebook-section .nb-entry-header:empty {
+      display: none;
+    }
+    #living-notebook-section .nb-entry-card .nb-entry-header {
+      min-height: 0;
+    }
     #dict-sidebar .nb-entry-footer {
       display: none;
     }
@@ -4887,6 +4941,7 @@
           <button class="tab-btn more-tab" data-tab="formulas" title="Formulas" type="button" role="menuitem"><span class="tab-btn-icon" aria-hidden="true">📐</span><span class="tab-btn-label">Formulas</span></button>
           <button class="tab-btn more-tab" data-tab="learning-dna" title="Learning DNA" type="button" role="menuitem"><span class="tab-btn-icon" aria-hidden="true">🧬</span><span class="tab-btn-label">Learning DNA</span></button>
           <button class="tab-btn more-tab" data-tab="mistake-vault" title="Mistake Vault" type="button" role="menuitem"><span class="tab-btn-icon" aria-hidden="true">🗃️</span><span class="tab-btn-label">Mistake Vault</span></button>
+          <button class="tab-btn more-tab" data-tab="living-notebook" title="Living Notebook" type="button" role="menuitem"><span class="tab-btn-icon" aria-hidden="true">📔</span><span class="tab-btn-label">Living Notebook</span></button>
         </div>
       </div>
     </nav>
@@ -4896,6 +4951,10 @@
           <span aria-hidden="true">🔥</span>
           <span class="header-stat-value" id="nav-streak-count">0</span>
           <span class="header-stat-label">Streak</span>
+        </button>
+        <button type="button" class="header-stat" id="nav-puzzle-chip" aria-label="Daily Puzzle" title="Daily Puzzle">
+          <span aria-hidden="true">🧩</span>
+          <span class="header-stat-label">Puzzle</span>
         </button>
         <button type="button" class="header-stat" id="nav-shop-chip" aria-label="Open XP Shop" title="XP Shop">
           <span class="header-stat-value" id="nav-xp-count">0</span>
@@ -5891,6 +5950,41 @@
     </div>
   </div>
 
+  <!-- LIVING NOTEBOOK SECTION (full notes — keeps right sidebar compact) -->
+  <div id="living-notebook-section" class="feature-section" style="display:none;">
+    <div class="section-container" style="max-width: 900px; margin: 0 auto; width: 100%;">
+      <div class="feature-header">
+        <h2>📔 Living Notebook</h2>
+        <p>Important points, formulas, definitions, and revision notes — full list here so the chat sidebar stays light.</p>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:16px;">
+        <select id="nb-main-subject-select" class="input" style="padding: 8px 12px; font-size: 0.9rem; font-weight: 700; min-width: 200px; flex:1;">
+        </select>
+        <button id="nb-main-add-btn" class="btn-primary" type="button" style="padding:10px 16px;">➕ Add note</button>
+      </div>
+      <div id="nb-main-add-form" class="nb-sidebar-add-form" style="display:none; padding: 14px 16px; background: rgba(30, 41, 59, 0.7); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px;">
+        <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 8px; color: var(--text);">➕ New Note</div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <input type="text" id="nb-main-input-subject" class="input" placeholder="Subject (e.g. Physics, Math)" list="nb-subject-datalist" style="padding: 8px 10px; font-size: 0.88rem;" />
+          <select id="nb-main-input-category" class="input" style="padding: 8px 10px; font-size: 0.88rem;">
+            <option value="Key Points">📌 Key Points</option>
+            <option value="Formulas">📐 Formulas</option>
+            <option value="Definitions">📖 Definitions</option>
+            <option value="Mistakes I Made">⚠️ Mistakes I Made</option>
+            <option value="Things to Revise">🔄 Things to Revise</option>
+            <option value="My Own Notes">📝 My Own Notes</option>
+          </select>
+          <textarea id="nb-main-input-content" class="input" rows="3" placeholder="Write key point, formula, definition, or mistake..." style="padding: 8px 10px; font-size: 0.9rem; resize: vertical;"></textarea>
+          <div style="display:flex; justify-content:flex-end; gap:8px;">
+            <button id="nb-main-cancel-add-btn" class="btn-secondary" type="button">Cancel</button>
+            <button id="nb-main-submit-add-btn" class="btn-primary" type="button">Save</button>
+          </div>
+        </div>
+      </div>
+      <div id="nb-main-body" style="display:flex; flex-direction:column; gap:14px;"></div>
+    </div>
+  </div>
+
   <!-- Live camera OCR modal -->
   <div id="camera-ocr-modal" class="modal" style="display:none;" aria-hidden="true">
     <div class="modal-content">
@@ -6012,14 +6106,12 @@
             </div>
 
             <div id="nb-section-content" class="sidebar-section-content">
-              <!-- Subject Selector -->
               <div class="nb-subject-select-row" style="padding: 0 16px 10px;">
                 <select id="nb-subject-select" class="input" style="padding: 6px 10px; font-size: 0.83rem; font-weight: 700; width: 100%;">
-                  <!-- Subject options rendered dynamically -->
                 </select>
               </div>
 
-              <!-- Add Note Collapsible Form -->
+              <!-- Compact add form (quick add without leaving chat) -->
               <div id="nb-add-form" class="nb-sidebar-add-form" style="display:none; padding: 12px 16px; background: rgba(30, 41, 59, 0.7); border-bottom: 1px solid var(--border); margin-bottom: 12px;">
                 <div style="font-weight: 800; font-size: 0.85rem; margin-bottom: 8px; color: var(--text);">➕ New Note</div>
                 <div style="display:flex; flex-direction:column; gap:8px;">
@@ -6044,9 +6136,8 @@
                 </div>
               </div>
 
-              <!-- Right Sidebar Notebook Content Body -->
-              <div id="nb-sidebar-body" style="padding: 0 16px 16px; display: flex; flex-direction: column; gap: 14px;">
-                <!-- 4 Category Sections rendered dynamically -->
+              <!-- Teaser only — full cards live in Living Notebook tab -->
+              <div id="nb-sidebar-body" style="padding: 0 16px 16px; display: flex; flex-direction: column; gap: 8px;">
               </div>
             </div>
           </div>
@@ -9639,6 +9730,16 @@
             if (typeof loadMistakeVault === 'function') loadMistakeVault();
           }
           break;
+        case "living-notebook":
+          {
+            const livingNotebookSection = document.getElementById("living-notebook-section");
+            if (livingNotebookSection) {
+              livingNotebookSection.style.display = "flex";
+              if (typeof nbLoadEntries === "function") nbLoadEntries();
+              else if (typeof nbRender === "function") nbRender();
+            }
+          }
+          break;
       }
     }
     window.showSection = showSection;
@@ -10470,6 +10571,7 @@
     const formulasSection = document.getElementById("formulas-section");
     const learningDnaSection = document.getElementById("learning-dna-section");
     const mistakeVaultSection = document.getElementById("mistake-vault-section");
+    const livingNotebookSection = document.getElementById("living-notebook-section");
     const crosscheckOutputEl = document.getElementById("crosscheck-output");
     const crosscheckQuestionEl = document.getElementById("crosscheck-question-input");
     const crosscheckAnswerEl = document.getElementById("crosscheck-answer-input");
@@ -10533,6 +10635,7 @@
       if (formulasSection) formulasSection.style.display = "none";
       if (learningDnaSection) learningDnaSection.style.display = "none";
       if (mistakeVaultSection) mistakeVaultSection.style.display = "none";
+      if (livingNotebookSection) livingNotebookSection.style.display = "none";
     }
 
     tabButtons.forEach(btn => {
@@ -10575,6 +10678,11 @@
         else if (tab === "mistake-vault") {
           if (mistakeVaultSection) mistakeVaultSection.style.display = "flex";
           if (typeof loadMistakeVault === 'function') loadMistakeVault();
+        }
+        else if (tab === "living-notebook") {
+          if (livingNotebookSection) livingNotebookSection.style.display = "flex";
+          if (typeof nbLoadEntries === "function") nbLoadEntries();
+          else if (typeof nbRender === "function") nbRender();
         }
       });
     });
@@ -13060,61 +13168,148 @@
       return Array.from(subjectsSet);
     }
 
-    function nbRenderSubjectSelect() {
-      const select = document.getElementById("nb-subject-select");
-      const datalist = document.getElementById("nb-subject-datalist");
-      if (!select) return;
-
-      const subjects = nbGetAllSubjects();
-
-      if (datalist) {
-        datalist.innerHTML = subjects.map(s => `<option value="${escapeHtml(s)}">`).join("");
-      }
-
-      let html = `<option value="All" ${nbSelectedSubject === 'All' ? 'selected' : ''}>🌐 All Subjects (${nbEntries.length})</option>`;
-      subjects.forEach(subj => {
-        const count = nbEntries.filter(e => e.subject === subj).length;
-        html += `<option value="${escapeHtml(subj)}" ${nbSelectedSubject === subj ? 'selected' : ''}>${escapeHtml(subj)} (${count})</option>`;
-      });
-      html += `<option value="__NEW__">➕ Add New Subject...</option>`;
-
-      select.innerHTML = html;
+    function nbCountPointsInContent(content) {
+      const text = String(content || "").trim();
+      if (!text) return 0;
+      const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+      const bullets = lines.filter((line) => /^[•\-\*]/.test(line));
+      if (bullets.length === 0) return 1;
+      return bullets.filter((line) => line.replace(/^[•\-\*]\s*/, "").trim()).length;
     }
 
-    function nbRender() {
-      nbRenderSubjectSelect();
+    function nbFilteredEntries() {
+      return nbSelectedSubject === "All"
+        ? nbEntries
+        : nbEntries.filter((e) => e.subject === nbSelectedSubject);
+    }
+
+    function nbFillSubjectSelect(selectEl, includeNewOption) {
+      if (!selectEl) return;
+      const subjects = nbGetAllSubjects();
+      const datalist = document.getElementById("nb-subject-datalist");
+      if (datalist) {
+        datalist.innerHTML = subjects.map((s) => `<option value="${escapeHtml(s)}">`).join("");
+      }
+      let html = `<option value="All" ${nbSelectedSubject === "All" ? "selected" : ""}>🌐 All Subjects (${nbEntries.length})</option>`;
+      subjects.forEach((subj) => {
+        const count = nbEntries
+          .filter((e) => e.subject === subj)
+          .reduce((n, e) => n + nbCountPointsInContent(e.content), 0);
+        html += `<option value="${escapeHtml(subj)}" ${nbSelectedSubject === subj ? "selected" : ""}>${escapeHtml(subj)} (${count})</option>`;
+      });
+      if (includeNewOption) {
+        html += `<option value="__NEW__">➕ Add New Subject...</option>`;
+      }
+      selectEl.innerHTML = html;
+    }
+
+    function nbRenderSubjectSelect() {
+      nbFillSubjectSelect(document.getElementById("nb-subject-select"), true);
+      nbFillSubjectSelect(document.getElementById("nb-main-subject-select"), true);
+    }
+
+    function nbOpenLivingNotebookTab() {
+      if (typeof window.showSection === "function") window.showSection("living-notebook");
+    }
+
+    function nbRenderTeaser() {
       const container = document.getElementById("nb-sidebar-body");
       if (!container) return;
-
-      const filteredEntries = nbSelectedSubject === "All"
-        ? nbEntries
-        : nbEntries.filter(e => e.subject === nbSelectedSubject);
-
       container.innerHTML = "";
 
-      const hasAnyNotes = filteredEntries.some(e => String(e.content || "").trim());
+      const filteredEntries = nbFilteredEntries();
+      const openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.className = "btn-primary nb-teaser-open-btn";
+      openBtn.textContent = "Open Living Notebook";
+      openBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        nbOpenLivingNotebookTab();
+      });
+      container.appendChild(openBtn);
+
+      const hasAnyNotes = filteredEntries.some((e) => String(e.content || "").trim());
       if (!hasAnyNotes) {
         const empty = document.createElement("div");
         empty.className = "nb-empty-all";
-        empty.textContent = "No notes yet. Use ➕ Note or save key points from chat.";
+        empty.textContent = "No notes yet. Use ➕ Note or open the notebook tab.";
         container.appendChild(empty);
         return;
       }
 
-      NB_CATEGORIES.forEach(category => {
-        const catEntries = filteredEntries.filter(e => e.category === category);
-        const icon = NB_CATEGORY_ICONS[category] || "📝";
-        
-        // Display name for Important Points
+      NB_CATEGORIES.forEach((category) => {
+        const catEntries = filteredEntries.filter((e) => e.category === category);
+        const points = catEntries.reduce((n, e) => n + nbCountPointsInContent(e.content), 0);
+        if (points <= 0) return;
         const displayName = category === "Key Points" ? "Important Points" : category;
+        const icon = NB_CATEGORY_ICONS[category] || "📝";
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "nb-teaser-row";
+        row.innerHTML = `<span>${icon} ${escapeHtml(displayName)}</span><span class="nb-teaser-count">${points}</span>`;
+        row.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          nbOpenLivingNotebookTab();
+        });
+        container.appendChild(row);
+      });
 
-        // Use subject-grouped layout for ALL categories
+      // Up to 2 latest Important Point one-liners
+      const keyEntries = filteredEntries.filter((e) => e.category === "Key Points" && String(e.content || "").trim());
+      const previews = [];
+      keyEntries.forEach((entry) => {
+        const lines = String(entry.content || "").split("\n").map((l) => l.trim()).filter(Boolean);
+        const bullets = lines.filter((line) => /^[•\-\*]/.test(line));
+        const source = bullets.length ? bullets : lines;
+        source.forEach((line) => {
+          const clean = line.replace(/^[•\-\*]\s*/, "").trim();
+          if (clean) previews.push(clean);
+        });
+      });
+      previews.slice(0, 2).forEach((text) => {
+        const preview = document.createElement("div");
+        preview.className = "nb-teaser-preview";
+        preview.textContent = text.length > 90 ? text.slice(0, 87) + "…" : text;
+        container.appendChild(preview);
+      });
+    }
+
+    function nbRenderFull() {
+      const container = document.getElementById("nb-main-body");
+      if (!container) return;
+
+      const filteredEntries = nbFilteredEntries();
+      container.innerHTML = "";
+
+      const hasAnyNotes = filteredEntries.some((e) => String(e.content || "").trim());
+      if (!hasAnyNotes) {
+        const empty = document.createElement("div");
+        empty.className = "nb-empty-all";
+        empty.style.cssText = "padding:28px 12px; text-align:center;";
+        empty.textContent = "No notes yet. Use Add note or save key points from chat.";
+        container.appendChild(empty);
+        return;
+      }
+
+      NB_CATEGORIES.forEach((category) => {
+        const catEntries = filteredEntries.filter((e) => e.category === category);
+        const icon = NB_CATEGORY_ICONS[category] || "📝";
+        const displayName = category === "Key Points" ? "Important Points" : category;
         nbRenderCategoryWithSubjects(container, catEntries, icon, displayName, category);
       });
     }
 
+    function nbRender() {
+      nbRenderSubjectSelect();
+      nbRenderTeaser();
+      nbRenderFull();
+    }
+
     function nbCreateNoteCard(entry, title, bodyText, listEl, options = {}) {
       const isBulletFragment = !!options.isBulletFragment;
+      const hideTitle = !!options.hideTitle || (isBulletFragment && !title);
       const entryEl = document.createElement("div");
       entryEl.className = "nb-entry-card";
       entryEl.dataset.id = String(entry.id ?? "");
@@ -13122,12 +13317,8 @@
       const entryHeader = document.createElement("div");
       entryHeader.className = "nb-entry-header";
 
-      const titleSpan = document.createElement("span");
-      titleSpan.style.cssText = "font-weight: 600; color: var(--text); font-size: 0.85rem;";
-      titleSpan.textContent = title || "Note";
-
       const actions = document.createElement("div");
-      actions.style.cssText = "display:flex; align-items:center; gap:4px;";
+      actions.style.cssText = "display:flex; align-items:center; gap:4px; margin-left:auto;";
 
       const delBtn = document.createElement("button");
       delBtn.className = "nb-entry-delete-btn";
@@ -13146,7 +13337,12 @@
       });
       actions.appendChild(delBtn);
 
-      entryHeader.appendChild(titleSpan);
+      if (!hideTitle) {
+        const titleSpan = document.createElement("span");
+        titleSpan.style.cssText = "font-weight: 600; color: var(--text); font-size: 0.85rem;";
+        titleSpan.textContent = title || "Note";
+        entryHeader.appendChild(titleSpan);
+      }
       entryHeader.appendChild(actions);
 
       const textarea = document.createElement("textarea");
@@ -13190,7 +13386,7 @@
     function nbRenderCategoryWithSubjects(container, categoryEntries, icon, displayName, category) {
       // Group entries by subject
       const subjectGroups = {};
-      categoryEntries.forEach(entry => {
+      categoryEntries.forEach((entry) => {
         if (!String(entry.content || "").trim()) return;
         const subject = entry.subject || "General";
         if (!subjectGroups[subject]) subjectGroups[subject] = [];
@@ -13198,10 +13394,15 @@
       });
 
       const subjects = Object.keys(subjectGroups);
-      const totalEntries = subjects.reduce((n, s) => n + subjectGroups[s].length, 0);
-
-      // Hide empty categories entirely (use + Note to add)
       if (subjects.length === 0) return;
+
+      let totalCards = 0;
+      subjects.forEach((subject) => {
+        subjectGroups[subject].forEach((entry) => {
+          totalCards += nbCountPointsInContent(entry.content);
+        });
+      });
+      if (totalCards <= 0) return;
 
       const card = document.createElement("div");
       card.className = "nb-sidebar-cat-card";
@@ -13211,7 +13412,7 @@
 
       const headerLeft = document.createElement("div");
       headerLeft.style.cssText = "display:flex; align-items:center; gap:6px;";
-      headerLeft.innerHTML = `<span>${icon}</span> <span>${escapeHtml(displayName)}</span><span style="font-size:0.72rem; opacity:0.7;">(${totalEntries})</span>`;
+      headerLeft.innerHTML = `<span>${icon}</span> <span>${escapeHtml(displayName)}</span><span style="font-size:0.72rem; opacity:0.7;">(${totalCards})</span>`;
 
       const addBtn = document.createElement("button");
       addBtn.className = "ce-btn-sm ce-btn-sm-primary";
@@ -13221,7 +13422,7 @@
       addBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         const subj = nbSelectedSubject === "All" ? "General" : nbSelectedSubject;
-        nbOpenAddForm(subj, category);
+        nbOpenAddForm(subj, category, { preferMain: true });
       });
 
       header.appendChild(headerLeft);
@@ -13230,7 +13431,7 @@
       const list = document.createElement("div");
       list.style.cssText = "display:flex; flex-direction:column; gap:8px;";
 
-      subjects.forEach(subject => {
+      subjects.forEach((subject) => {
         const subjectEntries = subjectGroups[subject];
 
         const subjectHeading = document.createElement("div");
@@ -13241,8 +13442,8 @@
         subjectEntries.forEach((entry) => {
           if (!entry.content) return;
 
-          const lines = entry.content.split("\n").map(line => line.trim()).filter(Boolean);
-          const bulletLines = lines.filter(line => /^[•\-\*]/.test(line));
+          const lines = entry.content.split("\n").map((line) => line.trim()).filter(Boolean);
+          const bulletLines = lines.filter((line) => /^[•\-\*]/.test(line));
 
           // Plain prose notes (chat auto-save) — show full content with delete
           if (bulletLines.length === 0) {
@@ -13257,11 +13458,8 @@
           bulletLines.forEach((line) => {
             const cleanLine = line.replace(/^[•\-\*]\s*/, "").trim();
             if (!cleanLine) return;
-            const words = cleanLine.split(" ");
-            const topicTitle = words.length <= 4
-              ? cleanLine
-              : words.slice(0, 4).join(" ") + "…";
-            nbCreateNoteCard(entry, topicTitle, cleanLine, list, { isBulletFragment: true });
+            // No synthetic title — body is the point (avoids "F is the net…" duplication)
+            nbCreateNoteCard(entry, "", cleanLine, list, { isBulletFragment: true, hideTitle: true });
           });
         });
       });
@@ -13333,7 +13531,32 @@
       }
     }
 
-    window.nbOpenAddForm = function(subject, category) {
+    window.nbOpenAddForm = function(subject, category, options = {}) {
+      const preferMain = !!options.preferMain;
+      const livingOpen = document.getElementById("living-notebook-section")?.style.display === "flex";
+      const useMain = preferMain || livingOpen;
+
+      if (useMain) {
+        if (!livingOpen && typeof window.showSection === "function") {
+          window.showSection("living-notebook");
+        }
+        const form = document.getElementById("nb-main-add-form");
+        const subjInput = document.getElementById("nb-main-input-subject");
+        const catSelect = document.getElementById("nb-main-input-category");
+        const contentInput = document.getElementById("nb-main-input-content");
+        if (form) {
+          form.style.display = "block";
+          if (subjInput) subjInput.value = subject || (nbSelectedSubject === "All" ? "General" : nbSelectedSubject);
+          if (catSelect) catSelect.value = category || "Key Points";
+          if (contentInput && !contentInput.value.trim()) contentInput.value = "";
+          requestAnimationFrame(() => {
+            form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            contentInput?.focus({ preventScroll: true });
+          });
+        }
+        return;
+      }
+
       if (dictSidebarEl && dictSidebarEl.classList.contains("hidden")) {
         dictSidebarEl.classList.remove("hidden");
         if (typeof updateRightSidebarState === "function") updateRightSidebarState();
@@ -13714,15 +13937,16 @@
     }
 
     function initNotebook() {
-      const select = document.getElementById("nb-subject-select");
-      if (select) {
+      function bindSubjectSelect(selectId) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
         select.addEventListener("change", () => {
           if (select.value === "__NEW__") {
             const newSubj = prompt("Enter new subject name (e.g. Computer Science, Geography):");
             if (newSubj && newSubj.trim()) {
               nbSelectedSubject = newSubj.trim();
               nbRender();
-              nbOpenAddForm(nbSelectedSubject, "Key Points");
+              nbOpenAddForm(nbSelectedSubject, "Key Points", { preferMain: selectId === "nb-main-subject-select" });
             } else {
               select.value = nbSelectedSubject;
             }
@@ -13732,8 +13956,30 @@
           }
         });
       }
+      bindSubjectSelect("nb-subject-select");
+      bindSubjectSelect("nb-main-subject-select");
 
       document.getElementById("nb-add-btn")?.addEventListener("click", () => nbOpenAddForm());
+      document.getElementById("nb-main-add-btn")?.addEventListener("click", () => {
+        nbOpenAddForm(undefined, undefined, { preferMain: true });
+      });
+      document.getElementById("nb-main-cancel-add-btn")?.addEventListener("click", () => {
+        const form = document.getElementById("nb-main-add-form");
+        if (form) form.style.display = "none";
+      });
+      document.getElementById("nb-main-submit-add-btn")?.addEventListener("click", async () => {
+        const subj = document.getElementById("nb-main-input-subject")?.value;
+        const cat = document.getElementById("nb-main-input-category")?.value;
+        const cnt = document.getElementById("nb-main-input-content")?.value;
+        try {
+          await nbAddEntry(subj, cat, cnt);
+          const form = document.getElementById("nb-main-add-form");
+          if (form) form.style.display = "none";
+          const content = document.getElementById("nb-main-input-content");
+          if (content) content.value = "";
+        } catch (_) {}
+      });
+
       document.getElementById("nb-cancel-add-btn")?.addEventListener("click", () => {
         const form = document.getElementById("nb-add-form");
         if (form) form.style.display = "none";
