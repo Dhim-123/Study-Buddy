@@ -518,7 +518,8 @@
     .sidebar-tools {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 12px;
+      padding-top: 4px;
     }
     .sidebar-tool-row {
       display: grid;
@@ -527,7 +528,8 @@
     }
     .sidebar-chip-btn {
       width: 100%;
-      padding: 8px 10px;
+      min-height: 36px;
+      padding: 8px 12px;
       border-radius: 10px;
       border: 1px solid var(--border);
       background: rgba(255, 255, 255, 0.03);
@@ -547,7 +549,7 @@
       background: rgba(59, 130, 246, 0.08);
       border: 1px solid rgba(59, 130, 246, 0.2);
       border-radius: 12px;
-      padding: 8px 10px;
+      padding: 10px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -572,10 +574,11 @@
       border: 1px solid var(--border);
       border-radius: 12px;
       background: rgba(255, 255, 255, 0.02);
-      padding: 10px;
+      padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 12px;
+      margin-top: 2px;
     }
     .sidebar-account-card .field {
       margin: 0;
@@ -586,13 +589,14 @@
       letter-spacing: 0.02em;
       text-transform: uppercase;
       color: var(--muted);
-      margin-bottom: 4px;
+      margin-bottom: 6px;
       display: block;
     }
     .sidebar-account-card .input {
-      padding: 7px 10px;
+      padding: 8px 12px;
       font-size: 0.82rem;
       border-radius: 8px;
+      min-height: 36px;
     }
     .sidebar-account-actions {
       display: grid;
@@ -603,10 +607,22 @@
     .sidebar-account-actions .btn-primary,
     .sidebar-account-actions .btn-icon {
       width: 100%;
-      padding: 8px 10px;
+      min-height: 36px;
+      padding: 8px 12px;
       font-size: 0.78rem;
       border-radius: 8px;
       justify-content: center;
+    }
+    .auth-card[data-logged-in="1"] #auth-mode-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.01em;
+      margin: 0 0 4px;
+      line-height: 1.35;
+    }
+    .auth-card[data-logged-in="1"] > .field:not(.register-only-field) {
+      margin-top: 8px;
     }
 
     /* ── RIGHT SIDEBAR: DICTIONARY & LIVING NOTEBOOK (own scroll) ── */
@@ -705,31 +721,75 @@
       letter-spacing: -0.2px;
     }
     #dict-sidebar .dict-search-row {
-      padding: 0 12px 10px !important;
-      gap: 6px;
+      padding: 0 12px 12px !important;
+      gap: 8px;
+    }
+    #dict-sidebar .dict-search-row input,
+    #dict-sidebar .dict-search-row button {
+      min-height: 36px;
     }
     #dict-sidebar .dict-body {
-      padding: 0 12px 12px !important;
+      padding: 0 12px 16px !important;
     }
     #dict-sidebar .dict-empty {
-      padding: 18px 10px;
-      font-size: 0.8rem;
+      padding: 14px 4px 8px;
+      font-size: 0.78rem;
       line-height: 1.45;
+      color: var(--muted);
+      opacity: 0.9;
+      border: none;
+      background: transparent;
+    }
+    #dict-sidebar .dict-empty .dict-empty-icon {
+      display: block;
+      margin-bottom: 6px;
+      opacity: 0.55;
+      font-size: 1.1rem;
     }
     #dict-sidebar .nb-subject-select-row {
-      padding: 0 12px 8px !important;
+      padding: 0 12px 12px !important;
+    }
+    #dict-sidebar .nb-subject-select-row select {
+      min-height: 36px;
     }
     #dict-sidebar #nb-sidebar-body {
-      padding: 0 12px 14px !important;
-      gap: 10px !important;
+      padding: 0 12px 16px !important;
+      gap: 12px !important;
     }
     #dict-sidebar .nb-sidebar-cat-card {
-      padding: 10px;
+      padding: 12px;
       border-radius: 10px;
       background: rgba(255, 255, 255, 0.02);
+      gap: 10px;
+    }
+    #dict-sidebar .nb-sidebar-cat-card.nb-cat-empty {
+      padding: 0;
+      background: transparent;
+      border: none;
+      gap: 0;
     }
     #dict-sidebar .nb-sidebar-cat-header {
       font-size: 0.8rem;
+      min-height: 32px;
+    }
+    #dict-sidebar .nb-cat-empty-header {
+      opacity: 0.72;
+      font-weight: 650;
+      padding: 4px 2px;
+    }
+    #dict-sidebar .nb-empty-all {
+      text-align: center;
+      padding: 18px 8px;
+      color: var(--muted);
+      font-size: 0.8rem;
+      line-height: 1.45;
+    }
+    #dict-section-container {
+      margin-bottom: 4px;
+    }
+    #nb-section-container {
+      margin-top: 8px;
+      padding-top: 4px;
     }
 
     .section-toggle-icon {
@@ -1246,15 +1306,15 @@
       min-height: 100%;
     }
 
-    /* messages grow with content; #main-content scrolls */
+    /* messages grow with content; #main-content scrolls; input-bar stays sticky bottom */
     #messages {
-      flex: 0 0 auto;
+      flex: 1 0 auto;
       overflow: visible;
       padding: 28px 24px;
       display: flex;
       flex-direction: column;
       gap: 20px;
-      min-height: calc(100dvh - 220px);
+      min-height: 0;
     }
 
     /* scrollbar */
@@ -5737,7 +5797,7 @@
             </div>
           </div>
 
-          <div style="border-top: 1px solid var(--border); margin: 4px 0;"></div>
+          <div style="border-top: 1px solid var(--border); margin: 12px 0 8px;"></div>
 
           <!-- 2. LIVING NOTEBOOK SECTION (BELOW DICTIONARY) -->
           <div class="sidebar-section-container" id="nb-section-container">
@@ -6320,7 +6380,9 @@
         }
 
         if (currentUser?.loggedIn) {
-          if (authModeTitle) authModeTitle.textContent = `Logged in as ${currentUser.identifier}`;
+          if (authModeTitle) authModeTitle.textContent = currentUser.identifier
+            ? `Signed in · ${currentUser.identifier}`
+            : "Signed in";
           if (authSubmitBtn) authSubmitBtn.style.display = "none";
           if (authToggleBtn) authToggleBtn.style.display = "none";
           if (authIdentifierInput) authIdentifierInput.style.display = "none";
@@ -12720,6 +12782,15 @@
 
       container.innerHTML = "";
 
+      const hasAnyNotes = filteredEntries.some(e => String(e.content || "").trim());
+      if (!hasAnyNotes) {
+        const empty = document.createElement("div");
+        empty.className = "nb-empty-all";
+        empty.textContent = "No notes yet. Use ➕ Note or save key points from chat.";
+        container.appendChild(empty);
+        return;
+      }
+
       NB_CATEGORIES.forEach(category => {
         const catEntries = filteredEntries.filter(e => e.category === category);
         const icon = NB_CATEGORY_ICONS[category] || "📝";
@@ -12806,13 +12877,38 @@
       // Group entries by subject
       const subjectGroups = {};
       categoryEntries.forEach(entry => {
+        if (!String(entry.content || "").trim()) return;
         const subject = entry.subject || "General";
         if (!subjectGroups[subject]) subjectGroups[subject] = [];
         subjectGroups[subject].push(entry);
       });
 
       const subjects = Object.keys(subjectGroups);
-      const totalEntries = categoryEntries.length;
+      const totalEntries = subjects.reduce((n, s) => n + subjectGroups[s].length, 0);
+
+      // Collapse empty categories to a quiet header row (no heavy empty cards)
+      if (subjects.length === 0) {
+        const quiet = document.createElement("div");
+        quiet.className = "nb-sidebar-cat-card nb-cat-empty";
+        const header = document.createElement("div");
+        header.className = "nb-sidebar-cat-header nb-cat-empty-header";
+        header.innerHTML = `<span style="display:flex;align-items:center;gap:6px;"><span>${icon}</span><span>${escapeHtml(displayName)}</span></span>`;
+        const addBtn = document.createElement("button");
+        addBtn.className = "ce-btn-sm ce-btn-sm-ghost";
+        addBtn.type = "button";
+        addBtn.style.cssText = "padding:4px 10px; font-size:0.72rem; min-height:28px;";
+        addBtn.textContent = "+";
+        addBtn.title = `Add ${displayName}`;
+        addBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const subj = nbSelectedSubject === "All" ? "General" : nbSelectedSubject;
+          nbOpenAddForm(subj, category);
+        });
+        header.appendChild(addBtn);
+        quiet.appendChild(header);
+        container.appendChild(quiet);
+        return;
+      }
 
       const card = document.createElement("div");
       card.className = "nb-sidebar-cat-card";
@@ -12822,12 +12918,12 @@
 
       const headerLeft = document.createElement("div");
       headerLeft.style.cssText = "display:flex; align-items:center; gap:6px;";
-      headerLeft.innerHTML = `<span>${icon}</span> <span>${escapeHtml(displayName)}</span><span style="font-size:0.72rem; opacity:0.7;">(${totalEntries} items)</span>`;
+      headerLeft.innerHTML = `<span>${icon}</span> <span>${escapeHtml(displayName)}</span><span style="font-size:0.72rem; opacity:0.7;">(${totalEntries})</span>`;
 
       const addBtn = document.createElement("button");
       addBtn.className = "ce-btn-sm ce-btn-sm-primary";
       addBtn.type = "button";
-      addBtn.style.cssText = "padding:2px 8px; font-size:0.75rem;";
+      addBtn.style.cssText = "padding:4px 10px; font-size:0.75rem; min-height:28px;";
       addBtn.textContent = "+ Add";
       addBtn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -12841,49 +12937,41 @@
       const list = document.createElement("div");
       list.style.cssText = "display:flex; flex-direction:column; gap:8px;";
 
-      if (subjects.length === 0) {
-        list.innerHTML = `
-          <div style="text-align:center; padding:12px 8px; color:var(--muted); font-size:0.78rem; border:1px dashed rgba(255,255,255,0.06); border-radius:6px;">
-            No ${escapeHtml(displayName.toLowerCase())} added yet.
-          </div>
-        `;
-      } else {
-        subjects.forEach(subject => {
-          const subjectEntries = subjectGroups[subject];
+      subjects.forEach(subject => {
+        const subjectEntries = subjectGroups[subject];
 
-          const subjectHeading = document.createElement("div");
-          subjectHeading.style.cssText = "font-weight: 700; font-size: 0.9rem; color: var(--text); margin: 16px 0 8px 0; padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 6px; border-left: 3px solid var(--accent);";
-          subjectHeading.textContent = subject;
-          list.appendChild(subjectHeading);
+        const subjectHeading = document.createElement("div");
+        subjectHeading.style.cssText = "font-weight: 700; font-size: 0.85rem; color: var(--text); margin: 8px 0 4px 0; padding: 6px 10px; background: rgba(255,255,255,0.04); border-radius: 6px; border-left: 3px solid var(--accent);";
+        subjectHeading.textContent = subject;
+        list.appendChild(subjectHeading);
 
-          subjectEntries.forEach((entry) => {
-            if (!entry.content) return;
+        subjectEntries.forEach((entry) => {
+          if (!entry.content) return;
 
-            const lines = entry.content.split("\n").map(line => line.trim()).filter(Boolean);
-            const bulletLines = lines.filter(line => /^[•\-\*]/.test(line));
+          const lines = entry.content.split("\n").map(line => line.trim()).filter(Boolean);
+          const bulletLines = lines.filter(line => /^[•\-\*]/.test(line));
 
-            // Plain prose notes (chat auto-save) — show full content with delete
-            if (bulletLines.length === 0) {
-              const words = entry.content.trim().split(/\s+/);
-              const title = words.length <= 8
-                ? entry.content.trim().slice(0, 80)
-                : words.slice(0, 6).join(" ") + "…";
-              nbCreateNoteCard(entry, title, entry.content.trim(), list, { isBulletFragment: false });
-              return;
-            }
+          // Plain prose notes (chat auto-save) — show full content with delete
+          if (bulletLines.length === 0) {
+            const words = entry.content.trim().split(/\s+/);
+            const title = words.length <= 8
+              ? entry.content.trim().slice(0, 80)
+              : words.slice(0, 6).join(" ") + "…";
+            nbCreateNoteCard(entry, title, entry.content.trim(), list, { isBulletFragment: false });
+            return;
+          }
 
-            bulletLines.forEach((line) => {
-              const cleanLine = line.replace(/^[•\-\*]\s*/, "").trim();
-              if (!cleanLine) return;
-              const words = cleanLine.split(" ");
-              const topicTitle = words.length <= 4
-                ? cleanLine
-                : words.slice(0, 4).join(" ") + "…";
-              nbCreateNoteCard(entry, topicTitle, cleanLine, list, { isBulletFragment: true });
-            });
+          bulletLines.forEach((line) => {
+            const cleanLine = line.replace(/^[•\-\*]\s*/, "").trim();
+            if (!cleanLine) return;
+            const words = cleanLine.split(" ");
+            const topicTitle = words.length <= 4
+              ? cleanLine
+              : words.slice(0, 4).join(" ") + "…";
+            nbCreateNoteCard(entry, topicTitle, cleanLine, list, { isBulletFragment: true });
           });
         });
-      }
+      });
 
       card.appendChild(header);
       card.appendChild(list);
