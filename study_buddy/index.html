@@ -2191,29 +2191,30 @@
       #nav-shop-chip {
         display: none !important;
       }
-      /* Bright edge openers — always visible on phone */
+      /* Same chevron tab as desktop — larger touch target on phone */
       #left-sidebar-handle,
       #right-sidebar-handle {
         display: flex !important;
         align-items: center;
         justify-content: center;
-        width: 44px !important;
-        height: 72px !important;
-        top: 42% !important;
-        background: rgba(37, 99, 235, 0.95) !important;
-        color: #fff !important;
-        border: 2px solid rgba(147, 197, 253, 0.95) !important;
-        box-shadow: 0 6px 22px rgba(37, 99, 235, 0.55) !important;
+        width: 28px !important;
+        height: 64px !important;
+        top: 50% !important;
+        transform: translateY(-50%);
+        background: var(--surface) !important;
+        color: var(--secondary) !important;
+        border: 1px solid var(--border) !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--border) !important;
         z-index: 1250 !important;
       }
       #left-sidebar-handle {
         left: 0 !important;
-        border-radius: 0 16px 16px 0 !important;
+        border-radius: 0 14px 14px 0 !important;
         border-left: none !important;
       }
       #right-sidebar-handle {
         right: 0 !important;
-        border-radius: 16px 0 0 16px !important;
+        border-radius: 14px 0 0 14px !important;
         border-right: none !important;
       }
       main.left-collapsed #left-sidebar-handle {
@@ -2230,11 +2231,14 @@
       }
       #left-sidebar-handle .handle-arrow,
       #right-sidebar-handle .handle-arrow {
-        display: none !important;
+        display: block !important;
+        font-size: 20px !important;
+        font-weight: 800;
+        color: #c4c9d4;
       }
       #left-sidebar-handle .handle-icon,
       #right-sidebar-handle .handle-icon {
-        display: block !important;
+        display: none !important;
       }
       #mobile-left-toggle,
       #mobile-right-toggle {
