@@ -13229,19 +13229,10 @@
       });
       container.appendChild(openBtn);
 
-      const hasAnyNotes = filteredEntries.some((e) => String(e.content || "").trim());
-      if (!hasAnyNotes) {
-        const empty = document.createElement("div");
-        empty.className = "nb-empty-all";
-        empty.textContent = "No notes yet. Use ➕ Note or open the notebook tab.";
-        container.appendChild(empty);
-        return;
-      }
-
+      // Always list all 6 categories (counts may be 0)
       NB_CATEGORIES.forEach((category) => {
         const catEntries = filteredEntries.filter((e) => e.category === category);
         const points = catEntries.reduce((n, e) => n + nbCountPointsInContent(e.content), 0);
-        if (points <= 0) return;
         const displayName = category === "Key Points" ? "Important Points" : category;
         const icon = NB_CATEGORY_ICONS[category] || "📝";
         const row = document.createElement("button");
@@ -13283,16 +13274,7 @@
       const filteredEntries = nbFilteredEntries();
       container.innerHTML = "";
 
-      const hasAnyNotes = filteredEntries.some((e) => String(e.content || "").trim());
-      if (!hasAnyNotes) {
-        const empty = document.createElement("div");
-        empty.className = "nb-empty-all";
-        empty.style.cssText = "padding:28px 12px; text-align:center;";
-        empty.textContent = "No notes yet. Use Add note or save key points from chat.";
-        container.appendChild(empty);
-        return;
-      }
-
+      // Always show all 6 category sections (empty ones get + Add prompts)
       NB_CATEGORIES.forEach((category) => {
         const catEntries = filteredEntries.filter((e) => e.category === category);
         const icon = NB_CATEGORY_ICONS[category] || "📝";
@@ -13394,21 +13376,18 @@
       });
 
       const subjects = Object.keys(subjectGroups);
-      if (subjects.length === 0) return;
-
       let totalCards = 0;
       subjects.forEach((subject) => {
         subjectGroups[subject].forEach((entry) => {
           totalCards += nbCountPointsInContent(entry.content);
         });
       });
-      if (totalCards <= 0) return;
 
       const card = document.createElement("div");
-      card.className = "nb-sidebar-cat-card";
+      card.className = "nb-sidebar-cat-card" + (totalCards <= 0 ? " nb-cat-empty" : "");
 
       const header = document.createElement("div");
-      header.className = "nb-sidebar-cat-header";
+      header.className = "nb-sidebar-cat-header" + (totalCards <= 0 ? " nb-cat-empty-header" : "");
 
       const headerLeft = document.createElement("div");
       headerLeft.style.cssText = "display:flex; align-items:center; gap:6px;";
@@ -13431,38 +13410,45 @@
       const list = document.createElement("div");
       list.style.cssText = "display:flex; flex-direction:column; gap:8px;";
 
-      subjects.forEach((subject) => {
-        const subjectEntries = subjectGroups[subject];
+      if (totalCards <= 0) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "font-size:0.8rem; color:var(--muted); padding:4px 2px;";
+        empty.textContent = `No ${displayName.toLowerCase()} yet — click + Add`;
+        list.appendChild(empty);
+      } else {
+        subjects.forEach((subject) => {
+          const subjectEntries = subjectGroups[subject];
 
-        const subjectHeading = document.createElement("div");
-        subjectHeading.style.cssText = "font-weight: 700; font-size: 0.78rem; color: var(--text); margin: 4px 0 2px 0; padding: 4px 8px; background: rgba(255,255,255,0.04); border-radius: 6px; border-left: 3px solid var(--accent);";
-        subjectHeading.textContent = subject;
-        list.appendChild(subjectHeading);
+          const subjectHeading = document.createElement("div");
+          subjectHeading.style.cssText = "font-weight: 700; font-size: 0.78rem; color: var(--text); margin: 4px 0 2px 0; padding: 4px 8px; background: rgba(255,255,255,0.04); border-radius: 6px; border-left: 3px solid var(--accent);";
+          subjectHeading.textContent = subject;
+          list.appendChild(subjectHeading);
 
-        subjectEntries.forEach((entry) => {
-          if (!entry.content) return;
+          subjectEntries.forEach((entry) => {
+            if (!entry.content) return;
 
-          const lines = entry.content.split("\n").map((line) => line.trim()).filter(Boolean);
-          const bulletLines = lines.filter((line) => /^[•\-\*]/.test(line));
+            const lines = entry.content.split("\n").map((line) => line.trim()).filter(Boolean);
+            const bulletLines = lines.filter((line) => /^[•\-\*]/.test(line));
 
-          // Plain prose notes (chat auto-save) — show full content with delete
-          if (bulletLines.length === 0) {
-            const words = entry.content.trim().split(/\s+/);
-            const title = words.length <= 8
-              ? entry.content.trim().slice(0, 80)
-              : words.slice(0, 6).join(" ") + "…";
-            nbCreateNoteCard(entry, title, entry.content.trim(), list, { isBulletFragment: false });
-            return;
-          }
+            // Plain prose notes (chat auto-save) — show full content with delete
+            if (bulletLines.length === 0) {
+              const words = entry.content.trim().split(/\s+/);
+              const title = words.length <= 8
+                ? entry.content.trim().slice(0, 80)
+                : words.slice(0, 6).join(" ") + "…";
+              nbCreateNoteCard(entry, title, entry.content.trim(), list, { isBulletFragment: false });
+              return;
+            }
 
-          bulletLines.forEach((line) => {
-            const cleanLine = line.replace(/^[•\-\*]\s*/, "").trim();
-            if (!cleanLine) return;
-            // No synthetic title — body is the point (avoids "F is the net…" duplication)
-            nbCreateNoteCard(entry, "", cleanLine, list, { isBulletFragment: true, hideTitle: true });
+            bulletLines.forEach((line) => {
+              const cleanLine = line.replace(/^[•\-\*]\s*/, "").trim();
+              if (!cleanLine) return;
+              // No synthetic title — body is the point (avoids "F is the net…" duplication)
+              nbCreateNoteCard(entry, "", cleanLine, list, { isBulletFragment: true, hideTitle: true });
+            });
           });
         });
-      });
+      }
 
       card.appendChild(header);
       card.appendChild(list);
