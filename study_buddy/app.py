@@ -2313,22 +2313,37 @@ def fs_pull_conversations_into_sqlite(user_id):
 
 
 def fs_push_all_conversations(user_id):
-    """Push all local conversations + messages for a user to Firestore. Soft-fails."""
-    skip, reason = fs_should_skip_bulk_content_push(user_id)
-    if skip:
-        # CRITICAL: bulk push after Clear (or when meta is unknown) must not
-        # restamp old chats past the wipe survival gate.
-        print(f"[Firestore] skip bulk conversation push — {reason} user={user_id}")
+    """Push local conversations + messages to Firestore. Soft-fails.
+
+    When wipe meta is unreadable: skip entirely (fail closed).
+    When wipe is active: push only rows stamped with the current wipe gen
+    (post-wipe chats), never pre-wipe leftovers.
+    """
+    wipe_meta = fs_get_content_wipe_meta(user_id)
+    if wipe_meta.get("meta_ok") is False:
+        print(f"[Firestore] skip bulk conversation push — wipe meta unreadable user={user_id}")
         return
+    active, wipe_gen, wiped_at, _ = fs_wipe_is_active(user_id)
+    threshold = wipe_gen if wipe_gen > 0 else (1 if (active or wiped_at) else 0)
     db = get_firestore()
     if not db:
         return
     try:
         with get_db() as conn:
-            convs = conn.execute(
-                "SELECT * FROM conversations WHERE user_id=?",
-                (user_id,),
-            ).fetchall()
+            _ensure_local_wipe_gen_columns(conn)
+            if threshold > 0:
+                convs = conn.execute(
+                    """
+                    SELECT * FROM conversations
+                    WHERE user_id=? AND COALESCE(content_wipe_gen, 0) >= ?
+                    """,
+                    (user_id, threshold),
+                ).fetchall()
+            else:
+                convs = conn.execute(
+                    "SELECT * FROM conversations WHERE user_id=?",
+                    (user_id,),
+                ).fetchall()
             for conv in convs:
                 c = dict(conv)
                 fs_upsert_conversation(user_id, c)
@@ -4207,7 +4222,7 @@ def create_conversation():
 
     data  = request.get_json(force=True) or {}
     title = (data.get("title") or "New Chat").strip()[:100]
-    wipe_gen = int(fs_get_content_wipe_meta(user["id"]).get("wipe_gen") or 0)
+    wipe_gen = current_content_wipe_gen(user["id"])
 
     with get_db() as conn:
         _ensure_local_wipe_gen_columns(conn)
@@ -5304,7 +5319,7 @@ def chat():
                             smart_title = generate_smart_title(client, last_message, target_model)
                             title = smart_title if smart_title else "New Chat"
                             _ensure_local_wipe_gen_columns(conn)
-                            wg = int(fs_get_content_wipe_meta(uid).get("wipe_gen") or 0)
+                            wg = current_content_wipe_gen(uid)
                             cur = conn.execute(
                                 "INSERT INTO conversations (user_id, title, content_wipe_gen) VALUES (?,?,?)",
                                 (uid, title, wg),

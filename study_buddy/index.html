@@ -525,13 +525,59 @@
     .sidebar-tools {
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      padding-top: 4px;
+      gap: 8px;
+      padding-top: 2px;
     }
     .sidebar-tool-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
+    }
+    .sidebar-prefs-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .sidebar-prefs-row .field {
+      margin: 0;
+      min-width: 0;
+    }
+    .sidebar-prefs-row label {
+      font-weight: 700;
+      font-size: 0.68rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+      display: block;
+    }
+    .sidebar-prefs-row .input {
+      padding: 6px 8px;
+      font-size: 0.78rem;
+      border-radius: 8px;
+      min-height: 32px;
+      width: 100%;
+    }
+    .tools-account-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 6px 2px;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-family: var(--font-ui);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+    }
+    .tools-account-toggle:hover {
+      color: var(--text);
+    }
+    #tools-account-content.collapsed {
+      display: none;
     }
     .sidebar-chip-btn {
       width: 100%;
@@ -581,11 +627,14 @@
       border: 1px solid var(--border);
       border-radius: 12px;
       background: rgba(255, 255, 255, 0.02);
-      padding: 12px;
+      padding: 10px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      margin-top: 2px;
+      gap: 8px;
+      margin-top: 0;
+    }
+    .sidebar-account-card.collapsed {
+      display: none;
     }
     .sidebar-account-card .field {
       margin: 0;
@@ -5757,7 +5806,7 @@
               <span class="section-toggle-icon" id="tools-toggle-icon">▼</span>
             </div>
             <div id="tools-section-content" class="sidebar-section-content">
-              <div class="settings-notes-panel sidebar-tools" style="padding: 0 12px 14px;">
+              <div class="settings-notes-panel sidebar-tools" style="padding: 0 12px 10px;">
                 <div class="compact-focus-bar">
                   <span class="focus-label">
                     Focus <span id="timer-display">25:00</span>
@@ -5773,11 +5822,11 @@
                   <button class="sidebar-chip-btn" id="sidebar-mistake-vault-btn" type="button">Mistake Vault</button>
                 </div>
 
-                <div class="sidebar-account-card">
+                <div class="sidebar-prefs-row">
                   <div class="field">
                     <label for="tools-section">Section</label>
                     <select class="input" id="tools-section">
-                      <option value="">Select section…</option>
+                      <option value="">Select…</option>
                       <option value="Whiz 1">Whiz 1</option>
                       <option value="Whiz 2">Whiz 2</option>
                       <option value="Whiz 3">Whiz 3</option>
@@ -5786,15 +5835,33 @@
                       <option value="Super 3">Super 3</option>
                     </select>
                   </div>
-                  <div class="field" id="tools-super3-drops" style="display:none;">
-                    <label style="display:block;margin-bottom:6px;">Super 3 — drop</label>
-                    <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;color:var(--muted);margin-bottom:4px;">
-                      <input type="checkbox" id="tools-drop-math" /> Math
-                    </label>
-                    <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;color:var(--muted);">
-                      <input type="checkbox" id="tools-drop-science" /> Science
-                    </label>
+                  <div class="field">
+                    <label for="tools-reply-language">Language</label>
+                    <select class="input" id="tools-reply-language">
+                      <option value="multi">Match msg</option>
+                      <option value="en">English</option>
+                      <option value="hi">Hindi</option>
+                      <option value="te">Telugu</option>
+                      <option value="es">Spanish</option>
+                      <option value="fr">French</option>
+                    </select>
                   </div>
+                </div>
+                <div class="field" id="tools-super3-drops" style="display:none;">
+                  <label style="display:block;margin-bottom:4px;font-size:0.72rem;color:var(--muted);">Super 3 — drop</label>
+                  <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--muted);margin-bottom:4px;">
+                    <input type="checkbox" id="tools-drop-math" /> Math
+                  </label>
+                  <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--muted);">
+                    <input type="checkbox" id="tools-drop-science" /> Science
+                  </label>
+                </div>
+
+                <button type="button" class="tools-account-toggle" id="tools-account-toggle" aria-expanded="false">
+                  <span>Account</span>
+                  <span class="section-toggle-icon collapsed" id="tools-account-icon">▼</span>
+                </button>
+                <div id="tools-account-content" class="sidebar-account-card collapsed">
                   <div class="field">
                     <label for="buddy-name-input">Buddy</label>
                     <input type="text" class="input" id="buddy-name-input" placeholder="Buddy name" />
@@ -5802,17 +5869,6 @@
                   <div class="field">
                     <label for="username-input">Username</label>
                     <input type="text" class="input" id="username-input" placeholder="Username" />
-                  </div>
-                  <div class="field">
-                    <label for="tools-reply-language">Reply language</label>
-                    <select class="input" id="tools-reply-language">
-                      <option value="multi">Match my message</option>
-                      <option value="en">Always English</option>
-                      <option value="hi">Always Hindi</option>
-                      <option value="te">Always Telugu</option>
-                      <option value="es">Always Spanish</option>
-                      <option value="fr">Always French</option>
-                    </select>
                   </div>
                   <div class="sidebar-account-actions">
                     <button class="btn-primary" id="save-settings-btn" type="button">Save</button>
@@ -6487,7 +6543,10 @@
             if (el.id === "tools-section-container") el.style.display = "";
             else if (el.classList.contains("tools-dict-divider")) el.style.display = "block";
             else if (el.classList.contains("sidebar-tool-row")) el.style.display = "grid";
-            else if (el.classList.contains("sidebar-account-card")) el.style.display = "flex";
+            else if (el.id === "tools-account-content" || el.classList.contains("sidebar-account-card")) {
+              // Keep CSS .collapsed control; don't force display:flex
+              el.style.display = "";
+            }
             else el.style.display = "";
           });
           if (logoutBtn) logoutBtn.style.display = "";
@@ -8178,6 +8237,12 @@
           const toolsIcon = document.getElementById("tools-toggle-icon");
           if (toolsContent) toolsContent.classList.remove("collapsed");
           if (toolsIcon) toolsIcon.classList.remove("collapsed");
+          const accountContent = document.getElementById("tools-account-content");
+          const accountIcon = document.getElementById("tools-account-icon");
+          const accountToggle = document.getElementById("tools-account-toggle");
+          if (accountContent) accountContent.classList.remove("collapsed");
+          if (accountIcon) accountIcon.classList.remove("collapsed");
+          if (accountToggle) accountToggle.setAttribute("aria-expanded", "true");
           const target =
             document.getElementById("username-input") ||
             document.getElementById("buddy-name-input") ||
@@ -9815,7 +9880,8 @@
     // number-like character.
     const GREETING_RE = /^\s*(hi+|hello+|hey+|howdy|good\s*(morning|afternoon|evening|night)|greetings|what'?s\s*up|whats\s*up|wassup|wazzup|how\s*are\s*you(\s*doing)?|how'?s\s*it\s*going|sup|yo|hiya|thanks?|thank\s*you|ty|thx|cheers|ok(ay)?|great|awesome|cool|nice|bye+|goodbye|see\s*ya|later|cya|got\s*it|sure|no\s*problem|np|alright|ok+|nm|not\s*much|lol|haha+)\s*[!?.]*\s*$/i;
 
-    const STUDY_INTENT_RE = /\b(solve|explain|define|derive|prove|calculate|compute|formula|chapter|homework|exam|revise|revision|photosynthesis|newton|algebra|geometry|trigonometry|calculus|velocity|acceleration|molecule|atom|cell|equation|theorem|prove|differentiate|integrate|gravity|force|ohm|voltage|resistance|quiz|test|notes?|law of|class\s*\d+|grade\s*\d+|math|physics|chemistry|biology|history|geography|english grammar|what is|why is|how do|how does|how to|mean by|difference between|example of)\b/i;
+    const STUDY_INTENT_RE = /\b(solve|explain|define|derive|prove|calculate|compute|formula|chapter|homework|exam|revise|revision|photosynthesis|newton|newtons?|algebra|geometry|trigonometry|calculus|velocity|acceleration|molecule|atom|cell|equation|theorem|differentiate|integrate|gravity|force|ohm|voltage|resistance|quiz|test|notes?|laws?|law of|class\s*\d+|grade\s*\d+|math|physics|chemistry|biology|history|geography|english grammar|what is|what are|why is|why are|how do|how does|how to|tell me about|summarize|summarise|describe|teach|understand|mean by|difference between|example of|mitosis|meiosis|osmosis|inertia|momentum|photosynthesis)\b/i;
+    const CHITCHAT_RE = /\b(song|lyrics|movie|meme|joke|nod if you can hear|anybody (home|in there)|comfortably numb|lol|haha|lmao)\b/i;
 
     function isGreeting(userMsg) {
       return isCasualConversation(userMsg);
@@ -9826,33 +9892,25 @@
       if (!t) return true;
       // Strip referral wrapper for intent check
       const core = t.replace(/--- EXTRACTED PAGE TEXT ---[\s\S]*$/i, "").trim();
+      if (!core) return true;
       if (GREETING_RE.test(core)) return true;
+      // Clear chitchat / lyrics without study intent
+      if (CHITCHAT_RE.test(core) && !STUDY_INTENT_RE.test(core)) return true;
+      // Lyrics / chitchat: starts with hello/hey and no study intent
+      if (/^(hi|hello|hey|yo|sup)\b/i.test(core) && !STUDY_INTENT_RE.test(core) && core.length < 80) {
+        return true;
+      }
       if (STUDY_INTENT_RE.test(core)) return false;
       // Homework-like: numbers + operators / units
       if (/\d+\s*[\+\-\u00d7\u00f7\*\/=]/.test(core) || /\d+\s*(m\/s|kg|n|j|w|mol|cm|mm)\b/i.test(core)) {
         return false;
       }
-      // Explicit study question mark with short academic cue
-      if (/\?/.test(core) && /\b(what|why|how|when|where|which|who)\b/i.test(core) && core.length < 160) {
-        // "what song is this" style chitchat still casual if no study words
-        if (!/\b(mean|definition|formula|chapter|law|force|cell|atom|equation|prove|solve)\b/i.test(core)) {
-          if (/song|lyrics|movie|meme|joke|nod if you can hear|anybody (home|in there)|comfortably numb/i.test(core)) {
-            return true;
-          }
-        }
+      // WH-questions default educational unless obvious chitchat
+      if (/\?/.test(core) && /\b(what|why|how|when|where|which|who)\b/i.test(core) && core.length < 200) {
+        return CHITCHAT_RE.test(core);
       }
-      // Lyrics / chitchat: starts with hello/hey and no study intent
-      if (/^(hi|hello|hey|yo|sup)\b/i.test(core) && !STUDY_INTENT_RE.test(core)) {
-        return true;
-      }
-      // Long messages with no study keywords → casual (song lyrics, banter)
-      if (core.length >= 40 && !STUDY_INTENT_RE.test(core) && !/\d+\s*[\+\-\*\/=]/.test(core)) {
-        return true;
-      }
-      // Short non-study without ?
-      if (core.length <= 48 && !/\?/.test(core) && !STUDY_INTENT_RE.test(core)) {
-        return true;
-      }
+      // Default: treat normal typed prompts as educational so Living Notebook /
+      // Podcast / Quiz actions appear for school topics like "newtons laws".
       return false;
     }
 
@@ -13652,6 +13710,18 @@
           content.classList.toggle("collapsed");
           icon.classList.toggle("collapsed");
         }
+      });
+
+      document.getElementById("tools-account-toggle")?.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const content = document.getElementById("tools-account-content");
+        const icon = document.getElementById("tools-account-icon");
+        const toggle = document.getElementById("tools-account-toggle");
+        if (!content) return;
+        const open = content.classList.toggle("collapsed") === false;
+        if (icon) icon.classList.toggle("collapsed", !open);
+        if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
       });
 
       document.getElementById("dict-section-toggle")?.addEventListener("click", () => {
