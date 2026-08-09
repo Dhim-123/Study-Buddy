@@ -2004,34 +2004,262 @@
       border-radius: var(--radius-sm);
     }
 
-    /* responsive */
-    @media (max-width: 640px) {
-      #sidebar {
-        position: absolute;
-        left: 0;
-        z-index: 210;
+    /* ── RESPONSIVE LAYOUT TIERS (phone / tablet / desktop) ── */
+    #mobile-nav-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 1100;
+      background: rgba(4, 8, 18, 0.45);
+      border: none;
+      padding: 0;
+      cursor: pointer;
+    }
+    #mobile-nav-backdrop.show {
+      display: block;
+    }
+
+    /* Phone */
+    @media (max-width: 767px) {
+      header {
+        flex-wrap: wrap;
+        padding: 8px 10px;
+        gap: 8px;
+        row-gap: 6px;
+      }
+      .header-left {
+        order: 1;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .header-right {
+        order: 2;
+        flex: 0 0 auto;
+        gap: 6px;
+      }
+      .feature-tabs {
+        order: 3;
+        flex: 1 1 100%;
+        width: 100%;
+        min-width: 0;
+      }
+      .logo {
+        font-size: 1.05rem;
+        gap: 6px;
+      }
+      .logo-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 0.95rem;
+      }
+      .settings-gear-btn,
+      .profile-avatar-btn {
+        width: 40px;
+        height: 40px;
+      }
+      .header-stats {
+        gap: 4px;
+      }
+      .header-stat {
+        padding: 6px 8px;
+        min-height: 40px;
+      }
+
+      #mobile-nav-backdrop.show {
+        display: block;
+      }
+
+      #sidebar,
+      #dict-sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
         height: 100%;
-        width: 290px;
-        min-width: 290px;
-        max-width: 290px;
-        flex: none;
+        max-height: 100%;
+        z-index: 1200;
+        flex: none !important;
+        width: min(320px, 88vw) !important;
+        min-width: min(320px, 88vw) !important;
+        max-width: min(320px, 88vw) !important;
+        box-shadow: 0 0 40px rgba(0, 0, 0, 0.35);
+      }
+      #sidebar {
+        left: 0;
+        right: auto;
+        border-right: 1px solid var(--border);
+        transform: translateX(0);
       }
       #sidebar.hidden {
-        width: 0 !important;
-        min-width: 0 !important;
-        max-width: 0 !important;
-        transform: translateX(-100%);
+        width: min(320px, 88vw) !important;
+        min-width: min(320px, 88vw) !important;
+        max-width: min(320px, 88vw) !important;
+        transform: translateX(-105%);
+        pointer-events: none;
+        border-right-width: 0;
+      }
+      #dict-sidebar {
+        right: 0;
+        left: auto;
+        border-left: 1px solid var(--border);
+        transform: translateX(0);
+      }
+      #dict-sidebar.hidden {
+        width: min(320px, 88vw) !important;
+        min-width: min(320px, 88vw) !important;
+        max-width: min(320px, 88vw) !important;
+        transform: translateX(105%);
+        pointer-events: none;
+        border-left-width: 0;
+      }
+
+      #left-sidebar-handle {
+        left: 0;
+        z-index: 1210;
+      }
+      main:not(.left-collapsed) #left-sidebar-handle {
+        left: min(320px, 88vw);
+      }
+      main.left-collapsed #left-sidebar-handle {
+        left: 0;
+      }
+      #right-sidebar-handle {
+        right: 0;
+        z-index: 1210;
+      }
+      main:not(.right-collapsed) #right-sidebar-handle {
+        right: min(320px, 88vw);
+      }
+      main.right-collapsed #right-sidebar-handle {
+        right: 0;
+      }
+
+      #input-bar {
+        padding: 10px 12px;
+        padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+        gap: 8px;
+      }
+      #user-input {
+        padding: 10px 14px;
+        font-size: 16px; /* avoid iOS zoom */
+      }
+      #main-content {
+        padding-left: 0;
+        padding-right: 0;
+      }
+      .section-container {
+        padding: 16px 12px 32px;
+        gap: 16px;
+      }
+      .feature-header h2 {
+        font-size: 1.35rem;
+      }
+      .msg {
+        max-width: 100%;
+        gap: 10px;
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+      #welcome {
+        padding: 16px 12px;
+      }
+      #welcome h2 {
+        font-size: 1.35rem;
+      }
+      .settings-panel {
+        top: 8px;
+        left: 8px;
+        right: 8px;
+        width: auto;
+        max-height: calc(100vh - 16px);
+      }
+      .settings-panel-card {
+        max-height: calc(100vh - 24px);
+        overflow: auto;
+      }
+      .ce-home-grid,
+      .ce-detail-row,
+      .sidebar-tool-row,
+      .sidebar-prefs-row {
+        grid-template-columns: 1fr;
+      }
+      .nb-form-grid,
+      .nb-grid-container {
+        grid-template-columns: 1fr;
+      }
+      #learning-dna-section [style*="grid-template-columns: 1fr 1fr 1fr"],
+      #learning-dna-section .dna-stats-row,
+      .dna-progress-row {
+        grid-template-columns: 1fr !important;
+      }
+      body {
+        overflow-x: hidden;
+      }
+    }
+
+    /* Tablet / iPad */
+    @media (min-width: 768px) and (max-width: 1099px) {
+      header {
+        padding: 8px 12px;
+        gap: 8px;
+      }
+      .logo {
+        font-size: 1.15rem;
+      }
+      #sidebar {
+        width: 260px;
+        min-width: 260px;
+        max-width: 260px;
+        flex-basis: 260px;
       }
       #left-sidebar-handle {
-        left: 290px;
+        left: 260px;
       }
       main.left-collapsed #left-sidebar-handle {
         left: 0;
       }
       #dict-sidebar {
+        width: 280px;
+        min-width: 280px;
+        max-width: 280px;
+        flex-basis: 280px;
+      }
+      #right-sidebar-handle {
+        right: 280px;
+      }
+      main.right-collapsed #right-sidebar-handle {
+        right: 0;
+      }
+      /* Prefer one sidebar: when both open, right becomes overlay so chat keeps width */
+      main:not(.left-collapsed):not(.right-collapsed) #dict-sidebar {
         position: absolute;
         right: 0;
-        z-index: 210;
+        top: 0;
+        bottom: 0;
+        z-index: 250;
+        box-shadow: -8px 0 28px rgba(0, 0, 0, 0.25);
+      }
+      .section-container {
+        padding: 20px 16px 40px;
+      }
+      .msg {
+        max-width: 100%;
+      }
+      .ce-home-grid,
+      .ce-detail-row {
+        grid-template-columns: 1fr 1fr;
+      }
+      #input-bar {
+        padding: 12px 16px;
+      }
+      .settings-panel {
+        width: min(380px, calc(100vw - 24px));
+      }
+    }
+
+    /* Desktop: keep existing shell; soft overflow guard */
+    @media (min-width: 1100px) {
+      .msg {
+        max-width: min(850px, 100%);
       }
     }
 
@@ -2813,6 +3041,9 @@
     }
     @media (max-width: 640px) {
       .mock-results-tabs { grid-template-columns: 1fr; }
+      .ce-home { padding: 24px 14px; }
+      .ce-report { padding: 16px 12px; }
+      .ce-assessment { padding: 16px 12px; }
     }
     .mock-results-section {
       border: 1px solid var(--border);
@@ -5509,6 +5740,8 @@
 
   <div id="clear-toast" class="clear-toast" role="status" aria-live="polite"></div>
 
+  <button type="button" id="mobile-nav-backdrop" class="mobile-nav-backdrop" aria-label="Close menu" tabindex="-1"></button>
+
   <!-- Centered login / register gate (logged-out) -->
   <div id="auth-gate" class="auth-gate" aria-hidden="false">
     <div class="auth-gate-backdrop" aria-hidden="true"></div>
@@ -5957,8 +6190,7 @@
       </div>
 
       <!-- ROW 4: PROGRESS TRACKING -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
-        <!-- Weekly Progress -->
+      <div class="dna-progress-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
         <div class="dna-card">
           <div class="card-header">
             <h3>📅 Weekly Progress</h3>
@@ -7108,8 +7340,16 @@
             if (el.classList.contains("sidebar-tool-row")) el.style.display = "grid";
             else el.style.display = "";
           });
-          // Keep left chat sidebar visible after login
-          if (leftSidebarEl) leftSidebarEl.classList.remove("hidden");
+          // Keep left chat sidebar visible after login on desktop only
+          if (leftSidebarEl && typeof getLayoutTier === "function" && getLayoutTier() === "desktop") {
+            leftSidebarEl.classList.remove("hidden");
+          } else if (leftSidebarEl && typeof getLayoutTier === "function") {
+            leftSidebarEl.classList.add("hidden");
+          } else if (leftSidebarEl) {
+            leftSidebarEl.classList.remove("hidden");
+          }
+          if (typeof updateLeftSidebarState === "function") updateLeftSidebarState();
+          if (typeof syncMobileNavBackdrop === "function") syncMobileNavBackdrop();
           if (logoutBtn) logoutBtn.style.display = "";
           if (buddyNameEl) buddyNameEl.value = currentUser.buddyName || "Max";
           if (usernameInputEl) usernameInputEl.value = currentUser.identifier || "";
@@ -8053,7 +8293,7 @@
     // =====================================================================
 
     // =====================================================================
-    //  SIDEBAR TOGGLE — Click logo or header buttons to toggle sidebars
+    //  SIDEBAR TOGGLE + RESPONSIVE LAYOUT SHELL
     // =====================================================================
 
     const logoToggle = document.getElementById("logo-toggle");
@@ -8065,11 +8305,81 @@
 
     const leftSidebarHandle = document.getElementById("left-sidebar-handle");
     const rightSidebarHandle = document.getElementById("right-sidebar-handle");
+    const mobileNavBackdrop = document.getElementById("mobile-nav-backdrop");
 
     const mainLayoutEl = document.querySelector("main");
+    let __layoutTier = null;
+
+    function getLayoutTier() {
+      const w = window.innerWidth || document.documentElement.clientWidth || 1200;
+      if (w <= 767) return "phone";
+      if (w <= 1099) return "tablet";
+      return "desktop";
+    }
+
+    function syncMobileNavBackdrop() {
+      if (!mobileNavBackdrop) return;
+      const phone = getLayoutTier() === "phone";
+      const leftOpen = sidebarEl && !sidebarEl.classList.contains("hidden");
+      const rightOpen = dictSidebarEl && !dictSidebarEl.classList.contains("hidden");
+      mobileNavBackdrop.classList.toggle("show", phone && (leftOpen || rightOpen));
+    }
+
+    function closeMobileDrawers() {
+      if (sidebarEl) sidebarEl.classList.add("hidden");
+      if (dictSidebarEl) dictSidebarEl.classList.add("hidden");
+      updateLeftSidebarState();
+      updateRightSidebarState();
+      syncMobileNavBackdrop();
+    }
+
+    function openLeftSidebarExclusive() {
+      if (sidebarEl) sidebarEl.classList.remove("hidden");
+      if (getLayoutTier() === "phone" && dictSidebarEl) dictSidebarEl.classList.add("hidden");
+      updateLeftSidebarState();
+      updateRightSidebarState();
+      syncMobileNavBackdrop();
+    }
+
+    function openRightSidebarExclusive() {
+      if (dictSidebarEl) dictSidebarEl.classList.remove("hidden");
+      if (getLayoutTier() === "phone" && sidebarEl) sidebarEl.classList.add("hidden");
+      updateLeftSidebarState();
+      updateRightSidebarState();
+      syncMobileNavBackdrop();
+    }
+
+    function applyLayoutTierDefaults(tier) {
+      document.documentElement.dataset.layout = tier;
+      if (!sidebarEl || !dictSidebarEl) return;
+      if (tier === "phone") {
+        sidebarEl.classList.add("hidden");
+        dictSidebarEl.classList.add("hidden");
+      } else if (tier === "tablet") {
+        // One sidebar at a time: keep left (chats) open, right closed
+        sidebarEl.classList.remove("hidden");
+        dictSidebarEl.classList.add("hidden");
+      } else {
+        // Desktop: left open, right open (notebook) — matches prior desktop feel
+        sidebarEl.classList.remove("hidden");
+        dictSidebarEl.classList.remove("hidden");
+      }
+      updateLeftSidebarState();
+      updateRightSidebarState();
+      syncMobileNavBackdrop();
+    }
+
+    function syncLayoutShell(forceDefaults = false) {
+      const tier = getLayoutTier();
+      const changed = __layoutTier !== tier;
+      __layoutTier = tier;
+      document.documentElement.dataset.layout = tier;
+      if (forceDefaults || changed) applyLayoutTierDefaults(tier);
+      else syncMobileNavBackdrop();
+    }
 
     function updateLeftSidebarState() {
-      const isHidden = sidebarEl.classList.contains("hidden");
+      const isHidden = !sidebarEl || sidebarEl.classList.contains("hidden");
       if (mainLayoutEl) mainLayoutEl.classList.toggle("left-collapsed", isHidden);
       if (toggleSidebarBtn) {
         if (isHidden) toggleSidebarBtn.classList.remove("active");
@@ -8080,10 +8390,11 @@
         if (arrow) arrow.textContent = isHidden ? "›" : "‹";
         leftSidebarHandle.setAttribute("title", isHidden ? "Expand left sidebar" : "Collapse left sidebar");
       }
+      syncMobileNavBackdrop();
     }
 
     function updateRightSidebarState() {
-      const isHidden = dictSidebarEl.classList.contains("hidden");
+      const isHidden = !dictSidebarEl || dictSidebarEl.classList.contains("hidden");
       if (mainLayoutEl) mainLayoutEl.classList.toggle("right-collapsed", isHidden);
       if (toggleDictBtn) {
         if (isHidden) toggleDictBtn.classList.remove("active");
@@ -8094,53 +8405,101 @@
         if (arrow) arrow.textContent = isHidden ? "‹" : "›";
         rightSidebarHandle.setAttribute("title", isHidden ? "Expand right sidebar" : "Collapse right sidebar");
       }
+      syncMobileNavBackdrop();
     }
 
     if (leftSidebarHandle) {
       leftSidebarHandle.onclick = (e) => {
         e.stopPropagation();
-        sidebarEl.classList.toggle("hidden");
-        updateLeftSidebarState();
+        if (!sidebarEl) return;
+        if (sidebarEl.classList.contains("hidden")) openLeftSidebarExclusive();
+        else {
+          sidebarEl.classList.add("hidden");
+          updateLeftSidebarState();
+          syncMobileNavBackdrop();
+        }
       };
     }
 
     if (rightSidebarHandle) {
       rightSidebarHandle.onclick = (e) => {
         e.stopPropagation();
-        dictSidebarEl.classList.toggle("hidden");
-        updateRightSidebarState();
+        if (!dictSidebarEl) return;
+        if (dictSidebarEl.classList.contains("hidden")) openRightSidebarExclusive();
+        else {
+          dictSidebarEl.classList.add("hidden");
+          updateRightSidebarState();
+          syncMobileNavBackdrop();
+        }
       };
     }
 
     if (toggleSidebarBtn) {
       toggleSidebarBtn.onclick = () => {
-        sidebarEl.classList.toggle("hidden");
-        updateLeftSidebarState();
+        if (!sidebarEl) return;
+        if (sidebarEl.classList.contains("hidden")) openLeftSidebarExclusive();
+        else {
+          sidebarEl.classList.add("hidden");
+          updateLeftSidebarState();
+          syncMobileNavBackdrop();
+        }
       };
     }
 
     if (toggleDictBtn) {
-      dictSidebarEl.classList.add("hidden"); // Collapse by default on narrow screens maybe? Let's keep default open state matching header
-      dictSidebarEl.classList.remove("hidden"); // Ensure matches initial active class
       toggleDictBtn.onclick = () => {
-        dictSidebarEl.classList.toggle("hidden");
-        updateRightSidebarState();
+        if (!dictSidebarEl) return;
+        if (dictSidebarEl.classList.contains("hidden")) openRightSidebarExclusive();
+        else {
+          dictSidebarEl.classList.add("hidden");
+          updateRightSidebarState();
+          syncMobileNavBackdrop();
+        }
       };
     }
 
     if (logoToggle) {
       logoToggle.onclick = () => {
-        sidebarEl.classList.toggle("hidden");
-        updateLeftSidebarState();
+        if (!sidebarEl) return;
+        if (sidebarEl.classList.contains("hidden")) openLeftSidebarExclusive();
+        else {
+          sidebarEl.classList.add("hidden");
+          updateLeftSidebarState();
+          syncMobileNavBackdrop();
+        }
       };
     }
 
     if (settingsBtn) {
       settingsBtn.onclick = () => {
-        sidebarEl.classList.toggle("hidden");
-        updateLeftSidebarState();
+        if (!sidebarEl) return;
+        if (sidebarEl.classList.contains("hidden")) openLeftSidebarExclusive();
+        else {
+          sidebarEl.classList.add("hidden");
+          updateLeftSidebarState();
+          syncMobileNavBackdrop();
+        }
       };
     }
+
+    if (mobileNavBackdrop) {
+      mobileNavBackdrop.addEventListener("click", () => closeMobileDrawers());
+    }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && getLayoutTier() === "phone") closeMobileDrawers();
+    });
+
+    let __layoutResizeTimer = null;
+    window.addEventListener("resize", () => {
+      clearTimeout(__layoutResizeTimer);
+      __layoutResizeTimer = setTimeout(() => syncLayoutShell(false), 120);
+    });
+    window.addEventListener("orientationchange", () => {
+      setTimeout(() => syncLayoutShell(false), 180);
+    });
+
+    // Apply tier defaults once (replaces force-open right sidebar)
+    syncLayoutShell(true);
 
     if (authBtn) {
       authBtn.onclick = () => {
@@ -8150,8 +8509,7 @@
           setTimeout(() => idInput?.focus(), 150);
           return;
         }
-        sidebarEl.classList.remove("hidden");
-        updateLeftSidebarState();
+        openLeftSidebarExclusive();
       };
     }
 
