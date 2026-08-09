@@ -2043,52 +2043,73 @@
     @media (max-width: 767px) {
       header {
         flex-wrap: wrap;
-        padding: 8px 10px;
-        gap: 8px;
-        row-gap: 6px;
+        align-items: center;
+        padding: 10px max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px));
+        gap: 10px;
+        row-gap: 10px;
       }
       .header-left {
         order: 1;
         flex: 1 1 auto;
         min-width: 0;
+        gap: 8px;
       }
       .header-right {
         order: 2;
         flex: 0 0 auto;
-        gap: 6px;
+        gap: 8px;
+        margin-left: auto;
       }
       .feature-tabs {
         order: 3;
         flex: 1 1 100%;
         width: 100%;
         min-width: 0;
+        gap: 6px;
+        padding-top: 4px;
+        border-top: 1px solid var(--border);
+        margin: 0 -4px;
+        padding-left: 4px;
+        padding-right: 4px;
       }
-      .logo {
-        font-size: 1.05rem;
-        gap: 0;
+      .feature-tabs-scroll {
+        flex: 1 1 auto;
+        gap: 4px;
+      }
+      .feature-tabs .header-stats {
+        flex-shrink: 0;
+        margin-left: auto;
+        margin-right: 0;
+        gap: 2px;
       }
       .logo-img {
-        height: 28px;
-        max-width: min(140px, 38vw);
+        height: 32px;
+        width: 32px;
+        max-width: 32px;
+        object-fit: cover;
+        object-position: left center;
+        border-radius: 8px;
       }
       .auth-gate-brand-img {
-        height: 36px;
+        height: 40px;
+        max-width: min(240px, 72vw);
+        width: auto;
+        object-fit: contain;
       }
       .settings-gear-btn,
       .profile-avatar-btn,
       #mobile-right-toggle {
-        width: 40px;
-        height: 40px;
-        min-width: 40px;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
         padding: 0;
         justify-content: center;
-      }
-      .header-stats {
-        gap: 2px;
+        font-size: 1.15rem;
       }
       .header-stat {
-        padding: 6px 7px;
-        min-height: 40px;
+        padding: 8px 8px;
+        min-height: 44px;
+        font-size: 0.85rem;
       }
       #nav-shop-chip {
         display: none !important;
@@ -2100,30 +2121,48 @@
       #mobile-right-toggle {
         display: inline-flex !important;
       }
-      .tab-btn {
-        padding: 8px 10px;
-        min-height: 40px;
+      .tab-btn,
+      .more-tabs-btn {
+        padding: 10px 12px;
+        min-height: 44px;
+        min-width: 44px;
+        font-size: 1.15rem;
       }
-      .feature-tabs {
-        padding-top: 2px;
+      .tab-btn-icon {
+        font-size: 1.2rem;
       }
       .section-container {
-        padding: 12px 10px 28px;
-        gap: 14px;
+        padding: 18px 14px 36px;
+        gap: 18px;
       }
       .msg {
         max-width: 100%;
-        gap: 8px;
-        padding-left: 8px;
-        padding-right: 8px;
-      }
-      #input-bar {
-        padding: 8px 10px;
-        padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
-        gap: 6px;
+        gap: 10px;
+        padding-left: 12px;
+        padding-right: 12px;
       }
       #welcome {
-        padding: 12px 10px;
+        padding: 20px 14px 24px;
+      }
+      #welcome h2 {
+        font-size: 1.4rem;
+        margin-top: 8px;
+      }
+      .welcome-icon {
+        width: 72px;
+        height: 72px;
+        font-size: 2rem;
+        margin-bottom: 12px;
+      }
+      .study-today-banner,
+      .exam-upcoming-banner,
+      .exam-week-banner {
+        margin-bottom: 16px !important;
+      }
+      .study-today-banner .qs-btn,
+      .study-today-actions button {
+        min-height: 40px;
+        padding: 8px 12px;
       }
 
       #mobile-nav-backdrop.show {
@@ -2173,57 +2212,32 @@
         border-left-width: 0;
       }
 
-      #left-sidebar-handle {
-        left: 0;
-        z-index: 1210;
-      }
-      main:not(.left-collapsed) #left-sidebar-handle {
-        left: min(320px, 88vw);
-      }
-      main.left-collapsed #left-sidebar-handle {
-        left: 0;
-      }
-      #right-sidebar-handle {
-        right: 0;
-        z-index: 1210;
-      }
-      main:not(.right-collapsed) #right-sidebar-handle {
-        right: min(320px, 88vw);
-      }
-      main.right-collapsed #right-sidebar-handle {
-        right: 0;
-      }
-
+      /* Safari bottom toolbar clearance */
       #input-bar {
-        padding: 10px 12px;
-        padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+        padding: 12px 12px;
+        padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px) + 52px);
         gap: 8px;
+        align-items: center;
       }
       #user-input {
-        padding: 10px 14px;
-        font-size: 16px; /* avoid iOS zoom */
+        padding: 12px 14px;
+        font-size: 16px;
+        min-height: 44px;
+      }
+      #attach-ocr-btn,
+      #mic-btn,
+      #send-btn {
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px;
+        flex-shrink: 0;
       }
       #main-content {
         padding-left: 0;
         padding-right: 0;
-      }
-      .section-container {
-        padding: 16px 12px 32px;
-        gap: 16px;
+        padding-bottom: 8px;
       }
       .feature-header h2 {
-        font-size: 1.35rem;
-      }
-      .msg {
-        max-width: 100%;
-        gap: 10px;
-        padding-left: 10px;
-        padding-right: 10px;
-      }
-      #welcome {
-        padding: 16px 12px;
-      }
-      #welcome h2 {
         font-size: 1.35rem;
       }
       .settings-panel {
@@ -2338,6 +2352,10 @@
       padding: 0;
       background: transparent;
       border: none;
+    }
+    .feature-tabs .header-stats {
+      flex-shrink: 0;
+      margin-left: 6px;
     }
     .feature-tabs-scroll {
       display: flex;
@@ -5412,7 +5430,7 @@
     <div class="header-left">
       <button class="btn-icon settings-gear-btn" id="settings-toggle-btn" type="button" title="Settings (Ctrl+,)" aria-label="Open settings" aria-expanded="false" aria-controls="settings-panel">⚙️</button>
       <button type="button" class="logo" id="logo-toggle" title="Study Buddy — open chats" aria-label="Study Buddy">
-        <img class="logo-img" src="logo-study-buddy.png" alt="Study Buddy" width="180" height="40" decoding="async" />
+        <img class="logo-img" src="logo-study-buddy.png?v=2" alt="Study Buddy" width="180" height="40" decoding="async" />
       </button>
     </div>
     <nav id="feature-tabs" class="feature-tabs" aria-label="Features">
@@ -5437,8 +5455,6 @@
           <button class="tab-btn more-tab" data-tab="living-notebook" title="Living Notebook" type="button" role="menuitem"><span class="tab-btn-icon" aria-hidden="true">📔</span><span class="tab-btn-label">Living Notebook</span></button>
         </div>
       </div>
-    </nav>
-    <div class="header-right">
       <div class="header-stats" id="header-center" role="group" aria-label="Study engagement">
         <button type="button" class="header-stat" id="nav-streak-chip" aria-label="Streak details" title="Streak">
           <span aria-hidden="true">🔥</span>
@@ -5454,6 +5470,8 @@
           <span class="header-stat-label">XP</span>
         </button>
       </div>
+    </nav>
+    <div class="header-right">
       <button type="button" class="btn-icon" id="mobile-right-toggle" title="Notebook & dictionary" aria-label="Open notebook sidebar">📔</button>
       <span id="header-notes-badge" style="display:none; background: rgba(82, 232, 160, 0.15); color: var(--accent3); border: 1px solid var(--accent3); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; margin-right: 10px; font-weight: bold; align-items: center; gap: 4px;">📝 Notes Mode</span>
       <button class="btn-icon" id="auth-btn">🚪 Login / Register</button>
@@ -5808,7 +5826,7 @@
     <div class="auth-gate-backdrop" aria-hidden="true"></div>
     <div class="auth-gate-panel" role="dialog" aria-modal="true" aria-labelledby="auth-gate-brand">
       <div class="auth-gate-brand" id="auth-gate-brand">
-        <img class="auth-gate-brand-img" src="logo-study-buddy.png" alt="Study Buddy" width="220" height="48" decoding="async" />
+        <img class="auth-gate-brand-img" src="logo-study-buddy.png?v=2" alt="Study Buddy" width="220" height="48" decoding="async" />
       </div>
       <p class="auth-gate-sub">Sign in to chat, save notes, and keep your streak.</p>
       <div class="auth-card" id="auth-card" data-mode="login" data-logged-in="0">
