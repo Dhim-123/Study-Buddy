@@ -31,12 +31,13 @@ import json
 import threading
 import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import Flask, request, jsonify, send_from_directory, session, redirect
 from flask_cors import CORS
 from dotenv import load_dotenv
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from groq import Groq
@@ -739,10 +740,57 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", _DEFAULT_SECRET)
 if app.secret_key == _DEFAULT_SECRET:
     print("[WARN] FLASK_SECRET_KEY is using the insecure default — set it in production.")
 
+# Render / Vercel sit behind a reverse proxy — trust X-Forwarded-* so
+# request.is_secure and cookie Secure flags work on a custom HTTPS domain.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+_is_prod = bool(
+    os.getenv("RENDER")
+    or os.getenv("VERCEL")
+    or (os.getenv("FLASK_ENV", "").strip().lower() == "production")
+    or (os.getenv("ENV", "").strip().lower() == "production")
+)
+_secure_env = os.getenv("SESSION_COOKIE_SECURE", "").strip().lower()
+if _secure_env in ("1", "true", "yes", "on"):
+    _cookie_secure = True
+elif _secure_env in ("0", "false", "no", "off"):
+    _cookie_secure = False
+else:
+    _cookie_secure = _is_prod
+
+try:
+    _session_days = max(1, int(os.getenv("SESSION_DAYS", "60") or "60"))
+except ValueError:
+    _session_days = 60
+
+_same_site = (os.getenv("SESSION_COOKIE_SAMESITE", "Lax").strip() or "Lax").capitalize()
+if _same_site not in ("Lax", "Strict", "None"):
+    _same_site = "Lax"
+# Secure is required when SameSite=None
+if _same_site == "None":
+    _cookie_secure = True
+
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE=_same_site,
+    SESSION_COOKIE_SECURE=_cookie_secure,
+    PERMANENT_SESSION_LIFETIME=timedelta(days=_session_days),
+    PREFERRED_URL_SCHEME="https" if _cookie_secure else "http",
+)
+_cookie_domain = os.getenv("SESSION_COOKIE_DOMAIN", "").strip()
+if _cookie_domain:
+    app.config["SESSION_COOKIE_DOMAIN"] = _cookie_domain
+
 # Restrict credentialed CORS in production when ORIGIN is set
+# (same-origin custom domain usually needs no CORS; set if www vs apex differ)
 _cors_origins = os.getenv("CORS_ORIGINS", "").strip()
 if _cors_origins:
-    CORS(app, supports_credentials=True, origins=[o.strip() for o in _cors_origins.split(",") if o.strip()])
+    _cors_list = [o.strip().rstrip("/") for o in _cors_origins.split(",") if o.strip()]
+    CORS(app, supports_credentials=True, origins=_cors_list)
+elif _is_prod:
+    # Same-origin only — avoid reflecting arbitrary Origin with credentials
+    CORS(app, supports_credentials=True, origins=[])
+    print("[INFO] CORS_ORIGINS unset in production — credentialed cross-origin requests blocked.")
 else:
     CORS(app, supports_credentials=True)
 
