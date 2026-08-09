@@ -274,6 +274,11 @@
       line-height: 1;
       transition: transform 220ms ease;
     }
+    .sidebar-handle .handle-icon {
+      display: none;
+      font-size: 1.15rem;
+      line-height: 1;
+    }
 
     #left-sidebar-handle {
       left: 290px;
@@ -1654,13 +1659,23 @@
     .welcome-icon {
       width: 80px;
       height: 80px;
-      background: var(--accent-gradient);
+      background: #0B0B0F;
       border-radius: var(--radius-lg);
       display: grid;
       place-items: center;
       font-size: 2.2rem;
       box-shadow: 0 10px 30px rgba(59, 130, 246, 0.35);
       animation: float 3s ease-in-out infinite;
+      overflow: hidden;
+      padding: 0;
+      border: 1px solid rgba(59, 130, 246, 0.35);
+    }
+    .welcome-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: left center;
+      display: block;
     }
 
     @keyframes float {
@@ -2140,15 +2155,16 @@
         gap: 2px;
       }
       .logo-img {
-        height: 30px;
-        width: auto;
-        max-width: min(158px, 52vw);
-        object-fit: contain;
+        height: 36px;
+        width: 36px;
+        max-width: 36px;
+        object-fit: cover;
         object-position: left center;
-        border-radius: 8px;
+        border-radius: 10px;
         background: #0B0B0F;
-        padding: 3px 6px;
-        box-sizing: content-box;
+        padding: 0;
+        box-sizing: border-box;
+        border: 1px solid rgba(59, 130, 246, 0.4);
       }
       .auth-gate-brand-img {
         height: 40px;
@@ -2175,13 +2191,57 @@
       #nav-shop-chip {
         display: none !important;
       }
+      /* Bright edge openers — always visible on phone */
       #left-sidebar-handle,
       #right-sidebar-handle {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 44px !important;
+        height: 72px !important;
+        top: 42% !important;
+        background: rgba(37, 99, 235, 0.95) !important;
+        color: #fff !important;
+        border: 2px solid rgba(147, 197, 253, 0.95) !important;
+        box-shadow: 0 6px 22px rgba(37, 99, 235, 0.55) !important;
+        z-index: 1250 !important;
+      }
+      #left-sidebar-handle {
+        left: 0 !important;
+        border-radius: 0 16px 16px 0 !important;
+        border-left: none !important;
+      }
+      #right-sidebar-handle {
+        right: 0 !important;
+        border-radius: 16px 0 0 16px !important;
+        border-right: none !important;
+      }
+      main.left-collapsed #left-sidebar-handle {
+        left: 0 !important;
+      }
+      main:not(.left-collapsed) #left-sidebar-handle {
+        left: min(320px, 88vw) !important;
+      }
+      main.right-collapsed #right-sidebar-handle {
+        right: 0 !important;
+      }
+      main:not(.right-collapsed) #right-sidebar-handle {
+        right: min(320px, 88vw) !important;
+      }
+      #left-sidebar-handle .handle-arrow,
+      #right-sidebar-handle .handle-arrow {
         display: none !important;
+      }
+      #left-sidebar-handle .handle-icon,
+      #right-sidebar-handle .handle-icon {
+        display: block !important;
       }
       #mobile-left-toggle,
       #mobile-right-toggle {
         display: inline-flex !important;
+      }
+      .mobile-nav-btn .mobile-nav-label {
+        display: none;
       }
       .tab-btn,
       .more-tabs-btn {
@@ -5509,7 +5569,7 @@
       <button class="btn-icon settings-gear-btn" id="settings-toggle-btn" type="button" title="Settings (Ctrl+,)" aria-label="Open settings" aria-expanded="false" aria-controls="settings-panel">⚙️</button>
       <button type="button" class="btn-icon mobile-nav-btn" id="mobile-left-toggle" title="Open chats" aria-label="Open chats sidebar">💬 <span class="mobile-nav-label">Chats</span></button>
       <button type="button" class="logo" id="logo-toggle" title="Study Buddy — open chats" aria-label="Study Buddy">
-        <img class="logo-img" src="logo-study-buddy.png?v=3" alt="Study Buddy" width="180" height="40" decoding="async" />
+        <img class="logo-img" src="logo-study-buddy.png?v=4" alt="Study Buddy" width="180" height="40" decoding="async" />
       </button>
     </div>
     <nav id="feature-tabs" class="feature-tabs" aria-label="Features">
@@ -5905,7 +5965,7 @@
     <div class="auth-gate-backdrop" aria-hidden="true"></div>
     <div class="auth-gate-panel" role="dialog" aria-modal="true" aria-labelledby="auth-gate-brand">
       <div class="auth-gate-brand" id="auth-gate-brand">
-        <img class="auth-gate-brand-img" src="logo-study-buddy.png?v=3" alt="Study Buddy" width="220" height="48" decoding="async" />
+        <img class="auth-gate-brand-img" src="logo-study-buddy.png?v=4" alt="Study Buddy" width="220" height="48" decoding="async" />
       </div>
       <p class="auth-gate-sub">Sign in to chat, save notes, and keep your streak.</p>
       <div class="auth-card" id="auth-card" data-mode="login" data-logged-in="0">
@@ -5983,11 +6043,13 @@
 
   <main>
 
-    <button id="left-sidebar-handle" class="sidebar-handle" type="button" title="Collapse left sidebar" aria-label="Toggle left sidebar">
+    <button id="left-sidebar-handle" class="sidebar-handle" type="button" title="Open chats" aria-label="Open chats sidebar">
       <span class="handle-arrow">‹</span>
+      <span class="handle-icon" aria-hidden="true">💬</span>
     </button>
-    <button id="right-sidebar-handle" class="sidebar-handle" type="button" title="Collapse Right Sidebar" aria-label="Toggle right sidebar">
+    <button id="right-sidebar-handle" class="sidebar-handle" type="button" title="Open notes" aria-label="Open notes sidebar">
       <span class="handle-arrow">›</span>
+      <span class="handle-icon" aria-hidden="true">📔</span>
     </button>
 
     <!-- SETTINGS SIDEBAR -->
@@ -6070,7 +6132,9 @@
       <!-- Messages -->
       <div id="messages">
         <div id="welcome">
-          <div class="welcome-icon">🤖</div>
+          <div class="welcome-icon" aria-hidden="true">
+            <img src="logo-study-buddy.png?v=4" alt="" width="80" height="80" decoding="async" />
+          </div>
           <h2 id="welcome-title">Hi! 👋 I'm Max.</h2>
           <p id="welcome-desc">Please set your username in Settings. What would you like to learn today?</p>
           <div id="exam-upcoming-banner" class="exam-upcoming-banner" style="display:none;" aria-live="polite"></div>
@@ -11235,7 +11299,7 @@
       if (isAI) {
         avatar.textContent = "";
         const logo = document.createElement("img");
-        logo.src = "logo-study-buddy.png?v=3";
+        logo.src = "logo-study-buddy.png?v=4";
         logo.alt = "Study Buddy";
         logo.width = 36;
         logo.height = 36;
