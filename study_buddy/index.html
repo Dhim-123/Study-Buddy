@@ -5,7 +5,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Study Buddy 📚</title>
+  <title>Study Buddy</title>
+  <link rel="icon" href="logo-study-buddy.png" type="image/png" />
+  <link rel="apple-touch-icon" href="logo-study-buddy.png" />
   <script>
     /* Apply theme before paint to avoid flash */
     (function () {
@@ -132,43 +134,65 @@
     }
 
     .logo {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 10px;
-      font-weight: 800;
-      font-size: 1.35rem;
-      letter-spacing: -0.5px;
+      gap: 0;
+      padding: 0;
+      margin: 0;
+      border: none;
+      background: transparent;
       cursor: pointer;
       user-select: none;
       transition: opacity 0.2s;
+      flex-shrink: 1;
+      min-width: 0;
     }
 
     .logo:hover {
-      opacity: 0.85;
+      opacity: 0.9;
     }
 
-    .logo:hover .logo-icon {
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    .logo-img {
+      display: block;
+      height: 36px;
+      width: auto;
+      max-width: min(200px, 42vw);
+      object-fit: contain;
+      border-radius: 8px;
     }
 
+    [data-theme="light"] .logo-img,
+    [data-theme="light"] .auth-gate-brand-img {
+      background: #0B0B0F;
+      padding: 4px 8px;
+      border-radius: 10px;
+      box-sizing: content-box;
+    }
+
+    .auth-gate-brand-img {
+      display: block;
+      height: 44px;
+      width: auto;
+      max-width: min(260px, 70vw);
+      margin: 0 auto 4px;
+      object-fit: contain;
+      border-radius: 10px;
+    }
+
+    /* legacy emoji icon (unused for brand; keep if referenced) */
     .logo-icon {
       width: 38px;
       height: 38px;
       border-radius: var(--radius-lg);
       background: var(--accent-gradient);
-      display: grid;
+      display: none;
       place-items: center;
       font-size: 1.15rem;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      transition: box-shadow 0.25s;
     }
 
     .logo span {
-      background: var(--accent-gradient);
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
-      font-weight: 900;
+      display: none;
     }
 
     .header-right {
@@ -582,16 +606,9 @@
       box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
     }
     .auth-gate-brand {
-      font-family: var(--font-display, var(--font-ui));
-      font-size: 1.65rem;
-      font-weight: 800;
-      letter-spacing: -0.02em;
       text-align: center;
-      margin: 0 0 4px;
-      color: var(--text);
-    }
-    .auth-gate-brand span {
-      color: var(--accent);
+      margin: 0 0 8px;
+      line-height: 0;
     }
     .auth-gate-sub {
       text-align: center;
@@ -2018,6 +2035,9 @@
     #mobile-nav-backdrop.show {
       display: block;
     }
+    #mobile-right-toggle {
+      display: none;
+    }
 
     /* Phone */
     @media (max-width: 767px) {
@@ -2045,24 +2065,65 @@
       }
       .logo {
         font-size: 1.05rem;
-        gap: 6px;
+        gap: 0;
       }
-      .logo-icon {
-        width: 32px;
-        height: 32px;
-        font-size: 0.95rem;
+      .logo-img {
+        height: 28px;
+        max-width: min(140px, 38vw);
+      }
+      .auth-gate-brand-img {
+        height: 36px;
       }
       .settings-gear-btn,
-      .profile-avatar-btn {
+      .profile-avatar-btn,
+      #mobile-right-toggle {
         width: 40px;
         height: 40px;
+        min-width: 40px;
+        padding: 0;
+        justify-content: center;
       }
       .header-stats {
-        gap: 4px;
+        gap: 2px;
       }
       .header-stat {
-        padding: 6px 8px;
+        padding: 6px 7px;
         min-height: 40px;
+      }
+      #nav-shop-chip {
+        display: none !important;
+      }
+      #left-sidebar-handle,
+      #right-sidebar-handle {
+        display: none !important;
+      }
+      #mobile-right-toggle {
+        display: inline-flex !important;
+      }
+      .tab-btn {
+        padding: 8px 10px;
+        min-height: 40px;
+      }
+      .feature-tabs {
+        padding-top: 2px;
+      }
+      .section-container {
+        padding: 12px 10px 28px;
+        gap: 14px;
+      }
+      .msg {
+        max-width: 100%;
+        gap: 8px;
+        padding-left: 8px;
+        padding-right: 8px;
+      }
+      #input-bar {
+        padding: 8px 10px;
+        padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+        gap: 6px;
+      }
+      #welcome {
+        padding: 12px 10px;
       }
 
       #mobile-nav-backdrop.show {
@@ -5350,10 +5411,9 @@
   <header>
     <div class="header-left">
       <button class="btn-icon settings-gear-btn" id="settings-toggle-btn" type="button" title="Settings (Ctrl+,)" aria-label="Open settings" aria-expanded="false" aria-controls="settings-panel">⚙️</button>
-      <div class="logo" id="logo-toggle" title="Study Buddy">
-        <div class="logo-icon">🤖</div>
-        Study<span>Buddy</span>
-      </div>
+      <button type="button" class="logo" id="logo-toggle" title="Study Buddy — open chats" aria-label="Study Buddy">
+        <img class="logo-img" src="logo-study-buddy.png" alt="Study Buddy" width="180" height="40" decoding="async" />
+      </button>
     </div>
     <nav id="feature-tabs" class="feature-tabs" aria-label="Features">
       <div class="feature-tabs-scroll">
@@ -5394,6 +5454,7 @@
           <span class="header-stat-label">XP</span>
         </button>
       </div>
+      <button type="button" class="btn-icon" id="mobile-right-toggle" title="Notebook & dictionary" aria-label="Open notebook sidebar">📔</button>
       <span id="header-notes-badge" style="display:none; background: rgba(82, 232, 160, 0.15); color: var(--accent3); border: 1px solid var(--accent3); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; margin-right: 10px; font-weight: bold; align-items: center; gap: 4px;">📝 Notes Mode</span>
       <button class="btn-icon" id="auth-btn">🚪 Login / Register</button>
       <div class="profile-menu-wrap" id="profile-menu-wrap" hidden>
@@ -5746,7 +5807,9 @@
   <div id="auth-gate" class="auth-gate" aria-hidden="false">
     <div class="auth-gate-backdrop" aria-hidden="true"></div>
     <div class="auth-gate-panel" role="dialog" aria-modal="true" aria-labelledby="auth-gate-brand">
-      <h1 class="auth-gate-brand" id="auth-gate-brand">Study<span>Buddy</span></h1>
+      <div class="auth-gate-brand" id="auth-gate-brand">
+        <img class="auth-gate-brand-img" src="logo-study-buddy.png" alt="Study Buddy" width="220" height="48" decoding="async" />
+      </div>
       <p class="auth-gate-sub">Sign in to chat, save notes, and keep your streak.</p>
       <div class="auth-card" id="auth-card" data-mode="login" data-logged-in="0">
         <h3 id="auth-mode-title">Login</h3>
@@ -5810,7 +5873,7 @@
   <div id="sb-tour" class="sb-tour" hidden aria-hidden="true">
     <div class="sb-tour-backdrop" id="sb-tour-backdrop"></div>
     <div class="sb-tour-card" role="dialog" aria-modal="true" aria-labelledby="sb-tour-title">
-      <div class="sb-tour-step" id="sb-tour-step">1 / 4</div>
+      <div class="sb-tour-step" id="sb-tour-step">1 / 12</div>
       <h3 id="sb-tour-title">Chat</h3>
       <p id="sb-tour-body">Ask anything — your buddy answers for your grade and section.</p>
       <div class="sb-tour-actions">
@@ -7116,15 +7179,14 @@
 
       function hasSeenTour() {
         try {
-          if (localStorage.getItem("sb_tour_v1") === "1") return true;
-          // Legacy onboard tips dismiss counts as seen
-          if (localStorage.getItem("sb_onboard_v1") === "1") return true;
+          if (localStorage.getItem("sb_tour_v2") === "1") return true;
         } catch (_) {}
         return false;
       }
 
       function markTourSeen() {
         try {
+          localStorage.setItem("sb_tour_v2", "1");
           localStorage.setItem("sb_tour_v1", "1");
           localStorage.setItem("sb_onboard_v1", "1");
         } catch (_) {}
@@ -7149,21 +7211,73 @@
           title: "Chat",
           body: "Ask anything — your buddy answers for your grade and section.",
           spotlight: ["#feature-tabs .tab-btn[data-tab='chat']", "#feature-tabs"],
+          prepare: "chat",
+        },
+        {
+          title: "Left sidebar — Chats",
+          body: "Open chats here (tap the logo on phone). Start a New Chat or jump back into past conversations.",
+          spotlight: ["#sidebar", "#new-chat-btn", "#logo-toggle"],
+          prepare: "openLeft",
+        },
+        {
+          title: "Flashcards",
+          body: "Build and review flashcards from your study material.",
+          spotlight: ["#feature-tabs .tab-btn[data-tab='flashcards']"],
+          prepare: "closeDrawers",
+        },
+        {
+          title: "Quiz",
+          body: "Generate quizzes to test yourself — including from Living Notebook notes.",
+          spotlight: ["#feature-tabs .tab-btn[data-tab='quiz']"],
+          prepare: "closeDrawers",
+        },
+        {
+          title: "Planner",
+          body: "Sync a study plan that prioritizes upcoming exams and weak topics.",
+          spotlight: ["#feature-tabs .tab-btn[data-tab='planner']"],
+          prepare: "closeDrawers",
+        },
+        {
+          title: "Mock Test",
+          body: "Run timed mock exams to practice under pressure.",
+          spotlight: ["#feature-tabs .tab-btn[data-tab='mock-test']"],
+          prepare: "closeDrawers",
+        },
+        {
+          title: "More features",
+          body: "Podcasts, Crosscheck, Definitions, Formulas, Learning DNA, Mistake Vault, and Living Notebook live under More.",
+          spotlight: ["#more-tabs-btn", "#more-tabs-menu"],
+          prepare: "openMore",
         },
         {
           title: "Living Notebook",
-          body: "Save Important Points and Formulas from chats. Open Living Notebook from More, or use the notebook in the right sidebar.",
-          spotlight: ["#more-tabs-btn", "#nb-section-container"],
+          body: "Save Important Points, Formulas, Mistakes, and Things to Revise — then Quiz me from your notes.",
+          spotlight: ["#more-tabs-menu .tab-btn[data-tab='living-notebook']", "#more-tabs-btn"],
+          prepare: "openMore",
+        },
+        {
+          title: "Right sidebar",
+          body: "Dictionary and a Living Notebook teaser live on the right. On phone, tap the notebook button in the header.",
+          spotlight: ["#dict-sidebar", "#mobile-right-toggle", "#nb-section-container"],
+          prepare: "openRight",
         },
         {
           title: "Daily Puzzle + Streak",
-          body: "Tap Puzzle in the header for today’s challenge, and keep your streak going.",
+          body: "Tap Puzzle for today's challenge and keep your streak going.",
           spotlight: ["#nav-puzzle-chip", "#nav-streak-chip"],
+          prepare: "closeDrawers",
+        },
+        {
+          title: "XP Shop",
+          body: "Earn XP as you study and spend it in the XP Shop (header chip on desktop/tablet).",
+          spotlight: ["#nav-shop-chip", "#nav-xp-count"],
+          prepare: "closeDrawers",
         },
         {
           title: "Settings",
-          body: "Set your grade, section, and account details from the gear icon.",
+          body: "Set your grade, section, theme, buddy name, and account from the gear icon.",
           spotlight: ["#settings-toggle-btn"],
+          prepare: "closeDrawers",
         },
       ];
 
@@ -7181,9 +7295,47 @@
         });
       }
 
+      function prepareTourStep(step) {
+        const action = step?.prepare || "";
+        try {
+          if (typeof setMoreTabsOpen === "function" && action !== "openMore") {
+            setMoreTabsOpen(false);
+          }
+        } catch (_) {}
+        if (action === "openLeft") {
+          if (typeof openLeftSidebarExclusive === "function") openLeftSidebarExclusive();
+          else {
+            document.getElementById("sidebar")?.classList.remove("hidden");
+            document.getElementById("dict-sidebar")?.classList.add("hidden");
+          }
+        } else if (action === "openRight") {
+          if (typeof openRightSidebarExclusive === "function") openRightSidebarExclusive();
+          else {
+            document.getElementById("dict-sidebar")?.classList.remove("hidden");
+            document.getElementById("sidebar")?.classList.add("hidden");
+          }
+        } else if (action === "openMore") {
+          if (typeof closeMobileDrawers === "function") closeMobileDrawers();
+          if (typeof setMoreTabsOpen === "function") setMoreTabsOpen(true);
+        } else if (action === "chat" || action === "closeDrawers") {
+          if (typeof closeMobileDrawers === "function") closeMobileDrawers();
+          else {
+            document.getElementById("sidebar")?.classList.add("hidden");
+            document.getElementById("dict-sidebar")?.classList.add("hidden");
+          }
+          if (action === "chat") {
+            document.querySelector("#feature-tabs .tab-btn[data-tab='chat']")?.click();
+          }
+        }
+        if (typeof syncMobileNavBackdrop === "function") syncMobileNavBackdrop();
+        if (typeof updateLeftSidebarState === "function") updateLeftSidebarState();
+        if (typeof updateRightSidebarState === "function") updateRightSidebarState();
+      }
+
       function renderTourStep() {
         const step = SB_TOUR_STEPS[tourStepIndex];
         if (!step) return;
+        prepareTourStep(step);
         const stepEl = document.getElementById("sb-tour-step");
         const titleEl = document.getElementById("sb-tour-title");
         const bodyEl = document.getElementById("sb-tour-body");
@@ -7194,7 +7346,7 @@
         if (bodyEl) bodyEl.textContent = step.body;
         if (nextBtn) nextBtn.textContent = tourStepIndex >= SB_TOUR_STEPS.length - 1 ? "Finish" : "Next";
         if (backBtn) backBtn.style.visibility = tourStepIndex === 0 ? "hidden" : "visible";
-        applyTourSpotlights(step.spotlight);
+        requestAnimationFrame(() => applyTourSpotlights(step.spotlight));
       }
 
       function closeSbTour(markSeen = true) {
@@ -7204,6 +7356,11 @@
           tour.setAttribute("aria-hidden", "true");
         }
         clearTourSpotlights();
+        try { if (typeof setMoreTabsOpen === "function") setMoreTabsOpen(false); } catch (_) {}
+        try {
+          if (typeof syncLayoutShell === "function") syncLayoutShell(true);
+          else if (typeof closeMobileDrawers === "function") closeMobileDrawers();
+        } catch (_) {}
         tourActive = false;
         if (markSeen) markTourSeen();
       }
@@ -8485,6 +8642,16 @@
     if (mobileNavBackdrop) {
       mobileNavBackdrop.addEventListener("click", () => closeMobileDrawers());
     }
+    document.getElementById("mobile-right-toggle")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!dictSidebarEl) return;
+      if (dictSidebarEl.classList.contains("hidden")) openRightSidebarExclusive();
+      else {
+        dictSidebarEl.classList.add("hidden");
+        updateRightSidebarState();
+        syncMobileNavBackdrop();
+      }
+    });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && getLayoutTier() === "phone") closeMobileDrawers();
     });

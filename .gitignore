@@ -35,6 +35,7 @@ quick-*.js
 console-*.js
 immediate-*.js
 *.png
+!study_buddy/logo-study-buddy.png
 screenshot*.png
 *_screenshot.png
 verification.png
