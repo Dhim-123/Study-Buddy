@@ -3479,7 +3479,7 @@ def format_exams_for_prompt(exams):
 
 
 def format_student_context_for_prompt(user_id):
-    """Compact personalization: buddy, style, weak subjects, recent mistakes."""
+    """Compact personalization: buddy, style, section, weak subjects/topics, recent mistakes."""
     if not user_id:
         return ""
     try:
@@ -3500,7 +3500,24 @@ def format_student_context_for_prompt(user_id):
                 """,
                 (user_id,),
             ).fetchall()
+            weak_topics = conn.execute(
+                """
+                SELECT TRIM(COALESCE(topic, '')) AS topic,
+                       TRIM(COALESCE(subject, '')) AS subject,
+                       COUNT(*) AS n
+                FROM student_mistakes
+                WHERE user_id=? AND COALESCE(mastered, 0)=0
+                  AND TRIM(COALESCE(topic, '')) != ''
+                  AND LOWER(TRIM(COALESCE(topic, ''))) NOT IN ('general', 'unknown', '')
+                GROUP BY LOWER(TRIM(topic)), LOWER(TRIM(COALESCE(subject, '')))
+                ORDER BY n DESC, MAX(created_at) DESC
+                LIMIT 5
+                """,
+                (user_id,),
+            ).fetchall()
         weakest = get_weakest_subjects_for_user(user_id, limit=3)
+        sec_prefs = get_user_section_prefs(user_id) or {}
+        section = (sec_prefs.get("section") or "").strip()
 
         lines = [
             "\n\nPERSONAL TUTOR CONTEXT:",
@@ -3510,6 +3527,20 @@ def format_student_context_for_prompt(user_id):
             "If they ask to check/review the vault or their mistakes, summarize and teach from that list. "
             "Never say you cannot access the Mistake Vault.",
         ]
+        if section:
+            track = (sec_prefs.get("track") or "").strip()
+            drop_bits = []
+            if sec_prefs.get("drop_math"):
+                drop_bits.append("Math dropped")
+            if sec_prefs.get("drop_science"):
+                drop_bits.append("Science dropped")
+            sec_line = f"- Student section: {section}"
+            if track:
+                sec_line += f" ({track} track)"
+            if drop_bits:
+                sec_line += f" — {', '.join(drop_bits)}"
+            sec_line += ". Match examples and portions to this track when relevant."
+            lines.append(sec_line)
         if weakest:
             bits = []
             for w in weakest:
@@ -3524,6 +3555,22 @@ def format_student_context_for_prompt(user_id):
             if bits:
                 lines.append(
                     "- Reinforce these focus subjects when relevant: " + "; ".join(bits) + "."
+                )
+        if weak_topics:
+            topic_bits = []
+            for t in weak_topics:
+                topic = (t["topic"] or "").strip()[:50]
+                subj = (t["subject"] or "").strip()[:40]
+                n = int(t["n"] or 0)
+                if not topic:
+                    continue
+                label = f"{subj}/{topic}" if subj else topic
+                topic_bits.append(f"{label} ({n})")
+            if topic_bits:
+                lines.append(
+                    "- Priority weak topics (from Mistake Vault) — warn about known pitfalls when these come up: "
+                    + "; ".join(topic_bits)
+                    + "."
                 )
         if mistakes:
             lines.append(f"- Mistake Vault ({len(mistakes)} recent unmastered item(s)):")
@@ -4647,7 +4694,10 @@ def _last_user_text(messages) -> str:
 
 
 def get_user_notebook_text(uid, limit_chars: int = 6000) -> str:
-    """Concatenate Living Notebook entries for routing context (skip if empty)."""
+    """Concatenate Living Notebook entries for routing context (skip if empty).
+
+    Prefer Mistakes / Things to Revise first so weak areas surface in STUDY MATERIAL.
+    """
     if not uid:
         return ""
     try:
@@ -4655,7 +4705,18 @@ def get_user_notebook_text(uid, limit_chars: int = 6000) -> str:
             rows = conn.execute(
                 """
                 SELECT subject, category, content FROM living_notebook
-                WHERE user_id=? ORDER BY updated_at DESC LIMIT 40
+                WHERE user_id=?
+                ORDER BY
+                  CASE category
+                    WHEN 'Mistakes I Made' THEN 0
+                    WHEN 'Things to Revise' THEN 1
+                    WHEN 'Key Points' THEN 2
+                    WHEN 'Formulas' THEN 3
+                    WHEN 'Definitions' THEN 4
+                    ELSE 5
+                  END,
+                  updated_at DESC
+                LIMIT 40
                 """,
                 (uid,),
             ).fetchall()
@@ -7157,7 +7218,7 @@ def clear_all_notebook_entries():
 @app.route("/api/notebook/ai_extract", methods=["POST"])
 @rate_limit(max_calls=20, window_sec=60)
 def notebook_ai_extract():
-    """Extract important points and merge with existing notes for each subject/topic."""
+    """Extract study notes into Living Notebook categories and merge by subject."""
     import json as _json
     import re as _re
 
@@ -7176,35 +7237,91 @@ def notebook_ai_extract():
     if blocked:
         return jsonify({"error": blocked}), 400
 
+    extract_categories = [
+        "Key Points",
+        "Formulas",
+        "Definitions",
+        "Mistakes I Made",
+        "Things to Revise",
+    ]
+
     system_prompt = (
         SAFETY_RULES
-        + "You are an ICSE Class 9-10 study assistant. Extract concise, exam-oriented bullet points from the provided text. "
-        "Focus on creating clear, memorable points suitable for 14-15 year old students. "
-        "Format each point as a single bullet point starting with '•'. "
-        "Keep points factual, specific, and directly useful for exams. "
-        "Organize under clear topic headings when useful. "
-        "Return ONLY a JSON object with 'subject' and 'points' fields. "
-        "The 'points' field should be an array of bullet point strings."
+        + "You are an ICSE Class 9-10 study assistant. Extract exam-oriented notes from the text. "
+        "Split content into categories. Only include a category if it has real content. "
+        "Each item must be a concise bullet starting with '•'. "
+        "Key Points = facts/concepts; Formulas = equations/relations; Definitions = term meanings; "
+        "Mistakes I Made = common pitfalls or corrections mentioned; Things to Revise = exam reminders. "
+        "Do NOT invent categories or use My Own Notes. "
+        "Return ONLY JSON with 'subject' and 'categories' (object mapping category name → array of bullets)."
     )
 
-    user_prompt = f"""Extract important points from this ICSE Class 9-10 study content:
+    user_prompt = f"""Extract Living Notebook notes from this ICSE Class 9-10 study content:
 
 --- CONTENT START ---
 {text_to_extract}
 --- CONTENT END ---
 
-Subject: {default_subject}
+Default subject hint: {default_subject}
 
-Return ONLY JSON format:
+Return ONLY JSON:
 {{
-  "subject": "Biology",
-  "points": [
-    "• Photosynthesis occurs in chloroplasts",
-    "• Chlorophyll absorbs sunlight for energy conversion",
-    "• Produces glucose and oxygen as end products"
-  ]
+  "subject": "Physics",
+  "categories": {{
+    "Key Points": ["• Net force equals mass times acceleration"],
+    "Formulas": ["• F = ma"],
+    "Definitions": ["• Acceleration: rate of change of velocity"],
+    "Mistakes I Made": ["• Do not forget units (N, kg, m/s²)"],
+    "Things to Revise": ["• Practice numericals with F = ma"]
+  }}
 }}
+Omit any category with no useful items.
 """
+
+    def _normalize_bullets(raw_points):
+        out = []
+        if not isinstance(raw_points, list):
+            return out
+        for p in raw_points:
+            line = str(p or "").strip()
+            if not line:
+                continue
+            if not line.startswith("•") and not line.startswith("-") and not line.startswith("*"):
+                line = f"• {line}"
+            else:
+                clean = line.lstrip("•-*").strip()
+                if not clean:
+                    continue
+                line = f"• {clean}"
+            out.append(line)
+        return out
+
+    def _merge_bullets(existing_content, new_points):
+        existing_points = []
+        for line in (existing_content or "").split("\n"):
+            line = line.strip()
+            if line.startswith("•") or line.startswith("-") or line.startswith("*"):
+                clean = line.lstrip("•-*").strip()
+                if clean:
+                    existing_points.append(f"• {clean}")
+        all_points = existing_points[:]
+        added = 0
+        for new_point in new_points:
+            clean_new = new_point.lstrip("•-*").strip().lower()
+            is_duplicate = False
+            for existing_point in all_points:
+                clean_existing = existing_point.lstrip("•-*").strip().lower()
+                if (
+                    clean_new in clean_existing
+                    or clean_existing in clean_new
+                    or len(set(clean_new.split()) & set(clean_existing.split())) >= 3
+                ):
+                    is_duplicate = True
+                    break
+            if not is_duplicate:
+                all_points.append(new_point)
+                added += 1
+        return "\n".join(all_points), added
 
     try:
         client = get_groq_client()
@@ -7214,9 +7331,9 @@ Return ONLY JSON format:
             model=target_model,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ],
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
 
         reply_text = response.choices[0].message.content.strip()
@@ -7225,102 +7342,106 @@ Return ONLY JSON format:
             reply_text = _re.sub(r"```\s*$", "", reply_text).strip()
 
         parsed = _json.loads(reply_text)
-        subject = parsed.get("subject", default_subject).strip()[:50]
-        new_points = parsed.get("points", [])
+        subject = (parsed.get("subject") or default_subject).strip()[:50] or default_subject
 
-        if not new_points:
-            return jsonify({"error": "No important points could be extracted from the text."}), 400
+        # Support legacy {points: [...]} and new {categories: {...}}
+        categories_raw = parsed.get("categories")
+        buckets = {}
+        if isinstance(categories_raw, dict):
+            for cat in extract_categories:
+                buckets[cat] = _normalize_bullets(categories_raw.get(cat) or [])
+        else:
+            buckets["Key Points"] = _normalize_bullets(parsed.get("points") or [])
+            for cat in extract_categories:
+                buckets.setdefault(cat, [])
+
+        if not any(buckets.get(c) for c in extract_categories):
+            return jsonify({"error": "No notebook notes could be extracted from the text."}), 400
 
         uid = current_user_id()
         if not uid:
             return jsonify({"error": "Please log in to save notes."}), 401
 
+        added_map = {}
+        actions = []
+        last_entry = None
+        nb_wipe_gen = current_content_wipe_gen(uid)
+
         with get_db() as conn:
-            # Check if "Important Points" entry already exists for this subject
-            existing = conn.execute("""
-                SELECT id, content FROM living_notebook 
-                WHERE user_id = ? AND subject = ? AND category = 'Key Points'
-                ORDER BY created_at DESC LIMIT 1
-            """, (uid, subject)).fetchone()
+            _ensure_local_wipe_gen_columns(conn)
+            for cat in extract_categories:
+                new_points = buckets.get(cat) or []
+                if not new_points:
+                    continue
 
-            # Prepare the points content
-            if existing:
-                # Parse existing points
-                existing_content = existing["content"] or ""
-                existing_points = []
-                
-                # Extract existing bullet points
-                for line in existing_content.split('\n'):
-                    line = line.strip()
-                    if line.startswith('•') or line.startswith('-'):
-                        # Normalize to bullet format
-                        clean_point = line[1:].strip()
-                        if clean_point:
-                            existing_points.append(f"• {clean_point}")
+                existing = conn.execute(
+                    """
+                    SELECT id, content FROM living_notebook
+                    WHERE user_id = ? AND subject = ? AND category = ?
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (uid, subject, cat),
+                ).fetchone()
 
-                # Merge new points, avoiding duplicates
-                all_points = existing_points[:]
-                for new_point in new_points:
-                    new_point = new_point.strip()
-                    if not new_point.startswith('•'):
-                        new_point = f"• {new_point}"
-                    
-                    # Check for duplicates (case-insensitive, ignore minor differences)
-                    clean_new = new_point[1:].strip().lower()
-                    is_duplicate = False
-                    for existing_point in all_points:
-                        clean_existing = existing_point[1:].strip().lower()
-                        # Consider duplicate if 80% similar or contains same key terms
-                        if (clean_new in clean_existing or clean_existing in clean_new or 
-                            len(set(clean_new.split()) & set(clean_existing.split())) >= 3):
-                            is_duplicate = True
-                            break
-                    
-                    if not is_duplicate:
-                        all_points.append(new_point)
+                if existing:
+                    merged_content, added_n = _merge_bullets(existing["content"] or "", new_points)
+                    if added_n <= 0 and (existing["content"] or "").strip():
+                        # Nothing new — still count as touch for UI
+                        added_map[cat] = 0
+                        entry_id = existing["id"]
+                        actions.append("merged")
+                    else:
+                        conn.execute(
+                            """
+                            UPDATE living_notebook
+                            SET content = ?, updated_at = datetime('now')
+                            WHERE id = ?
+                            """,
+                            (merged_content, existing["id"]),
+                        )
+                        added_map[cat] = added_n if added_n > 0 else len(new_points)
+                        entry_id = existing["id"]
+                        actions.append("merged")
+                else:
+                    points_content = "\n".join(new_points)
+                    cur = conn.execute(
+                        """
+                        INSERT INTO living_notebook
+                          (user_id, subject, category, content, content_wipe_gen)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (uid, subject, cat, points_content, nb_wipe_gen),
+                    )
+                    entry_id = cur.lastrowid
+                    added_map[cat] = len(new_points)
+                    actions.append("created")
 
-                # Update existing entry with merged points
-                merged_content = '\n'.join(all_points)
-                conn.execute("""
-                    UPDATE living_notebook 
-                    SET content = ?, updated_at = datetime('now')
-                    WHERE id = ?
-                """, (merged_content, existing["id"]))
-                
-                entry_id = existing["id"]
-                action = "merged"
+                final_entry = conn.execute(
+                    "SELECT * FROM living_notebook WHERE id = ?",
+                    (entry_id,),
+                ).fetchone()
+                if final_entry:
+                    last_entry = dict(final_entry)
+                    fs_upsert_notebook_entry(uid, last_entry)
 
-            else:
-                # Create new "Important Points" entry
-                points_content = '\n'.join(new_points)
-                nb_wipe_gen = current_content_wipe_gen(uid)
-                _ensure_local_wipe_gen_columns(conn)
-                cur = conn.execute("""
-                    INSERT INTO living_notebook
-                      (user_id, subject, category, content, content_wipe_gen)
-                    VALUES (?, ?, 'Key Points', ?, ?)
-                """, (uid, subject, points_content, nb_wipe_gen))
-                
-                entry_id = cur.lastrowid
-                action = "created"
+        if not added_map:
+            return jsonify({"error": "No new notes to save."}), 400
 
-            # Get the final entry to return
-            final_entry = conn.execute("""
-                SELECT * FROM living_notebook WHERE id = ?
-            """, (entry_id,)).fetchone()
-
-        if final_entry:
-            fs_upsert_notebook_entry(uid, dict(final_entry))
+        action = "created" if actions and all(a == "created" for a in actions) else "merged"
+        if actions and "created" in actions and "merged" in actions:
+            action = "updated"
 
         return jsonify({
             "action": action,
-            "entry": dict(final_entry) if final_entry else None,
-            "new_points_added": len([p for p in new_points if p.strip()]),
-            "subject": subject
+            "entry": last_entry,
+            "subject": subject,
+            "added": added_map,
+            "new_points_added": sum(int(v or 0) for v in added_map.values()),
+            "totals": {k: int(v or 0) for k, v in added_map.items()},
         })
 
     except Exception as e:
-        print(f"[ERROR] AI Extract Important Points: {e}")
+        print(f"[ERROR] AI Extract Living Notebook: {e}")
         return jsonify({"error": str(e)}), 500
 
 

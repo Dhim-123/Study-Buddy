@@ -10294,7 +10294,8 @@
         bubble.appendChild(actions);
 
         if (!(greeting || notebookStatus) && typeof nbSuggestAiAddition === "function") {
-          nbSuggestAiAddition(lastUserMsg, text, bubble);
+          const casualSkip = typeof isCasualConversation === "function" && isCasualConversation(lastUserMsg);
+          if (!casualSkip) nbSuggestAiAddition(lastUserMsg, text, bubble);
         }
       }
 
@@ -13845,15 +13846,16 @@
     // AI suggestion function (never auto-saves without confirmation!)
     function nbSuggestAiAddition(userMsg, replyText, bubbleEl) {
       if (!replyText || isGreeting(userMsg)) return;
+      if (typeof isCasualConversation === "function" && isCasualConversation(userMsg)) return;
       // If the user already asked to save to the notebook, don't show the button
       if (typeof isNotebookSaveIntent === "function" && isNotebookSaveIntent(userMsg)) return;
 
       const suggestContainer = document.createElement("div");
       suggestContainer.className = "ai-nb-suggestion";
       suggestContainer.innerHTML = `
-        <span>💡 Add key points from this explanation to your Living Notebook?</span>
+        <span>💡 Add this explanation to your Living Notebook?</span>
         <div class="ai-nb-suggestion-actions">
-          <button class="ce-btn-sm ce-btn-sm-primary" type="button">✅ Add Note</button>
+          <button class="ce-btn-sm ce-btn-sm-primary" type="button">✅ Add to Living Notebook</button>
           <button class="ce-btn-sm ce-btn-sm-ghost" type="button">✕ Dismiss</button>
         </div>
       `;
@@ -13887,24 +13889,32 @@
             })
           });
           const data = await res.json();
-          if (res.ok && data.entry) {
-            // Success - show feedback about the Important Points update
-            const action = data.action || "updated";
-            const pointsAdded = data.new_points_added || 0;
+          if (res.ok && (data.entry || data.added)) {
             const subject = data.subject || "General";
-            
-            if (action === "created") {
-              suggestContainer.innerHTML = `<span style="color:var(--accent3); font-weight:700;">📌 Created Important Points for ${subject} with ${pointsAdded} bullet points!</span>`;
-            } else if (action === "merged") {
-              suggestContainer.innerHTML = `<span style="color:var(--accent3); font-weight:700;">📌 Added ${pointsAdded} new points to ${subject} Important Points!</span>`;
-            }
+            const added = data.added || data.totals || {};
+            const labelMap = {
+              "Key Points": "points",
+              "Formulas": "formulas",
+              "Definitions": "definitions",
+              "Mistakes I Made": "mistakes",
+              "Things to Revise": "revise",
+            };
+            const parts = [];
+            Object.keys(labelMap).forEach((cat) => {
+              const n = Number(added[cat] || 0);
+              if (n > 0) parts.push(`${n} ${labelMap[cat]}`);
+            });
+            const summary = parts.length
+              ? `${subject}: ${parts.join(", ")}`
+              : `${subject}: notes saved`;
+            suggestContainer.innerHTML = `<span style="color:var(--accent3); font-weight:700;">📔 Added to Living Notebook — ${summary}</span>`;
             
             // Refresh the notebook to show updated content
             if (typeof nbLoadEntries === 'function') {
               nbLoadEntries();
             }
             
-            setTimeout(() => suggestContainer.remove(), 4000);
+            setTimeout(() => suggestContainer.remove(), 4500);
           } else {
             // Fallback - open manual add form
             nbOpenAddForm("General", "Key Points");
