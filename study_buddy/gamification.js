@@ -816,10 +816,41 @@
     return ranked.slice(0, 2);
   }
 
+  async function fetchRevisionStudyChips() {
+    const chips = [];
+    try {
+      const data = await api("/api/notebook");
+      const entries = data.entries || [];
+      const revise = entries.filter(
+        (e) =>
+          (e.category === "Things to Revise" || e.category === "Mistakes I Made") &&
+          String(e.content || "").trim()
+      );
+      for (const e of revise.slice(0, 2)) {
+        let tip = "";
+        for (const line of String(e.content || "").split("\n")) {
+          const clean = line.trim().replace(/^[•\-\*]\s*/, "").trim();
+          if (clean) {
+            tip = clean.slice(0, 90);
+            break;
+          }
+        }
+        const title = tip
+          ? `Revise: ${e.subject || "General"} — ${tip}`
+          : `Revise: ${e.subject || "General"} (${e.category})`;
+        chips.push({ title, source: "revise_auto", kind: "quiz" });
+      }
+    } catch (_) {}
+    return chips;
+  }
+
   function studyTodayBuddyLine(tasks) {
     const buddy = String(window.currentUser?.buddyName || "Max").trim() || "Max";
     const open = (tasks || []).filter((t) => !t.done);
-    if (!open.length) return "";
+    if (!open.length && !(window.__sbRevisionChips || []).length) return "";
+    if ((window.__sbRevisionChips || []).length) {
+      return `${escapePlannerHtml(buddy)} picked revision from your notebook weak spots.`;
+    }
     if (open.some((t) => t.source === "weakness_auto")) {
       return `${escapePlannerHtml(buddy)} picked this for you — focus on a weak area.`;
     }
@@ -829,7 +860,7 @@
     return `${escapePlannerHtml(buddy)} lined these up for today.`;
   }
 
-  function renderStudyToday(tasks) {
+  function renderStudyToday(tasks, revisionChips) {
     const banner = document.getElementById("study-today-banner");
     if (!banner) return;
     if (!isLoggedIn()) {
@@ -838,8 +869,9 @@
       return;
     }
     const top = pickStudyTodayTasks(tasks);
+    const chips = (revisionChips || window.__sbRevisionChips || []).slice(0, 2);
     const buddyLine = studyTodayBuddyLine(tasks);
-    if (!top.length) {
+    if (!top.length && !chips.length) {
       banner.innerHTML = `<strong>Study today</strong>
         <div class="settings-hint" style="margin:0;">No open tasks yet.
         <button type="button" class="qs-btn" id="study-today-open-planner" style="margin-left:6px;">Open Planner</button></div>`;
@@ -849,17 +881,31 @@
       });
       return;
     }
-    banner.innerHTML =
-      `<strong>Study today</strong>` +
-      (buddyLine ? `<div class="settings-hint" style="margin:0 0 8px;">${buddyLine}</div>` : "") +
-      top
-        .map(
-          (t) => `<div class="study-today-item">
+    const taskHtml = top
+      .map(
+        (t) => `<div class="study-today-item">
           <div class="study-today-title">${escapePlannerHtml(t.title)}</div>
           ${studyActionButtonsHtml(t.title)}
         </div>`
-        )
-        .join("");
+      )
+      .join("");
+    const chipHtml = chips
+      .map((c) => {
+        const topic = escapePlannerHtml(c.title);
+        return `<div class="study-today-item">
+          <div class="study-today-title">${topic}</div>
+          <div class="planner-task-actions study-today-actions">
+            <button type="button" class="qs-btn" data-study-action="quiz" data-topic="${topic}">Quiz</button>
+            <button type="button" class="qs-btn" data-study-action="chat" data-topic="${topic}">Chat</button>
+          </div>
+        </div>`;
+      })
+      .join("");
+    banner.innerHTML =
+      `<strong>Study today</strong>` +
+      (buddyLine ? `<div class="settings-hint" style="margin:0 0 8px;">${buddyLine}</div>` : "") +
+      taskHtml +
+      chipHtml;
     banner.style.display = "block";
     wireStudyActionButtons(banner);
   }
@@ -876,12 +922,15 @@
       const hasAuto = (data.tasks || []).some(
         (t) => t.source === "exam_auto" || t.source === "weakness_auto"
       );
-      if (!hasAuto) {
+      const examWeek = window.__sbExamWeek;
+      if (!hasAuto || (examWeek && examWeek.active)) {
         try {
           data = await api("/api/planner/sync-exams", { method: "POST", body: "{}" });
         } catch (_) {}
       }
-      renderStudyToday(data.tasks || []);
+      const revisionChips = await fetchRevisionStudyChips();
+      window.__sbRevisionChips = revisionChips;
+      renderStudyToday(data.tasks || [], revisionChips);
     } catch (_) {
       banner.style.display = "none";
     }
@@ -1057,6 +1106,24 @@
     if (!title) {
       toast("Enter a task title", "warn");
       return;
+    }
+    const examWeek = window.__sbExamWeek;
+    if (examWeek && examWeek.active) {
+      const portion = String(examWeek.portion || "").toLowerCase();
+      const subject = String(examWeek.subject || "").toLowerCase();
+      const t = title.toLowerCase();
+      const looksRelated =
+        (subject && t.includes(subject)) ||
+        (portion && portion.split(/[\n,;•]/).some((p) => {
+          const bit = p.trim().toLowerCase().slice(0, 24);
+          return bit.length > 3 && t.includes(bit);
+        }));
+      if (!looksRelated) {
+        const ok = window.confirm(
+          `Exam week is on for ${examWeek.subject}. This task may be off-portion. Add it anyway?`
+        );
+        if (!ok) return;
+      }
     }
     try {
       await api("/api/planner", {

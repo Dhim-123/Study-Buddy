@@ -907,11 +907,103 @@ def register_gamification_routes(
             ).fetchone()
         return jsonify({"ok": True, "task": dict(updated)})
 
-    def _generate_puzzle(grade: int, subject: str, local_date: str) -> dict:
+    def _map_to_puzzle_subject(raw: str) -> str:
+        t = (raw or "").strip().lower()
+        if not t:
+            return ""
+        mapping = [
+            ("physics", "Physics"),
+            ("chemistry", "Chemistry"),
+            ("biology", "Biology"),
+            ("math", "Math"),
+            ("algebra", "Math"),
+            ("geometry", "Math"),
+            ("english", "English"),
+            ("history", "History"),
+            ("geography", "Geography"),
+            ("geo", "Geography"),
+            ("civics", "Civics"),
+            ("science", "Science"),
+            ("computer", "Computer"),
+            ("hindi", "Hindi"),
+        ]
+        for key, label in mapping:
+            if key in t and label in PUZZLE_SUBJECTS:
+                return label
+        for s in PUZZLE_SUBJECTS:
+            if s.lower() in t or t in s.lower():
+                return s
+        return ""
+
+    def _revision_seed_for_user(uid: int):
+        """Pick puzzle subject/topic from weak subjects or Things to Revise."""
+        try:
+            with get_db() as conn:
+                # Prefer subjects with open mistakes
+                mistake_rows = conn.execute(
+                    """
+                    SELECT subject, COUNT(*) AS c
+                    FROM student_mistakes
+                    WHERE user_id=? AND COALESCE(mastered, 0)=0
+                    GROUP BY subject
+                    ORDER BY c DESC
+                    LIMIT 5
+                    """,
+                    (uid,),
+                ).fetchall()
+                for mr in mistake_rows or []:
+                    mapped = _map_to_puzzle_subject(mr["subject"] or "")
+                    if mapped:
+                        return mapped, (mr["subject"] or mapped)
+                # Low accuracy analytics
+                analytics = conn.execute(
+                    """
+                    SELECT subject, questions_taken, questions_correct
+                    FROM subject_analytics
+                    WHERE user_id=? AND questions_taken > 0
+                    """,
+                    (uid,),
+                ).fetchall()
+                ranked = []
+                for r in analytics or []:
+                    qt = int(r["questions_taken"] or 0)
+                    qc = int(r["questions_correct"] or 0)
+                    acc = (qc / qt * 100.0) if qt > 0 else 100.0
+                    ranked.append((acc, r["subject"] or ""))
+                ranked.sort(key=lambda x: x[0])
+                for acc, subj in ranked[:3]:
+                    mapped = _map_to_puzzle_subject(subj)
+                    if mapped:
+                        return mapped, subj or mapped
+                row = conn.execute(
+                    """
+                    SELECT subject, content FROM living_notebook
+                    WHERE user_id=? AND category IN ('Things to Revise', 'Mistakes I Made')
+                      AND TRIM(COALESCE(content,'')) != ''
+                    ORDER BY updated_at DESC LIMIT 1
+                    """,
+                    (uid,),
+                ).fetchone()
+            if row:
+                mapped = _map_to_puzzle_subject(row["subject"] or "")
+                topic_hint = ""
+                for line in str(row["content"] or "").split("\n"):
+                    clean = line.strip().lstrip("•-* ").strip()
+                    if clean:
+                        topic_hint = clean[:120]
+                        break
+                if mapped:
+                    return mapped, topic_hint or (row["subject"] or mapped)
+        except Exception as e:
+            print(f"[puzzle] revision seed soft-failed: {e}")
+        return "", ""
+
+    def _generate_puzzle(grade: int, subject: str, local_date: str, topic_hint: str = "") -> dict:
         client = get_groq_client()
+        hint_bit = f" Focus topic if possible: {topic_hint[:160]}." if (topic_hint or "").strip() else ""
         prompt = (
             f"Create ONE short school puzzle for Grade {grade} students in {subject}. "
-            f"Date seed: {local_date}. "
+            f"Date seed: {local_date}.{hint_bit} "
             "Return STRICT JSON only with keys: "
             "difficulty (Easy|Medium|Hard), prompt, hint, answer, solution. "
             "Answer must be a short string (number or few words). "
@@ -961,7 +1053,13 @@ def register_gamification_routes(
             prefs = _get_prefs(conn, uid)
             grade = int(request.args.get("grade") or prefs.get("grade") or 9)
             grade = max(1, min(12, grade))
-            subject = (request.args.get("subject") or "").strip() or _subject_for_date(local_date)
+            requested = (request.args.get("subject") or "").strip()
+            topic_hint = ""
+            if requested and requested in PUZZLE_SUBJECTS:
+                subject = requested
+            else:
+                seeded, topic_hint = _revision_seed_for_user(uid)
+                subject = seeded or _subject_for_date(local_date)
             if subject not in PUZZLE_SUBJECTS:
                 subject = _subject_for_date(local_date)
 
@@ -973,7 +1071,7 @@ def register_gamification_routes(
                 (local_date, grade, subject),
             ).fetchone()
             if not row:
-                generated = _generate_puzzle(grade, subject, local_date)
+                generated = _generate_puzzle(grade, subject, local_date, topic_hint=topic_hint)
                 conn.execute(
                     """
                     INSERT INTO daily_puzzles

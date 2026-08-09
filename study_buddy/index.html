@@ -2706,6 +2706,20 @@
       border-color: rgba(251, 191, 36, 0.45);
       background: rgba(251, 191, 36, 0.07);
     }
+    .exam-week-banner {
+      display: none;
+      margin: 0 auto 14px;
+      max-width: 560px;
+      text-align: left;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      background: rgba(244, 63, 94, 0.1);
+      color: var(--text);
+      font-size: 0.88rem;
+      line-height: 1.4;
+    }
+    .exam-week-banner strong { display: block; margin-bottom: 4px; color: #fda4af; }
     .study-today-banner {
       margin: 0 auto 14px;
       max-width: 560px;
@@ -5456,6 +5470,7 @@
           <h2 id="welcome-title">Hi! 👋 I'm Max.</h2>
           <p id="welcome-desc">Please set your username in Settings. What would you like to learn today?</p>
           <div id="exam-upcoming-banner" class="exam-upcoming-banner" style="display:none;" aria-live="polite"></div>
+          <div id="exam-week-banner" class="exam-week-banner" style="display:none;" aria-live="polite"></div>
           <div id="study-today-banner" class="study-today-banner" style="display:none;" aria-live="polite"></div>
           <div id="onboard-tips" class="hint-box" style="display:none; margin: 0 auto 14px; max-width: 520px; text-align:left;">
             <strong style="display:block; margin-bottom:6px;">Start in 3 steps</strong>
@@ -6834,6 +6849,28 @@
         el.hidden = true;
       }
 
+      function renderExamWeekBanner(examWeek) {
+        const banner = document.getElementById("exam-week-banner");
+        if (!banner) return;
+        if (!examWeek || !examWeek.active) {
+          banner.style.display = "none";
+          banner.innerHTML = "";
+          window.__sbExamWeek = null;
+          return;
+        }
+        window.__sbExamWeek = examWeek;
+        const days = examWeek.days_left;
+        const when = typeof days === "number"
+          ? (days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`)
+          : "soon";
+        const portion = (examWeek.portion || "").trim();
+        const portionBit = portion
+          ? `<div class="settings-hint" style="margin:4px 0 0;">Portion: ${escapeHtml(portion.slice(0, 220))}</div>`
+          : "";
+        banner.innerHTML = `<strong>Exam week — focusing on ${escapeHtml(examWeek.subject || "exam")} (${escapeHtml(when)})</strong>${portionBit}`;
+        banner.style.display = "block";
+      }
+
       function renderExamUpcomingBanner(exams) {
         const banner = document.getElementById("exam-upcoming-banner");
         if (!banner) return;
@@ -6873,6 +6910,7 @@
         if (!currentUser?.loggedIn) {
           upcomingExamsCache = [];
           renderExamUpcomingBanner([]);
+          renderExamWeekBanner(null);
           return;
         }
         try {
@@ -6881,6 +6919,7 @@
           if (!res.ok) {
             upcomingExamsCache = [];
             renderExamUpcomingBanner([]);
+            renderExamWeekBanner(null);
             return;
           }
           upcomingExamsCache = data.exams || [];
@@ -6893,6 +6932,7 @@
             };
           }
           renderExamUpcomingBanner(upcomingExamsCache);
+          renderExamWeekBanner(data.exam_week || null);
           prefillMockChaptersFromExams();
           try {
             if (window.SBGame && typeof window.SBGame.refreshStudyToday === "function") {
@@ -6902,6 +6942,7 @@
         } catch (_) {
           upcomingExamsCache = [];
           renderExamUpcomingBanner([]);
+          renderExamWeekBanner(null);
         }
       }
       window.loadUpcomingExams = loadUpcomingExams;
@@ -10224,7 +10265,8 @@
         actions.appendChild(readAloudBtn);
 
         // Mode 1 — greeting/small talk or notebook auto-save status: Read aloud only
-        if (!(greeting || notebookStatus)) {
+        const casualTurn = typeof isCasualConversation === "function" && isCasualConversation(lastUserMsg);
+        if (!(greeting || notebookStatus || casualTurn)) {
           // Modes 2 & 3 both show Podcast and Quiz
           const podcastBtn = document.createElement("button");
           podcastBtn.className = "step-btn secondary";
@@ -10733,11 +10775,42 @@
       if (s === "conversation" || !t || t === "ENTIRE_CONVERSATION") {
         return "Create a 5-question multiple choice quiz in English covering the ENTIRE conversation above. Use all prior user questions and assistant replies. Do not focus only on the latest message.";
       }
-      if (s === "answer") {
-        return `Create a 5-question multiple choice quiz in English focused ONLY on the assistant material below. Ignore any other chat context.\n\n${t}`;
+      if (s === "answer" || s === "notebook") {
+        return `Create a 5-question multiple choice quiz in English focused ONLY on the Living Notebook / study material below. Do not use outside topics.\n\n${t}`;
       }
       return `Create a 5-question multiple choice quiz in English about "${t}" only. Do not use or continue any prior chat topics. Ignore anything unrelated to "${t}".`;
     }
+
+    function nbCollectCategoryMaterial(category) {
+      const filtered = typeof nbFilteredEntries === "function"
+        ? nbFilteredEntries()
+        : (nbSelectedSubject === "All"
+          ? nbEntries
+          : nbEntries.filter((e) => e.subject === nbSelectedSubject));
+      const chunks = [];
+      filtered.filter((e) => e.category === category).forEach((e) => {
+        const c = String(e.content || "").trim();
+        if (!c) return;
+        chunks.push(`[${e.subject || "General"}] ${c}`);
+      });
+      return chunks.join("\n\n").trim();
+    }
+
+    function nbQuizCategory(category, displayName) {
+      if (!currentUser?.loggedIn) {
+        alert("Please log in to take a quiz.");
+        return;
+      }
+      const material = nbCollectCategoryMaterial(category);
+      if (!material) {
+        alert(`Add notes to ${displayName || category} first, then try Quiz me.`);
+        return;
+      }
+      if (typeof generateQuizFromAnswer === "function") {
+        generateQuizFromAnswer(material, true, { scope: "notebook", notebookOnly: true });
+      }
+    }
+    window.nbQuizCategory = nbQuizCategory;
 
     function inferQuizSubject(topic) {
       const t = String(topic || "").toLowerCase();
@@ -11350,6 +11423,10 @@
       const scope = options.scope || (topic ? "topic" : "conversation");
       const prompt = buildQuizPrompt(topic, scope);
       if (!prompt) return;
+      if ((scope === "answer" || scope === "notebook") && !topic) {
+        alert("Add notes first, then try Quiz me.");
+        return;
+      }
       if (scope === "conversation" && (!history || history.length === 0)) {
         alert("Ask a question in the chat first or type a topic.");
         return;
@@ -11364,6 +11441,7 @@
         flashcardsSection.style.display = "none";
         quizSection.style.display = "flex";
         crosscheckSection.style.display = "none";
+        if (livingNotebookSection) livingNotebookSection.style.display = "none";
       }
 
       const output = document.getElementById("quiz-output");
@@ -11371,12 +11449,14 @@
 
       try {
         const includeHistory = scope === "conversation";
+        const notebookOnly = !!options.notebookOnly || scope === "notebook" || scope === "answer";
         const res = await fetch("/api/quiz", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(studyBody({
             messages: buildMessagesWithPrompt(prompt, { includeHistory }),
+            notebook_only: notebookOnly,
           })),
         });
         const data = await res.json();
@@ -11785,15 +11865,32 @@
         if (revise.length === 0) {
           reviseListEl.innerHTML = `<div style="color:var(--muted); font-size:12px; text-align:center; padding:16px;">Add items to 'Things to Revise' in Living Notebook!</div>`;
         } else {
-          reviseListEl.innerHTML = revise.map(r => `
-            <div style="background:rgba(244,63,94,0.08); border:1px solid rgba(244,63,94,0.2); border-radius:8px; padding:8px 12px; display:flex; flex-direction:column; gap:4px;">
+          reviseListEl.innerHTML = revise.map((r, idx) => `
+            <div style="background:rgba(244,63,94,0.08); border:1px solid rgba(244,63,94,0.2); border-radius:8px; padding:8px 12px; display:flex; flex-direction:column; gap:6px;">
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-weight:700; font-size:12px; color:#f43f5e;">⚠️ ${escapeHtml(r.subject || "General")}</span>
                 <span style="font-size:10px; padding:2px 6px; background:rgba(244,63,94,0.2); border-radius:10px; color:#fda4af; font-weight:700;">${escapeHtml(r.category || "Revision")}</span>
               </div>
               <div style="font-size:12px; color:var(--text); line-height:1.3;">${escapeHtml((r.content || "").substring(0, 100))}${r.content && r.content.length > 100 ? '...' : ''}</div>
+              <button type="button" class="ce-btn-sm ce-btn-sm-primary dna-revise-quiz-btn" data-revise-idx="${idx}" style="align-self:flex-start; padding:4px 10px; font-size:0.72rem;">Quiz me</button>
             </div>
           `).join("");
+          reviseListEl.querySelectorAll(".dna-revise-quiz-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              if (!currentUser?.loggedIn) return alert("Please log in to take a quiz.");
+              const i = Number(btn.getAttribute("data-revise-idx"));
+              const item = revise[i];
+              const material = String(item?.content || "").trim();
+              if (!material) return alert("Add notes first, then try Quiz me.");
+              if (typeof generateQuizFromAnswer === "function") {
+                generateQuizFromAnswer(
+                  `[${item.subject || "General"} / ${item.category || "Things to Revise"}]\n${material}`,
+                  true,
+                  { scope: "notebook", notebookOnly: true }
+                );
+              }
+            });
+          });
         }
 
         // === MISTAKE VAULT ANALYSIS ===
@@ -13405,8 +13502,26 @@
         nbOpenAddForm(subj, category, { preferMain: true });
       });
 
+      const headerActions = document.createElement("div");
+      headerActions.style.cssText = "display:flex; align-items:center; gap:6px; flex-wrap:wrap;";
+      const quizable = ["Formulas", "Definitions", "Mistakes I Made", "Things to Revise"].includes(category);
+      if (quizable) {
+        const quizBtn = document.createElement("button");
+        quizBtn.className = "ce-btn-sm ce-btn-sm-ghost";
+        quizBtn.type = "button";
+        quizBtn.style.cssText = "padding:4px 10px; font-size:0.75rem; min-height:28px;";
+        quizBtn.textContent = "Quiz me";
+        quizBtn.title = totalCards > 0 ? `Quiz from ${displayName}` : `Add notes to ${displayName} first`;
+        quizBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          nbQuizCategory(category, displayName);
+        });
+        headerActions.appendChild(quizBtn);
+      }
+      headerActions.appendChild(addBtn);
+
       header.appendChild(headerLeft);
-      header.appendChild(addBtn);
+      header.appendChild(headerActions);
 
       const list = document.createElement("div");
       list.style.cssText = "display:flex; flex-direction:column; gap:8px;";

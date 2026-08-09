@@ -3871,7 +3871,73 @@ def exams_upcoming():
     subject = (request.args.get("subject") or "").strip()[:80] or None
     sec = get_user_section_prefs(user["id"])
     exams = list_upcoming_exams_for_user(user["id"], limit=40, subject=subject)
-    return jsonify({"exams": exams, "section": sec})
+    return jsonify({
+        "exams": exams,
+        "section": sec,
+        "exam_week": compute_exam_week(user["id"], exams=exams),
+    })
+
+
+def compute_exam_week(user_id, exams=None, within_days=7):
+    """Return exam-week focus dict when an upcoming exam is within within_days."""
+    try:
+        if exams is None:
+            exams = list_upcoming_exams_for_user(user_id, limit=40)
+        best = None
+        for ex in exams or []:
+            days = ex.get("days_left")
+            try:
+                days = int(days)
+            except Exception:
+                continue
+            if days < 0 or days > within_days:
+                continue
+            if best is None or days < int(best.get("days_left") or 999):
+                best = {
+                    "active": True,
+                    "subject": (ex.get("subject") or "").strip() or "Exam",
+                    "portion": (ex.get("portion") or "").strip()[:500],
+                    "days_left": days,
+                    "exam_date": ex.get("exam_date") or "",
+                    "exam_id": ex.get("id"),
+                }
+        if best:
+            return best
+    except Exception as e:
+        print(f"[WARN] compute_exam_week failed: {e}")
+    return {"active": False, "subject": "", "portion": "", "days_left": None}
+
+
+def format_exam_week_for_prompt(exam_week):
+    """Hard focus rule when exam week is active."""
+    if not exam_week or not exam_week.get("active"):
+        return ""
+    subject = (exam_week.get("subject") or "the upcoming exam").strip()
+    portion = (exam_week.get("portion") or "").strip()
+    days = exam_week.get("days_left")
+    when = "soon"
+    try:
+        d = int(days)
+        if d == 0:
+            when = "today"
+        elif d == 1:
+            when = "tomorrow"
+        else:
+            when = f"in {d} days"
+    except Exception:
+        pass
+    lines = [
+        "\n\nEXAM WEEK MODE (ACTIVE):",
+        f"- The student has an exam in {subject} {when}. Stay focused on this exam.",
+    ]
+    if portion:
+        lines.append(f"- Official portion / syllabus to prioritize: {portion[:600]}")
+    lines.append(
+        "- If they ask about clearly off-syllabus topics, briefly redirect: acknowledge, "
+        "then bring them back to the portion topics above. Offer one portion-aligned question."
+    )
+    lines.append("")
+    return "\n".join(lines)
 
 
 @app.route("/api/planner/exam-plan", methods=["GET"])
@@ -5117,9 +5183,11 @@ def chat():
     try:
         uid = user.get("id") if isinstance(user, dict) else None
         if uid:
-            system_prompt += format_exams_for_prompt(
-                list_upcoming_exams_for_user(uid, limit=8)
-            )
+            upcoming_for_user = list_upcoming_exams_for_user(uid, limit=8)
+            system_prompt += format_exams_for_prompt(upcoming_for_user)
+            exam_week = compute_exam_week(uid, exams=upcoming_for_user)
+            if exam_week.get("active") and not _latest_is_casual:
+                system_prompt += format_exam_week_for_prompt(exam_week)
             # Don't pull Mistake Vault / weak-subject reinforce into joke/game turns
             if not _latest_is_casual:
                 system_prompt += format_student_context_for_prompt(uid)
@@ -5391,13 +5459,20 @@ def chat():
             "the same language as the student's latest messages in this chat"
             if multilingual else reply_lang_name
         )
+        notebook_only = bool(data.get("notebook_only"))
+        quiz_extra = ""
+        if notebook_only:
+            quiz_extra = (
+                " CRITICAL: Quiz ONLY from the notebook/study material provided in the user message. "
+                "Do not invent outside syllabus topics. If material is thin, ask simpler recall questions from it."
+            )
         system_prompt = (
             f"{system_prompt}\n\n"
             "Using the full conversation history, create a 5-question multiple choice quiz for retrieval practice. "
             f"Write all questions and options in {quiz_lang}. "
             "One correct answer; plausible distractors. "
             "Format each as: 'Q[number]: [question]\nA) [option]\nB) [option]\nC) [option]\n"
-            "D) [option]\nAnswer: [correct letter]' on separate lines."
+            f"D) [option]\nAnswer: [correct letter]' on separate lines.{quiz_extra}"
         )
     elif endpoint == "crosscheck":
         cc_lang = (
