@@ -5158,6 +5158,64 @@ _GREETING_TURN_RE = re.compile(
     re.I,
 )
 
+_MONOLOGUE_MARKERS_RE = re.compile(
+    r"(?:\bno\.{2,}|\bi got it\b|\bover[\s-]?thinking\b|\bisn'?t correct\b|"
+    r"\blet me (?:re)?consider\b|\bi think i have it\b|\bi was over|"
+    r"\bbut i'?m going to take a guess\b|\bwait[, ]+(?:no|actually)\b)",
+    re.I,
+)
+
+
+def polish_chat_reply(reply: str) -> str:
+    """Collapse stream-of-consciousness drafting into a clean final answer when detected."""
+    text = (reply or "").strip()
+    if not text:
+        return reply or ""
+    hits = _MONOLOGUE_MARKERS_RE.findall(text)
+    if len(hits) < 2:
+        return text
+
+    # Prefer text after the *last* "answer is …" claim
+    claim_end = None
+    for m in re.finditer(
+        r"(?:(?:the\s+)?(?:correct\s+)?answer(?:\s+to\s+(?:this|that))?\s+is|final\s+answer)\s*[:\-]?\s*",
+        text,
+        re.I,
+    ):
+        claim_end = m.end()
+    if claim_end is not None:
+        candidate = text[claim_end:].strip()
+        candidate = re.split(
+            r"\bno\.{2,}|\bi (?:was|got|think|have it)|over[\s-]?thinking",
+            candidate,
+            maxsplit=1,
+            flags=re.I,
+        )[0].strip(" \t\r\n\"'`")
+        if ":" in candidate and len(candidate) > 60:
+            candidate = candidate.rsplit(":", 1)[-1].strip(" \t\r\n\"'`")
+        # Keep a short concluding phrase only
+        if 2 <= len(candidate) <= 160:
+            candidate = re.split(r"[.!?]\s+", candidate, maxsplit=1)[0].strip(" \t\r\n\"'`")
+            if 2 <= len(candidate) <= 120:
+                if candidate[-1] not in ".!?":
+                    candidate += "."
+                return candidate[0].upper() + candidate[1:]
+
+    # Fall back: last sentence, or clause after its final colon
+    parts = re.split(r"(?<=[.!?])\s+", text)
+    parts = [p.strip() for p in parts if p.strip()]
+    if parts:
+        last = parts[-1]
+        if ":" in last:
+            after = last.rsplit(":", 1)[-1].strip().strip("\"'`")
+            if 2 <= len(after) <= 80:
+                if after[-1] not in ".!?":
+                    after += "."
+                return after[0].upper() + after[1:]
+        if len(last) <= 140 and len(parts) >= 3:
+            return last
+    return text
+
 
 def _is_entertainment_or_casual_turn(text: str) -> bool:
     """True for games/jokes/greetings — skip study reinforce and force topic switch."""
@@ -5430,8 +5488,9 @@ def chat():
             "  → Do NOT continue, summarize, quiz, or teach the previous academic subject "
             "(physics, math, etc.) unless they explicitly ask to return "
             "(e.g. 'back to Newton', 'continue where we left off').\n"
-            "- For entertainment: play along briefly in 1–3 short turns; do not force a study wrap-up "
-            "or check-for-understanding.\n"
+            "- For entertainment: play along briefly in 1–3 short turns with a clean final answer; "
+            "do not force a study wrap-up or check-for-understanding; "
+            "never narrate wrong guesses or thinking out loud.\n"
             "- Prior turns are context only when the latest message continues that subject.\n\n"
         )
         if _latest_is_casual or _is_entertainment_or_casual_turn(last_user_text):
@@ -5442,15 +5501,23 @@ def chat():
         system_prompt = (
             f"{system_prompt}\n\n"
             "RESPONSE STYLE RULES — follow these precisely:\n\n"
+            "0. NEVER narrate your thinking out loud. Do NOT write drafts, self-corrections, "
+            "or filler like 'I think…', 'wait…', 'no…', 'I got it…', 'overthinking…', "
+            "'isn't correct…', 'let me reconsider…'. Decide silently, then reply with the "
+            "clean final answer only.\n\n"
             "1. GREETINGS & SMALL TALK (e.g. 'Hello', 'Hi', 'Thanks', 'Good morning', 'Bye', song lyrics, banter):\n"
             "   → Reply warmly in ONE or TWO natural sentences. Stop there.\n"
             "   → Do NOT add steps, numbered lists, or any instruction like 'say move to next step'.\n\n"
-            "2. EDUCATIONAL QUESTIONS (explanations, definitions, history, biology, literature, geography):\n"
+            "2. RIDDLES, PUZZLES, JOKES, GAMES, TRIVIA:\n"
+            "   → Give a short direct answer (1–3 sentences). Optional one-line explanation.\n"
+            "   → No stream-of-consciousness and no listing wrong guesses.\n\n"
+            "3. EDUCATIONAL QUESTIONS (explanations, definitions, history, biology, literature, geography):\n"
             "   → Explain clearly and naturally. Use prose or bullet points as appropriate.\n"
             "   → Do NOT add 'move to next step', 'hint for next step', or any similar prompt.\n\n"
-            "3. MATHS / PHYSICS / CHEMISTRY PROBLEM-SOLVING (equations, calculations, derivations, proofs):\n"
+            "4. MATHS / PHYSICS / CHEMISTRY PROBLEM-SOLVING (equations, calculations, derivations, proofs):\n"
             "   → Work through the solution in numbered steps labelled exactly: 'Step 1:', 'Step 2:', etc.\n"
-            "   → Show full working. One idea per step.\n"
+            "   → Show clean full working (formulas and results). One idea per step.\n"
+            "   → Do NOT ramble, second-guess, or write 'wait that's wrong' mid-answer.\n"
             "   → Do NOT instruct the user to type anything — the UI handles progression.\n\n"
             "IMPORTANT: Never end any response with 'say move to next step', "
             "'type move to next step', 'hint for next step', or 'explain in simpler terms' "
@@ -5605,6 +5672,8 @@ def chat():
             )
 
         reply = response.choices[0].message.content
+        if endpoint == "chat":
+            reply = polish_chat_reply(reply)
         last_message = messages[-1]["content"] if messages else ""
 
         # --- Persist to DB (only for /api/chat when user is logged in) ---

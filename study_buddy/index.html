@@ -1616,7 +1616,7 @@
       min-height: 100%;
     }
 
-    /* messages grow with content; #main-content scrolls; input-bar stays sticky bottom */
+    # ── CHAT AREA ──
     #messages {
       flex: 1 0 auto;
       overflow: visible;
@@ -1731,8 +1731,18 @@
     }
 
     .msg.ai .avatar {
-      background: var(--accent-gradient);
+      background: #0B0B0F;
+      border: 1px solid rgba(59, 130, 246, 0.45);
       box-shadow: 0 4px 12px var(--glow-accent);
+      overflow: hidden;
+      padding: 0;
+    }
+    .msg.ai .avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: left center;
+      display: block;
     }
 
     .bubble {
@@ -1849,6 +1859,18 @@
 
     .bubble p {
       margin: .5em 0;
+    }
+    .bubble p:first-child {
+      margin-top: 0;
+    }
+    .bubble p:last-child {
+      margin-bottom: 0;
+    }
+    .bubble > div:last-child > p:last-child {
+      margin-bottom: 0;
+    }
+    .bubble-actions:last-child {
+      margin-bottom: 0;
     }
 
     .bubble ul,
@@ -2118,12 +2140,15 @@
         gap: 2px;
       }
       .logo-img {
-        height: 32px;
-        width: 32px;
-        max-width: 32px;
-        object-fit: cover;
+        height: 30px;
+        width: auto;
+        max-width: min(158px, 52vw);
+        object-fit: contain;
         object-position: left center;
         border-radius: 8px;
+        background: #0B0B0F;
+        padding: 3px 6px;
+        box-sizing: content-box;
       }
       .auth-gate-brand-img {
         height: 40px;
@@ -2249,10 +2274,10 @@
         border-left-width: 0;
       }
 
-      /* Safari bottom toolbar clearance */
+      /* Safari bottom toolbar clearance — keep modest so chat isn't floated mid-screen */
       #input-bar {
-        padding: 12px 12px;
-        padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px) + 52px);
+        padding: 10px 12px;
+        padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px) + 12px);
         gap: 8px;
         align-items: center;
       }
@@ -2272,7 +2297,23 @@
       #main-content {
         padding-left: 0;
         padding-right: 0;
-        padding-bottom: 8px;
+        padding-bottom: 0;
+      }
+      #messages {
+        padding: 14px 12px 8px;
+        gap: 14px;
+      }
+      #chat-area {
+        min-height: 0;
+      }
+      .msg.ai .bubble,
+      .msg.user .bubble {
+        padding: 12px 14px;
+      }
+      .bubble-actions {
+        margin-top: 10px;
+        padding-top: 10px;
+        margin-bottom: 0;
       }
       .feature-header h2 {
         font-size: 1.35rem;
@@ -5468,7 +5509,7 @@
       <button class="btn-icon settings-gear-btn" id="settings-toggle-btn" type="button" title="Settings (Ctrl+,)" aria-label="Open settings" aria-expanded="false" aria-controls="settings-panel">⚙️</button>
       <button type="button" class="btn-icon mobile-nav-btn" id="mobile-left-toggle" title="Open chats" aria-label="Open chats sidebar">💬 <span class="mobile-nav-label">Chats</span></button>
       <button type="button" class="logo" id="logo-toggle" title="Study Buddy — open chats" aria-label="Study Buddy">
-        <img class="logo-img" src="logo-study-buddy.png?v=2" alt="Study Buddy" width="180" height="40" decoding="async" />
+        <img class="logo-img" src="logo-study-buddy.png?v=3" alt="Study Buddy" width="180" height="40" decoding="async" />
       </button>
     </div>
     <nav id="feature-tabs" class="feature-tabs" aria-label="Features">
@@ -5864,7 +5905,7 @@
     <div class="auth-gate-backdrop" aria-hidden="true"></div>
     <div class="auth-gate-panel" role="dialog" aria-modal="true" aria-labelledby="auth-gate-brand">
       <div class="auth-gate-brand" id="auth-gate-brand">
-        <img class="auth-gate-brand-img" src="logo-study-buddy.png?v=2" alt="Study Buddy" width="220" height="48" decoding="async" />
+        <img class="auth-gate-brand-img" src="logo-study-buddy.png?v=3" alt="Study Buddy" width="220" height="48" decoding="async" />
       </div>
       <p class="auth-gate-sub">Sign in to chat, save notes, and keep your streak.</p>
       <div class="auth-card" id="auth-card" data-mode="login" data-logged-in="0">
@@ -11192,7 +11233,14 @@
       const avatar = document.createElement("div");
       avatar.className = "avatar";
       if (isAI) {
-        avatar.textContent = "🤖";
+        avatar.textContent = "";
+        const logo = document.createElement("img");
+        logo.src = "logo-study-buddy.png?v=3";
+        logo.alt = "Study Buddy";
+        logo.width = 36;
+        logo.height = 36;
+        logo.decoding = "async";
+        avatar.appendChild(logo);
       } else {
         const src = typeof avatarSrcFromB64 === "function"
           ? avatarSrcFromB64(currentUser?.avatarB64)
