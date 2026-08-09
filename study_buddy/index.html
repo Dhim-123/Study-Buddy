@@ -610,6 +610,7 @@
       text-align: center;
       font-size: 1.05rem;
       margin-bottom: 12px;
+      color: var(--text);
     }
     body.auth-gate-open {
       overflow: hidden;
@@ -681,6 +682,55 @@
       border-radius: 10px;
       transition: box-shadow 0.2s ease;
     }
+
+    /* Light theme: auth gate / tour must not keep dark navy fills against dark --text */
+    [data-theme="light"] .auth-gate-backdrop {
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 20%, rgba(59, 130, 246, 0.14), transparent 55%),
+        rgba(248, 250, 252, 0.78);
+    }
+    [data-theme="light"] .auth-gate-panel {
+      background: linear-gradient(165deg, #ffffff, #f1f5f9);
+      border-color: rgba(15, 23, 42, 0.12);
+      box-shadow: 0 24px 64px rgba(15, 23, 42, 0.14);
+      color: var(--text);
+    }
+    [data-theme="light"] .auth-gate-brand,
+    [data-theme="light"] .auth-gate .auth-card h3,
+    [data-theme="light"] .auth-gate #auth-mode-title {
+      color: var(--text);
+    }
+    [data-theme="light"] .auth-gate-sub,
+    [data-theme="light"] .auth-gate .field label,
+    [data-theme="light"] .auth-gate .field label small {
+      color: var(--muted);
+    }
+    [data-theme="light"] .auth-gate .btn-icon {
+      color: var(--text);
+      border-color: var(--border);
+      background: rgba(255, 255, 255, 0.9);
+    }
+    [data-theme="light"] .sb-tour-backdrop {
+      background: rgba(15, 23, 42, 0.35);
+    }
+    [data-theme="light"] .sb-tour-card {
+      background: #ffffff;
+      border-color: rgba(15, 23, 42, 0.12);
+      box-shadow: 0 16px 48px rgba(15, 23, 42, 0.16);
+      color: var(--text);
+    }
+    [data-theme="light"] .sb-tour-card h3 {
+      color: var(--text);
+    }
+    [data-theme="light"] .sb-tour-card p,
+    [data-theme="light"] .sb-tour-step {
+      color: var(--muted);
+    }
+    [data-theme="light"] .hint-box {
+      background: rgba(241, 245, 249, 0.95);
+      color: var(--muted);
+    }
+
     #sidebar[data-logged-in="1"] .sb-left-tools {
       display: flex;
       flex-direction: column;
@@ -6348,7 +6398,7 @@
 
       // 🤖 Buddy name — this shows up in the welcome message
       //    Change it to whatever you want! "Zara", "Max", "Einstein"...
-      buddyName: "Nova",
+      buddyName: "Max",
 
       //  Subject chips — these are the clickable buttons on the welcome screen
       //    Add or remove subjects to match what you study!
@@ -6429,6 +6479,10 @@
     //   The "..." is called the "spread operator" — it unpacks an object.
     //   If you saved a custom buddyName, it overrides the default one.
     //   If you didn't save anything, the defaults from CONFIG are used.
+    if (!cfg.buddyName || cfg.buddyName === "Nova") {
+      cfg.buddyName = "Max";
+      try { localStorage.setItem("sb_config", JSON.stringify({ buddyName: "Max" })); } catch (_) {}
+    }
 
     function getStudyGrade() {
       const g = parseInt(
@@ -6647,6 +6701,9 @@
       document.querySelectorAll("[data-theme-choice]").forEach((btn) => {
         btn.classList.toggle("active", btn.getAttribute("data-theme-choice") === choice);
       });
+      if (typeof updateWelcomeGreeting === "function") {
+        try { updateWelcomeGreeting(); } catch (_) {}
+      }
     }
 
     function openSettingsPanel() {
@@ -6773,20 +6830,24 @@
 
 
     const welcomeTitle = document.getElementById("welcome-title");
-    // ^ The "Hey! I'm Nova 👋" heading
+    // ^ The "Hi! I'm Max 👋" heading
 
     const welcomeDesc = document.getElementById("welcome-desc");
     // ^ The description text under the welcome heading
+
+    function resolveBuddyDisplayName() {
+      let buddyName = (currentUser?.buddyName || cfg?.buddyName || "").trim();
+      // Legacy default was Nova; treat empty/Nova as Max. Never rewrite custom names.
+      if (!buddyName || buddyName === "Nova") buddyName = "Max";
+      return buddyName;
+    }
 
     function updateWelcomeGreeting() {
       const welcomeTitle = document.getElementById("welcome-title");
       const welcomeDesc = document.getElementById("welcome-desc");
       if (!welcomeTitle || !welcomeDesc) return;
 
-      let buddyName = (currentUser?.buddyName || cfg?.buddyName || "").trim();
-      if (!buddyName || buddyName === "Nova") {
-        buddyName = "Max";
-      }
+      const buddyName = resolveBuddyDisplayName();
 
       if (!currentUser?.loggedIn) {
         welcomeTitle.textContent = `Hi! 👋 I'm ${buddyName}.`;
@@ -7023,7 +7084,7 @@
           authMessage.style.display = "none";
         }
         if (authBuddyNameInput) {
-          authBuddyNameInput.value = currentUser?.buddyName || "Nova";
+          authBuddyNameInput.value = currentUser?.buddyName || "Max";
         }
 
         const leftSidebarEl = document.getElementById("sidebar");
@@ -7050,9 +7111,9 @@
           // Keep left chat sidebar visible after login
           if (leftSidebarEl) leftSidebarEl.classList.remove("hidden");
           if (logoutBtn) logoutBtn.style.display = "";
-          if (buddyNameEl) buddyNameEl.value = currentUser.buddyName || "Nova";
+          if (buddyNameEl) buddyNameEl.value = currentUser.buddyName || "Max";
           if (usernameInputEl) usernameInputEl.value = currentUser.identifier || "";
-          cfg.buddyName = currentUser.buddyName || "Nova";
+          cfg.buddyName = currentUser.buddyName || "Max";
           localStorage.setItem("sb_config", JSON.stringify({ buddyName: cfg.buddyName }));
           if (typeof syncToolsSectionFromAuth === "function") syncToolsSectionFromAuth();
           if (typeof syncToolsReplyLanguageUi === "function") syncToolsReplyLanguageUi();
@@ -7523,7 +7584,11 @@
         updateWelcomeGreeting();
 
         if (buddyNameEl) {
-          buddyNameEl.value = cfg.buddyName === "Nova" ? "" : cfg.buddyName;
+          {
+            let bn = (cfg.buddyName || "").trim();
+            if (!bn || bn === "Nova") bn = "Max";
+            buddyNameEl.value = bn;
+          }
         }
 
         if (userInputEl) {
@@ -7832,13 +7897,16 @@
 
     if (saveSettingsBtn) {
       saveSettingsBtn.addEventListener("click", async () => {
-        const newBuddyName = buddyNameEl ? (buddyNameEl.value.trim() || "Nova") : "Nova";
+        const newBuddyName = buddyNameEl ? (buddyNameEl.value.trim() || "Max") : "Max";
         const newUsername = usernameInputEl ? usernameInputEl.value.trim() : "";
 
         cfg.buddyName = newBuddyName;
         localStorage.setItem("sb_config", JSON.stringify({
           buddyName: cfg.buddyName,
         }));
+        if (typeof currentUser !== "undefined" && currentUser?.loggedIn) {
+          currentUser.buddyName = newBuddyName;
+        }
         updateWelcomeGreeting();
 
         let ok = true;
@@ -7886,12 +7954,23 @@
           
           // 1. Save Buddy Name
           try {
-            await fetch("/api/auth/update_buddy", {
+            const buddyRes = await fetch("/api/auth/update_buddy", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               credentials: "include",
               body: JSON.stringify({ buddyName: newBuddyName })
             });
+            const buddyData = await buddyRes.json().catch(() => ({}));
+            if (buddyRes.ok) {
+              const savedName = (buddyData.buddyName || newBuddyName || "Max").trim() || "Max";
+              currentUser.buddyName = savedName;
+              cfg.buddyName = savedName;
+              localStorage.setItem("sb_config", JSON.stringify({ buddyName: cfg.buddyName }));
+              if (buddyNameEl) buddyNameEl.value = savedName;
+              updateWelcomeGreeting();
+            } else {
+              ok = false;
+            }
           } catch(err) {
             console.error("Error updating buddy name:", err);
             ok = false;
@@ -8243,7 +8322,7 @@
         const identifier = (authIdentifierInput.value || "").trim();
         const password = (authPasswordInput.value || "").trim();
         const confirmPassword = (document.getElementById("auth-password-confirm")?.value || "").trim();
-        const buddyName = (authBuddyNameInput.value || "").trim() || "Nova";
+        const buddyName = (authBuddyNameInput.value || "").trim() || "Max";
         const mode = authCard.dataset.mode || "login";
         const sectionPayload = readAuthSectionPayload();
 
