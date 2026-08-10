@@ -18,6 +18,7 @@ XP_AWARDS = {
     "flashcards": 20,
     "mock": 50,
     "daily_puzzle": 25,
+    "daily_fact": 5,
     "focus_10m": 40,
     "notes_upload": 20,
     "podcast": 20,
@@ -26,6 +27,79 @@ XP_AWARDS = {
 }
 
 CHAT_XP_DAILY_CAP = 40  # max chat XP awards per local day (streak still once)
+
+ELECTIVE_BASE = (
+    "Physical Education",
+    "Commercial Applications",
+    "Economics Application",
+    "Art",
+)
+ELECTIVE_ECONOMICS = "Economics"
+ELECTIVE_LAW = "Law"
+ALL_ELECTIVES = ELECTIVE_BASE + (ELECTIVE_ECONOMICS, ELECTIVE_LAW)
+
+FACT_FALLBACKS = [
+    {
+        "title": "Everest is still growing",
+        "body": "Did you know Mount Everest is still rising? Scientists estimate that in roughly 31 years its official height could settle near about 8,849 m as plates keep colliding and surveys get sharper.",
+        "category": "Geography",
+    },
+    {
+        "title": "Your brain uses sugar",
+        "body": "Did you know your brain uses about 20% of your body's energy even though it is only about 2% of your body weight? Glucose is its favorite fuel.",
+        "category": "Biology",
+    },
+    {
+        "title": "Octopuses have three hearts",
+        "body": "Did you know an octopus has three hearts? Two pump blood to the gills and one pumps it to the rest of the body.",
+        "category": "Biology",
+    },
+    {
+        "title": "Lightning is hotter than the Sun",
+        "body": "Did you know a lightning bolt can heat the air around it to about 30,000°C — roughly five times hotter than the surface of the Sun?",
+        "category": "Physics",
+    },
+    {
+        "title": "Bananas are berries",
+        "body": "Did you know botanically a banana is a berry, but a strawberry is not? Berry classifications surprise most people.",
+        "category": "Science",
+    },
+    {
+        "title": "Honey never spoils",
+        "body": "Did you know archaeologists have found pots of honey thousands of years old that were still edible? Low water and natural acidity keep it stable.",
+        "category": "Food science",
+    },
+    {
+        "title": "Sharks are older than trees",
+        "body": "Did you know sharks have been around for over 400 million years — long before trees appeared on Earth?",
+        "category": "History of life",
+    },
+    {
+        "title": "Water can boil and freeze",
+        "body": "Did you know at the triple point of water, liquid, ice, and vapor can exist together? It is a precise temperature and pressure used in science labs.",
+        "category": "Chemistry",
+    },
+    {
+        "title": "Your bones are alive",
+        "body": "Did you know bones are living tissue that constantly remodel? Adults replace most of their skeleton roughly every 10 years.",
+        "category": "Biology",
+    },
+    {
+        "title": "There are more stars than grains",
+        "body": "Did you know astronomers estimate there are more stars in the observable universe than grains of sand on all Earth's beaches?",
+        "category": "Astronomy",
+    },
+    {
+        "title": "Cleopatra and the pyramids",
+        "body": "Did you know Cleopatra lived closer in time to the Moon landing than to the building of the Great Pyramid of Giza?",
+        "category": "History",
+    },
+    {
+        "title": "Wombats make cube poop",
+        "body": "Did you know wombats produce cube-shaped droppings? Their intestines help stack and mark territory without rolling away.",
+        "category": "Animals",
+    },
+]
 
 PUZZLE_SUBJECTS = [
     "Math", "Physics", "Chemistry", "Biology", "English",
@@ -204,6 +278,26 @@ def migrate_gamification_tables(conn):
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_planner_user ON study_planner_tasks(user_id, due_date);
+
+        CREATE TABLE IF NOT EXISTS daily_facts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fact_date TEXT NOT NULL,
+            grade INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'Fun',
+            xp_reward INTEGER NOT NULL DEFAULT 5,
+            UNIQUE(fact_date, grade)
+        );
+
+        CREATE TABLE IF NOT EXISTS daily_fact_views (
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            fact_date TEXT NOT NULL,
+            grade INTEGER NOT NULL,
+            viewed INTEGER NOT NULL DEFAULT 0,
+            xp_awarded INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, fact_date, grade)
+        );
     """)
     try:
         conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
@@ -223,11 +317,42 @@ def migrate_gamification_tables(conn):
         "ALTER TABLE user_prefs ADD COLUMN section TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE user_prefs ADD COLUMN drop_math INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE user_prefs ADD COLUMN drop_science INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE user_prefs ADD COLUMN elective TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE user_prefs ADD COLUMN notify_fact INTEGER NOT NULL DEFAULT 1",
     ):
         try:
             conn.execute(ddl)
         except Exception:
             pass
+
+
+def _normalize_elective_value(raw) -> str:
+    s = (raw or "").strip()
+    for v in ALL_ELECTIVES:
+        if s.lower() == v.lower():
+            return v
+    return ""
+
+
+def _allowed_electives(drop_math=False, drop_science=False):
+    if drop_math and drop_science:
+        return [ELECTIVE_LAW]
+    opts = list(ELECTIVE_BASE)
+    if drop_science and not drop_math:
+        opts.append(ELECTIVE_ECONOMICS)
+    return opts
+
+
+def _validate_elective(elective_raw, drop_math=False, drop_science=False):
+    allowed = _allowed_electives(drop_math, drop_science)
+    if drop_math and drop_science:
+        return True, ELECTIVE_LAW
+    elective = _normalize_elective_value(elective_raw)
+    if not elective:
+        return False, "Please select an elective."
+    if elective not in allowed:
+        return False, f"That elective is not available. Choose one of: {', '.join(allowed)}."
+    return True, elective
 
 
 def _parse_local_date(data) -> str:
@@ -273,6 +398,8 @@ def _get_prefs(conn, uid: int) -> dict:
         "ALTER TABLE user_prefs ADD COLUMN section TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE user_prefs ADD COLUMN drop_math INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE user_prefs ADD COLUMN drop_science INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE user_prefs ADD COLUMN elective TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE user_prefs ADD COLUMN notify_fact INTEGER NOT NULL DEFAULT 1",
     ):
         try:
             conn.execute(ddl)
@@ -287,6 +414,10 @@ def _get_prefs(conn, uid: int) -> dict:
             "section": "",
             "drop_math": 0,
             "drop_science": 0,
+            "elective": "",
+            "notify_fact": 1,
+            "notify_puzzle": 1,
+            "notify_streak": 1,
         }
     d = dict(row)
     try:
@@ -300,6 +431,8 @@ def _get_prefs(conn, uid: int) -> dict:
     else:
         d["drop_math"] = 1 if int(d.get("drop_math") or 0) else 0
         d["drop_science"] = 1 if int(d.get("drop_science") or 0) else 0
+    d["elective"] = _normalize_elective_value(d.get("elective") or "")
+    d["notify_fact"] = 1 if int(d.get("notify_fact") if d.get("notify_fact") is not None else 1) else 0
     return d
 
 
@@ -593,6 +726,7 @@ def register_gamification_routes(
                 "language": prefs.get("language") or "multi",
                 "notifyStreak": bool(prefs.get("notify_streak", 1)),
                 "notifyPuzzle": bool(prefs.get("notify_puzzle", 1)),
+                "notifyFact": bool(prefs.get("notify_fact", 1)),
                 "highContrast": bool(prefs.get("high_contrast", 0)),
                 "fontScale": float(prefs.get("font_scale") or 1.0),
                 "reducedMotion": bool(prefs.get("reduced_motion", 0)),
@@ -600,6 +734,12 @@ def register_gamification_routes(
                 "section": prefs.get("section") or "",
                 "dropMath": bool(prefs.get("drop_math", 0)),
                 "dropScience": bool(prefs.get("drop_science", 0)),
+                "elective": prefs.get("elective") or "",
+                "electiveLocked": bool(prefs.get("elective")),
+                "allowedElectives": _allowed_electives(
+                    bool(prefs.get("drop_math", 0)),
+                    bool(prefs.get("drop_science", 0)),
+                ),
             },
             "inventory": {r["item_id"]: r["qty"] for r in inv},
             "milestones": [dict(m) for m in milestones],
@@ -777,6 +917,31 @@ def register_gamification_routes(
             else:
                 drop_math = 0
                 drop_science = 0
+
+            current_elective = _normalize_elective_value(current.get("elective") or "")
+            elective = current_elective
+            elective_error = None
+            if "elective" in data or "Elective" in data:
+                requested = data.get("elective", data.get("Elective"))
+                if current_elective:
+                    if _normalize_elective_value(requested) and _normalize_elective_value(requested) != current_elective:
+                        elective_error = "Elective cannot be changed once chosen."
+                    elective = current_elective
+                else:
+                    # Empty elective + both drops → Law
+                    ok_e, val = _validate_elective(requested, bool(drop_math), bool(drop_science))
+                    if not ok_e and drop_math and drop_science:
+                        elective = ELECTIVE_LAW
+                    elif not ok_e:
+                        elective_error = val
+                    else:
+                        elective = val
+            elif not current_elective and drop_math and drop_science:
+                elective = ELECTIVE_LAW
+
+            if elective_error:
+                return jsonify({"error": elective_error}), 400
+
             conn.execute(
                 """
                 UPDATE user_prefs SET
@@ -784,6 +949,7 @@ def register_gamification_routes(
                     language=?,
                     notify_streak=?,
                     notify_puzzle=?,
+                    notify_fact=?,
                     high_contrast=?,
                     font_scale=?,
                     reduced_motion=?,
@@ -791,6 +957,7 @@ def register_gamification_routes(
                     section=?,
                     drop_math=?,
                     drop_science=?,
+                    elective=?,
                     updated_at=datetime('now')
                 WHERE user_id=?
                 """,
@@ -799,6 +966,7 @@ def register_gamification_routes(
                     language,
                     1 if data.get("notifyStreak", data.get("notify_streak", True)) else 0,
                     1 if data.get("notifyPuzzle", data.get("notify_puzzle", True)) else 0,
+                    1 if data.get("notifyFact", data.get("notify_fact", current.get("notify_fact", True))) else 0,
                     1 if data.get("highContrast", data.get("high_contrast", False)) else 0,
                     float(data.get("fontScale", data.get("font_scale", 1.0)) or 1.0),
                     1 if data.get("reducedMotion", data.get("reduced_motion", False)) else 0,
@@ -806,12 +974,23 @@ def register_gamification_routes(
                     section,
                     drop_math,
                     drop_science,
+                    elective or "",
                     uid,
                 ),
             )
             prefs = _get_prefs(conn, uid)
         _push_game(uid)
-        return jsonify({"ok": True, "prefs": prefs})
+        return jsonify({
+            "ok": True,
+            "prefs": {
+                **prefs,
+                "electiveLocked": bool(prefs.get("elective")),
+                "allowedElectives": _allowed_electives(
+                    bool(prefs.get("drop_math", 0)),
+                    bool(prefs.get("drop_science", 0)),
+                ),
+            },
+        })
 
     def _ensure_planner_columns(conn):
         try:
@@ -1237,4 +1416,190 @@ def register_gamification_routes(
                 "current": streak_info["current_streak"],
                 "best": streak_info["best_streak"],
             },
+        })
+
+    def _fallback_fact(local_date: str, grade: int) -> dict:
+        try:
+            day = datetime.strptime(local_date, "%Y-%m-%d").toordinal()
+        except Exception:
+            day = grade
+        item = FACT_FALLBACKS[day % len(FACT_FALLBACKS)]
+        return {
+            "title": item["title"],
+            "body": item["body"],
+            "category": item["category"],
+            "xp_reward": 5,
+        }
+
+    def _generate_fact(grade: int, local_date: str) -> dict:
+        try:
+            client = get_groq_client()
+            prompt = (
+                f"Write ONE short, wow school-safe fun fact for Grade {grade} students. "
+                f"Date seed: {local_date}. "
+                "Style: start the body with 'Did you know' and include a surprising number, "
+                "timeline, or comparison (like Everest height trivia). "
+                "Return STRICT JSON only with keys: title (short), body (2–3 sentences), "
+                "category (one word or short phrase). No markdown fences."
+            )
+            completion = client.chat.completions.create(
+                model=resolve_groq_model(None),
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You write delightful educational daily facts. Output JSON only.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.85,
+                max_tokens=280,
+            )
+            raw = (completion.choices[0].message.content or "").strip()
+            raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.I)
+            raw = re.sub(r"\s*```$", "", raw)
+            data = json.loads(raw)
+            title = str(data.get("title") or "Daily Fact").strip()[:120]
+            body = str(data.get("body") or "").strip()[:1200]
+            category = str(data.get("category") or "Fun").strip()[:60]
+            if not body:
+                raise ValueError("empty body")
+            if not body.lower().startswith("did you know"):
+                body = "Did you know " + body[0].lower() + body[1:] if body else body
+            return {
+                "title": title or "Daily Fact",
+                "body": body,
+                "category": category or "Fun",
+                "xp_reward": 5,
+            }
+        except Exception as e:
+            print(f"[daily_fact] generate failed, using fallback: {e}")
+            return _fallback_fact(local_date, grade)
+
+    @app.route("/api/daily_fact", methods=["GET"])
+    def daily_fact_get():
+        user, err = require_auth()
+        if err:
+            return err
+        uid = user["id"]
+        local_date = _parse_local_date(request.args)
+        _pull_game(uid)
+        with get_db() as conn:
+            migrate_gamification_tables(conn)
+            prefs = _get_prefs(conn, uid)
+            grade = int(request.args.get("grade") or prefs.get("grade") or 9)
+            grade = max(1, min(12, grade))
+            row = conn.execute(
+                "SELECT * FROM daily_facts WHERE fact_date=? AND grade=?",
+                (local_date, grade),
+            ).fetchone()
+            if not row:
+                generated = _generate_fact(grade, local_date)
+                conn.execute(
+                    """
+                    INSERT INTO daily_facts
+                    (fact_date, grade, title, body, category, xp_reward)
+                    VALUES (?,?,?,?,?,?)
+                    """,
+                    (
+                        local_date,
+                        grade,
+                        generated["title"],
+                        generated["body"],
+                        generated["category"],
+                        generated["xp_reward"],
+                    ),
+                )
+                row = conn.execute(
+                    "SELECT * FROM daily_facts WHERE fact_date=? AND grade=?",
+                    (local_date, grade),
+                ).fetchone()
+            view = conn.execute(
+                """
+                SELECT * FROM daily_fact_views
+                WHERE user_id=? AND fact_date=? AND grade=?
+                """,
+                (uid, local_date, grade),
+            ).fetchone()
+        return jsonify({
+            "date": local_date,
+            "grade": grade,
+            "title": row["title"],
+            "body": row["body"],
+            "category": row["category"],
+            "xpReward": int(row["xp_reward"] or 5),
+            "viewed": bool(view and view["viewed"]),
+            "xpAwarded": int(view["xp_awarded"] or 0) if view else 0,
+        })
+
+    @app.route("/api/daily_fact/ack", methods=["POST"])
+    def daily_fact_ack():
+        user, err = require_auth()
+        if err:
+            return err
+        uid = user["id"]
+        data = request.get_json(force=True) or {}
+        local_date = _parse_local_date(data)
+        _pull_game(uid)
+        with get_db() as conn:
+            migrate_gamification_tables(conn)
+            prefs = _get_prefs(conn, uid)
+            grade = int(data.get("grade") or prefs.get("grade") or 9)
+            grade = max(1, min(12, grade))
+            row = conn.execute(
+                "SELECT * FROM daily_facts WHERE fact_date=? AND grade=?",
+                (local_date, grade),
+            ).fetchone()
+            if not row:
+                return jsonify({"error": "Fact not found. Open today's fact first."}), 404
+            view = conn.execute(
+                """
+                SELECT * FROM daily_fact_views
+                WHERE user_id=? AND fact_date=? AND grade=?
+                """,
+                (uid, local_date, grade),
+            ).fetchone()
+            awarded = 0
+            if view and view["viewed"]:
+                streak_info = _update_streak_for_study(conn, uid, local_date)
+            else:
+                reward = int(row["xp_reward"] or XP_AWARDS["daily_fact"])
+                awarded = _award_xp(conn, uid, "daily_fact", reward, local_date, row["title"])
+                streak_info = _update_streak_for_study(conn, uid, local_date)
+                conn.execute(
+                    """
+                    INSERT INTO daily_fact_views
+                    (user_id, fact_date, grade, viewed, xp_awarded)
+                    VALUES (?,?,?,1,?)
+                    ON CONFLICT(user_id, fact_date, grade) DO UPDATE SET
+                      viewed=1, xp_awarded=excluded.xp_awarded
+                    """,
+                    (uid, local_date, grade, awarded),
+                )
+            xp = conn.execute(
+                "SELECT balance FROM user_xp WHERE user_id=?", (uid,)
+            ).fetchone()
+        _push_game(uid)
+        return jsonify({
+            "ok": True,
+            "viewed": True,
+            "xpAwarded": awarded,
+            "xp": int(xp["balance"] or 0) if xp else 0,
+            "streak": {
+                "current": streak_info["current_streak"],
+                "best": streak_info["best_streak"],
+            },
+        })
+
+    @app.route("/api/electives/options", methods=["GET"])
+    def elective_options():
+        """Allowed electives for given drop flags (UI helper)."""
+        drop_math = str(request.args.get("dropMath") or request.args.get("drop_math") or "0") in (
+            "1", "true", "True", "yes",
+        )
+        drop_science = str(request.args.get("dropScience") or request.args.get("drop_science") or "0") in (
+            "1", "true", "True", "yes",
+        )
+        return jsonify({
+            "electives": _allowed_electives(drop_math, drop_science),
+            "all": list(ALL_ELECTIVES),
         })

@@ -5641,6 +5641,10 @@
           <span aria-hidden="true">🧩</span>
           <span class="header-stat-label">Puzzle</span>
         </button>
+        <button type="button" class="header-stat" id="nav-fact-chip" aria-label="Daily Fact" title="Daily Fact">
+          <span aria-hidden="true">💡</span>
+          <span class="header-stat-label">Fact</span>
+        </button>
         <button type="button" class="header-stat" id="nav-shop-chip" aria-label="Open XP Shop" title="XP Shop">
           <span class="header-stat-value" id="nav-xp-count">0</span>
           <span class="header-stat-label">XP</span>
@@ -5679,6 +5683,7 @@
               <button type="button" class="profile-action-btn" id="profile-change-pic-btn">🖼️ Change Profile Picture</button>
               <input type="file" id="profile-pic-input" accept="image/*" hidden />
               <button type="button" class="profile-action-btn" id="profile-daily-puzzle-btn">🧩 Daily Puzzle</button>
+              <button type="button" class="profile-action-btn" id="profile-daily-fact-btn">💡 Daily Fact</button>
               <button type="button" class="profile-action-btn" id="profile-open-settings-btn">⚙️ Open Settings</button>
               <button type="button" class="profile-action-btn danger" id="profile-logout-btn">🚪 Logout</button>
             </div>
@@ -5785,6 +5790,13 @@
             <div class="settings-row"><span>Drop Math</span><input type="checkbox" class="settings-toggle" id="settings-drop-math" /></div>
             <div class="settings-row"><span>Drop Science</span><input type="checkbox" class="settings-toggle" id="settings-drop-science" /></div>
           </div>
+          <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:6px;">
+            <span>Elective</span>
+            <select id="settings-elective" class="input" style="padding:6px 8px;width:100%;">
+              <option value="">Select elective…</option>
+            </select>
+            <p class="settings-hint" id="settings-elective-hint" style="margin:0;font-size:0.72rem;">Pick once — elective cannot be changed later.</p>
+          </div>
         </div>
       </div>
 
@@ -5816,6 +5828,7 @@
         <div class="settings-acc-body">
           <div class="settings-row"><span>Streak reminders</span><input type="checkbox" class="settings-toggle" id="settings-notify-streak" checked /></div>
           <div class="settings-row"><span>Daily Puzzle</span><input type="checkbox" class="settings-toggle" id="settings-notify-puzzle" checked /></div>
+          <div class="settings-row"><span>Daily Fact</span><input type="checkbox" class="settings-toggle" id="settings-notify-fact" checked /></div>
         </div>
       </div>
 
@@ -5954,6 +5967,30 @@
     </div>
   </div>
 
+  <!-- Daily Fact modal -->
+  <div id="fact-modal" class="sb-game-modal" hidden aria-hidden="true">
+    <div class="sb-game-backdrop" data-close-modal></div>
+    <div class="sb-game-card" role="dialog" aria-modal="true" aria-labelledby="fact-modal-title">
+      <button type="button" class="sb-game-close" data-close-modal aria-label="Close">&times;</button>
+      <h3 id="fact-modal-title">💡 Daily Fact</h3>
+      <div id="fact-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- One-time elective picker (existing users) -->
+  <div id="elective-pick-modal" class="sb-game-modal" hidden aria-hidden="true">
+    <div class="sb-game-backdrop"></div>
+    <div class="sb-game-card" role="dialog" aria-modal="true" aria-labelledby="elective-pick-title">
+      <h3 id="elective-pick-title">Choose your elective</h3>
+      <p style="color:var(--muted);font-size:0.88rem;margin:0 0 12px;">Pick once — you cannot change this later.</p>
+      <select id="elective-pick-select" class="input" style="width:100%;margin-bottom:12px;">
+        <option value="">Select elective…</option>
+      </select>
+      <p id="elective-pick-error" class="sb-err" style="display:none;margin:0 0 10px;"></p>
+      <button type="button" class="btn-primary" id="elective-pick-save" style="width:100%;">Save elective</button>
+    </div>
+  </div>
+
   <!-- XP Shop modal -->
   <div id="shop-modal" class="sb-game-modal" hidden aria-hidden="true">
     <div class="sb-game-backdrop" data-close-modal></div>
@@ -6007,26 +6044,35 @@
       <p class="auth-gate-sub">Sign in to chat, save notes, and keep your streak.</p>
       <div class="auth-card" id="auth-card" data-mode="login" data-logged-in="0">
         <h3 id="auth-mode-title">Login</h3>
-        <div class="field">
-          <label for="auth-section">Your section</label>
-          <select class="input" id="auth-section">
-            <option value="">Select section…</option>
-            <option value="Whiz 1">Whiz 1</option>
-            <option value="Whiz 2">Whiz 2</option>
-            <option value="Whiz 3">Whiz 3</option>
-            <option value="Super 1">Super 1</option>
-            <option value="Super 2">Super 2</option>
-            <option value="Super 3">Super 3</option>
-          </select>
-        </div>
-        <div class="field" id="auth-super3-drops" style="display:none; margin-top:10px;">
-          <label style="display:block;margin-bottom:6px;">Super 3 — subjects to drop</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--muted);margin-bottom:4px;">
-            <input type="checkbox" id="auth-drop-math" /> Drop Math
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--muted);">
-            <input type="checkbox" id="auth-drop-science" /> Drop Science
-          </label>
+        <div class="register-only-field" id="auth-register-section-block">
+          <div class="field" id="auth-section-field">
+            <label for="auth-section">Your section</label>
+            <select class="input" id="auth-section">
+              <option value="">Select section…</option>
+              <option value="Whiz 1">Whiz 1</option>
+              <option value="Whiz 2">Whiz 2</option>
+              <option value="Whiz 3">Whiz 3</option>
+              <option value="Super 1">Super 1</option>
+              <option value="Super 2">Super 2</option>
+              <option value="Super 3">Super 3</option>
+            </select>
+          </div>
+          <div class="field" id="auth-super3-drops" style="display:none; margin-top:10px;">
+            <label style="display:block;margin-bottom:6px;">Super 3 — subjects to drop</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--muted);margin-bottom:4px;">
+              <input type="checkbox" id="auth-drop-math" /> Drop Math
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--muted);">
+              <input type="checkbox" id="auth-drop-science" /> Drop Science
+            </label>
+          </div>
+          <div class="field" id="auth-elective-field" style="margin-top:10px;">
+            <label for="auth-elective">Elective</label>
+            <select class="input" id="auth-elective">
+              <option value="">Select elective…</option>
+            </select>
+            <p class="settings-hint" id="auth-elective-hint" style="margin:6px 0 0;font-size:0.75rem;">You cannot change your elective later.</p>
+          </div>
         </div>
         <div class="field" style="margin-top: 10px;">
           <label for="auth-identifier">Username</label>
@@ -8180,6 +8226,7 @@
               section: data.section || "",
               dropMath: !!data.dropMath,
               dropScience: !!data.dropScience,
+              elective: data.elective || "",
             };
             if (data.section) {
               try {
@@ -8951,6 +8998,41 @@
       const authDropMathEl = document.getElementById("auth-drop-math");
       const authDropScienceEl = document.getElementById("auth-drop-science");
       const authSuper3DropsEl = document.getElementById("auth-super3-drops");
+      const authElectiveEl = document.getElementById("auth-elective");
+
+      const ELECTIVE_BASE = [
+        "Physical Education",
+        "Commercial Applications",
+        "Economics Application",
+        "Art",
+      ];
+
+      function allowedElectivesForDrops(dropMath, dropScience) {
+        if (dropMath && dropScience) return ["Law"];
+        const opts = ELECTIVE_BASE.slice();
+        if (dropScience && !dropMath) opts.push("Economics");
+        return opts;
+      }
+
+      function fillElectiveSelect(selectEl, dropMath, dropScience, selected) {
+        if (!selectEl) return;
+        const opts = allowedElectivesForDrops(!!dropMath, !!dropScience);
+        const prev = selected != null ? selected : selectEl.value;
+        selectEl.innerHTML = '<option value="">Select elective…</option>';
+        opts.forEach((name) => {
+          const o = document.createElement("option");
+          o.value = name;
+          o.textContent = name;
+          selectEl.appendChild(o);
+        });
+        if (opts.length === 1 && opts[0] === "Law") {
+          selectEl.value = "Law";
+          selectEl.disabled = true;
+        } else {
+          selectEl.disabled = false;
+          if (prev && opts.includes(prev)) selectEl.value = prev;
+        }
+      }
 
       function syncAuthSuper3DropsUi() {
         const isSuper3 = (authSectionEl?.value || "") === "Super 3";
@@ -8959,6 +9041,9 @@
           if (authDropMathEl) authDropMathEl.checked = false;
           if (authDropScienceEl) authDropScienceEl.checked = false;
         }
+        const dropMath = isSuper3 && !!authDropMathEl?.checked;
+        const dropScience = isSuper3 && !!authDropScienceEl?.checked;
+        fillElectiveSelect(authElectiveEl, dropMath, dropScience);
       }
 
       function syncToolsSuper3DropsUi() {
@@ -8987,7 +9072,8 @@
           : authDropScienceEl;
         const dropMath = section === "Super 3" && !!dropMathEl?.checked;
         const dropScience = section === "Super 3" && !!dropScienceEl?.checked;
-        return { section, dropMath, dropScience };
+        const elective = (authElectiveEl?.value || "").trim();
+        return { section, dropMath, dropScience, elective };
       }
 
       function rememberAuthSectionLocally(section, dropMath, dropScience) {
@@ -9016,9 +9102,15 @@
           if (dm) dm.checked = false;
           if (ds) ds.checked = false;
         }
+        const dropMath = sec === "Super 3" && !!document.getElementById("settings-drop-math")?.checked;
+        const dropScience = sec === "Super 3" && !!document.getElementById("settings-drop-science")?.checked;
+        const el = document.getElementById("settings-elective");
+        if (el && !el.disabled) {
+          fillElectiveSelect(el, dropMath, dropScience, el.value);
+        }
       }
 
-      // Prefill section from last choice
+      // Prefill section from last choice (register form only)
       try {
         applySectionToAuthForm(
           localStorage.getItem("sb_section") || "",
@@ -9028,6 +9120,7 @@
       } catch (_) {
         syncAuthSuper3DropsUi();
       }
+      fillElectiveSelect(authElectiveEl, false, false);
       authSectionEl?.addEventListener("change", () => {
         syncAuthSuper3DropsUi();
         const p = readAuthSectionPayload();
@@ -9037,17 +9130,21 @@
         syncToolsSuper3DropsUi();
       });
       authDropMathEl?.addEventListener("change", () => {
+        syncAuthSuper3DropsUi();
         const p = readAuthSectionPayload();
         rememberAuthSectionLocally(p.section, p.dropMath, p.dropScience);
         const tdm = document.getElementById("tools-drop-math");
         if (tdm) tdm.checked = p.dropMath;
       });
       authDropScienceEl?.addEventListener("change", () => {
+        syncAuthSuper3DropsUi();
         const p = readAuthSectionPayload();
         rememberAuthSectionLocally(p.section, p.dropMath, p.dropScience);
         const tds = document.getElementById("tools-drop-science");
         if (tds) tds.checked = p.dropScience;
       });
+      window.allowedElectivesForDrops = allowedElectivesForDrops;
+      window.fillElectiveSelect = fillElectiveSelect;
       document.getElementById("tools-section")?.addEventListener("change", () => {
         syncToolsSuper3DropsUi();
         const p = readAuthSectionPayload();
@@ -9102,10 +9199,21 @@
         const mode = authCard.dataset.mode || "login";
         const sectionPayload = readAuthSectionPayload();
 
-        if (!sectionPayload.section) {
+        if (mode === "register" && !sectionPayload.section) {
           showAuthMessage("Please select your section (Whiz 1–3 or Super 1–3) first.", true);
           authSectionEl?.focus();
           return;
+        }
+        if (mode === "register") {
+          const opts = allowedElectivesForDrops(sectionPayload.dropMath, sectionPayload.dropScience);
+          let elective = sectionPayload.elective;
+          if (opts.length === 1 && opts[0] === "Law") elective = "Law";
+          if (!elective || !opts.includes(elective)) {
+            showAuthMessage("Please select your elective.", true);
+            authElectiveEl?.focus();
+            return;
+          }
+          sectionPayload.elective = elective;
         }
 
         if (!identifier || !password) {
@@ -9181,15 +9289,13 @@
               section: sectionPayload.section,
               dropMath: sectionPayload.dropMath,
               dropScience: sectionPayload.dropScience,
+              elective: sectionPayload.elective,
             };
           } else {
             url = "/api/auth/login";
             body = {
               identifier,
               password,
-              section: sectionPayload.section,
-              dropMath: sectionPayload.dropMath,
-              dropScience: sectionPayload.dropScience,
             };
           }
 
@@ -9210,7 +9316,7 @@
               try { localStorage.setItem("sb_avatar_b64", avatarB64); } catch (_) {}
             }
             rememberAuthSectionLocally(
-              data.section || sectionPayload.section,
+              data.section || sectionPayload.section || "",
               !!data.dropMath,
               !!data.dropScience
             );
@@ -9222,15 +9328,18 @@
               hasPassword: data.hasPassword !== false,
               email: data.email || null,
               userId: data.userId || null,
-              section: data.section || sectionPayload.section,
+              section: data.section || sectionPayload.section || "",
               dropMath: !!data.dropMath,
               dropScience: !!data.dropScience,
+              elective: data.elective || "",
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || identifier);
             const uname = data.identifier || identifier || "friend";
-            let successMsg = `Login successful. Welcome, ${uname}! (${currentUser.section})`;
+            let successMsg = `Login successful. Welcome, ${uname}!`;
+            if (currentUser.section) successMsg += ` (${currentUser.section})`;
             if (mode === "register") {
-              successMsg = `Registration successful. Welcome, ${uname}! Section: ${currentUser.section}.`;
+              successMsg = `Registration successful. Welcome, ${uname}! Section: ${currentUser.section || "—"}.`;
+              if (currentUser.elective) successMsg += ` Elective: ${currentUser.elective}.`;
               pendingTour = true;
             }
             authPasswordInput.value = "";
@@ -9317,27 +9426,39 @@
             showAuthMessage("Google Sign-In is not configured yet. Set FIREBASE_WEB_CONFIG on the server.", true);
             return;
           }
+          const mode = authCard?.dataset?.mode || "login";
           const sectionPayload = readAuthSectionPayload();
-          if (!sectionPayload.section) {
-            showAuthMessage("Please select your section before continuing with Google.", true);
-            authSectionEl?.focus();
-            return;
+          const body = { idToken: null };
+          if (mode === "register") {
+            if (!sectionPayload.section) {
+              showAuthMessage("Please select your section before continuing with Google.", true);
+              authSectionEl?.focus();
+              return;
+            }
+            const opts = allowedElectivesForDrops(sectionPayload.dropMath, sectionPayload.dropScience);
+            let elective = sectionPayload.elective;
+            if (opts.length === 1 && opts[0] === "Law") elective = "Law";
+            if (!elective || !opts.includes(elective)) {
+              showAuthMessage("Please select your elective before continuing with Google.", true);
+              authElectiveEl?.focus();
+              return;
+            }
+            body.section = sectionPayload.section;
+            body.dropMath = sectionPayload.dropMath;
+            body.dropScience = sectionPayload.dropScience;
+            body.elective = elective;
           }
           authGoogleBtn.disabled = true;
           try {
             const provider = new firebase.auth.GoogleAuthProvider();
             const result = await firebaseAuth.signInWithPopup(provider);
             const idToken = await result.user.getIdToken();
+            body.idToken = idToken;
             const res = await fetch("/api/auth/firebase", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               credentials: "include",
-              body: JSON.stringify({
-                idToken,
-                section: sectionPayload.section,
-                dropMath: sectionPayload.dropMath,
-                dropScience: sectionPayload.dropScience,
-              }),
+              body: JSON.stringify(body),
             });
             const data = await res.json();
             if (!res.ok) {
@@ -9346,7 +9467,7 @@
               return;
             }
             rememberAuthSectionLocally(
-              data.section || sectionPayload.section,
+              data.section || sectionPayload.section || "",
               !!data.dropMath,
               !!data.dropScience
             );
@@ -9358,13 +9479,16 @@
               hasPassword: !!data.hasPassword,
               email: data.email || null,
               userId: data.userId || null,
-              section: data.section || sectionPayload.section,
+              section: data.section || sectionPayload.section || "",
               dropMath: !!data.dropMath,
               dropScience: !!data.dropScience,
+              elective: data.elective || "",
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || "");
             updateAuthUI({ clearMessage: false });
-            showAuthMessage(`Login successful. Welcome, ${data.identifier || "friend"}! (${currentUser.section})`);
+            let gMsg = `Login successful. Welcome, ${data.identifier || "friend"}!`;
+            if (currentUser.section) gMsg += ` (${currentUser.section})`;
+            showAuthMessage(gMsg);
             updateWelcomeGreeting();
             try { if (window.SBGame) window.SBGame.onLogin(); } catch (_) {}
             await fetchChatHistory();

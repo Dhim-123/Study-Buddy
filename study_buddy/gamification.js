@@ -92,6 +92,7 @@
         applyPrefsToDom(data.prefs);
         applyUnlocks(data.inventory || {});
         syncDnaStreakDisplay(data.currentStreak);
+        setTimeout(() => { maybePromptElective().catch(() => {}); }, 400);
         return data;
       })
       .catch(() => {
@@ -169,12 +170,59 @@
     if (ns) ns.checked = !!prefs.notifyStreak;
     const np = document.getElementById("settings-notify-puzzle");
     if (np) np.checked = !!prefs.notifyPuzzle;
+    const nf = document.getElementById("settings-notify-fact");
+    if (nf) nf.checked = prefs.notifyFact == null ? true : !!prefs.notifyFact;
     const hc = document.getElementById("settings-high-contrast");
     if (hc) hc.checked = !!prefs.highContrast;
     const rm = document.getElementById("settings-reduced-motion");
     if (rm) rm.checked = !!prefs.reducedMotion;
     const fs = document.getElementById("settings-font-scale");
     if (fs) fs.value = String(prefs.fontScale || 1);
+    syncElectiveSettingsUi(prefs);
+  }
+
+  function syncElectiveSettingsUi(prefs) {
+    const el = document.getElementById("settings-elective");
+    const hint = document.getElementById("settings-elective-hint");
+    if (!el) return;
+    const section = prefs?.section || document.getElementById("settings-section")?.value || "";
+    const dropMath = section === "Super 3" && !!(prefs?.dropMath ?? prefs?.drop_math
+      ?? document.getElementById("settings-drop-math")?.checked);
+    const dropScience = section === "Super 3" && !!(prefs?.dropScience ?? prefs?.drop_science
+      ?? document.getElementById("settings-drop-science")?.checked);
+    const locked = !!(prefs?.elective || prefs?.electiveLocked);
+    const current = prefs?.elective || "";
+    const fill = window.fillElectiveSelect;
+    const allowed = window.allowedElectivesForDrops
+      ? window.allowedElectivesForDrops(dropMath, dropScience)
+      : (prefs?.allowedElectives || []);
+    if (fill) {
+      fill(el, dropMath, dropScience, current || el.value);
+    } else {
+      el.innerHTML = '<option value="">Select elective…</option>';
+      (allowed.length ? allowed : ["Physical Education", "Commercial Applications", "Economics Application", "Art"]).forEach((name) => {
+        const o = document.createElement("option");
+        o.value = name;
+        o.textContent = name;
+        el.appendChild(o);
+      });
+      if (current) el.value = current;
+    }
+    if (locked && current) {
+      // Ensure locked value is present even if not in current drop matrix
+      if (![...el.options].some((o) => o.value === current)) {
+        const o = document.createElement("option");
+        o.value = current;
+        o.textContent = current;
+        el.appendChild(o);
+      }
+      el.value = current;
+      el.disabled = true;
+      if (hint) hint.textContent = "Elective cannot be changed.";
+    } else {
+      el.disabled = false;
+      if (hint) hint.textContent = "Pick once — elective cannot be changed later.";
+    }
   }
 
   function applyUnlocks(inv) {
@@ -414,6 +462,146 @@
     }
     await loadSummary(true);
     openModal("streak-modal");
+  }
+
+  let lastFact = null;
+  let factInflight = null;
+  let electivePromptShown = false;
+
+  async function openFactModal() {
+    if (!isLoggedIn()) {
+      toast("Log in for Daily Fact", "warn");
+      return;
+    }
+    openModal("fact-modal");
+    const body = document.getElementById("fact-modal-body");
+    if (body) body.innerHTML = `<div class="sb-skel">Loading today's fact…</div>`;
+    try {
+      if (factInflight) await factInflight;
+      const grade = parseInt(
+        document.getElementById("settings-grade")?.value
+          || localStorage.getItem("sb_grade")
+          || "9",
+        10
+      ) || 9;
+      factInflight = api(
+        `/api/daily_fact?localDate=${encodeURIComponent(localDate())}&grade=${grade}`
+      );
+      lastFact = await factInflight;
+      factInflight = null;
+      renderFact(lastFact);
+    } catch (e) {
+      if (body) body.innerHTML = `<p class="sb-err">${e.message}</p>`;
+    }
+  }
+
+  function renderFact(f) {
+    const body = document.getElementById("fact-modal-body");
+    if (!body || !f) return;
+    const done = !!f.viewed;
+    body.innerHTML = `
+      <div class="puzzle-meta">
+        <span class="puzzle-pill">${escape(f.category || "Fun")}</span>
+        <span class="puzzle-pill">Grade ${escape(String(f.grade || ""))}</span>
+        <span class="puzzle-pill xp">+${f.xpReward || 5} XP</span>
+      </div>
+      <h4 style="margin:12px 0 8px;font-size:1.05rem;">${escape(f.title || "Daily Fact")}</h4>
+      <p class="puzzle-prompt" style="line-height:1.55;">${escape(f.body || "")}</p>
+      ${
+        done
+          ? `<div class="puzzle-result ok">Got it — +${f.xpAwarded || f.xpReward || 5} XP saved for today.</div>`
+          : `<div class="puzzle-actions">
+               <button type="button" class="btn-primary" id="fact-ack-btn">Got it (+${f.xpReward || 5} XP)</button>
+             </div>`
+      }
+    `;
+    document.getElementById("fact-ack-btn")?.addEventListener("click", ackFact);
+  }
+
+  async function ackFact() {
+    try {
+      const data = await api("/api/daily_fact/ack", {
+        method: "POST",
+        body: JSON.stringify({
+          localDate: localDate(),
+          grade: lastFact?.grade,
+        }),
+      });
+      if (data.xpAwarded) toast(`+${data.xpAwarded} XP`, "success");
+      lastFact = {
+        ...lastFact,
+        viewed: true,
+        xpAwarded: data.xpAwarded || lastFact?.xpReward || 5,
+      };
+      renderFact(lastFact);
+      await loadSummary(true);
+    } catch (e) {
+      toast(e.message || "Could not save fact", "warn");
+    }
+  }
+
+  async function maybePromptElective() {
+    if (!isLoggedIn() || !summary?.prefs) return;
+    const elective = summary.prefs.elective || "";
+    if (elective) {
+      electivePromptShown = false;
+      return;
+    }
+    if (electivePromptShown) return;
+    const modal = document.getElementById("elective-pick-modal");
+    const select = document.getElementById("elective-pick-select");
+    if (!modal || !select) return;
+    electivePromptShown = true;
+    const dropMath = !!summary.prefs.dropMath;
+    const dropScience = !!summary.prefs.dropScience;
+    if (window.fillElectiveSelect) {
+      window.fillElectiveSelect(select, dropMath, dropScience);
+    } else {
+      const opts = summary.prefs.allowedElectives || [];
+      select.innerHTML = '<option value="">Select elective…</option>';
+      opts.forEach((name) => {
+        const o = document.createElement("option");
+        o.value = name;
+        o.textContent = name;
+        select.appendChild(o);
+      });
+    }
+    openModal("elective-pick-modal");
+  }
+
+  async function saveElectivePick() {
+    const select = document.getElementById("elective-pick-select");
+    const errEl = document.getElementById("elective-pick-error");
+    const elective = (select?.value || "").trim();
+    if (!elective) {
+      if (errEl) {
+        errEl.style.display = "block";
+        errEl.textContent = "Please select an elective.";
+      }
+      return;
+    }
+    try {
+      const data = await api("/api/prefs", {
+        method: "POST",
+        body: JSON.stringify({ elective }),
+      });
+      if (errEl) errEl.style.display = "none";
+      closeModal("elective-pick-modal");
+      toast("Elective saved", "success");
+      await loadSummary(true);
+      if (data.prefs) applyPrefsToDom({
+        ...data.prefs,
+        elective: data.prefs.elective,
+        electiveLocked: true,
+        dropMath: data.prefs.drop_math ?? data.prefs.dropMath,
+        dropScience: data.prefs.drop_science ?? data.prefs.dropScience,
+      });
+    } catch (e) {
+      if (errEl) {
+        errEl.style.display = "block";
+        errEl.textContent = e.message || "Could not save elective";
+      }
+    }
   }
 
   async function openPuzzleModal() {
@@ -1189,6 +1377,7 @@
       language,
       notifyStreak: !!document.getElementById("settings-notify-streak")?.checked,
       notifyPuzzle: !!document.getElementById("settings-notify-puzzle")?.checked,
+      notifyFact: !!document.getElementById("settings-notify-fact")?.checked,
       highContrast: !!document.getElementById("settings-high-contrast")?.checked,
       reducedMotion: !!document.getElementById("settings-reduced-motion")?.checked,
       fontScale: parseFloat(document.getElementById("settings-font-scale")?.value || "1") || 1,
@@ -1196,6 +1385,10 @@
       dropMath,
       dropScience,
     };
+    const electiveEl = document.getElementById("settings-elective");
+    if (electiveEl && !electiveEl.disabled && electiveEl.value) {
+      payload.elective = electiveEl.value;
+    }
     try {
       const data = await api("/api/prefs", { method: "POST", body: JSON.stringify(payload) });
       if (data.prefs) {
@@ -1214,10 +1407,14 @@
           reducedMotion: data.prefs.reduced_motion ?? data.prefs.reducedMotion,
           notifyStreak: data.prefs.notify_streak ?? data.prefs.notifyStreak,
           notifyPuzzle: data.prefs.notify_puzzle ?? data.prefs.notifyPuzzle,
+          notifyFact: data.prefs.notify_fact ?? data.prefs.notifyFact,
           grade: data.prefs.grade,
           section: data.prefs.section,
           dropMath: data.prefs.drop_math ?? data.prefs.dropMath,
           dropScience: data.prefs.drop_science ?? data.prefs.dropScience,
+          elective: data.prefs.elective,
+          electiveLocked: data.prefs.electiveLocked ?? !!data.prefs.elective,
+          allowedElectives: data.prefs.allowedElectives,
         });
         try {
           if (payload.section) localStorage.setItem("sb_section", payload.section);
@@ -1240,6 +1437,9 @@
     document.getElementById("nav-puzzle-chip")?.addEventListener("click", () => {
       openPuzzleModal();
     });
+    document.getElementById("nav-fact-chip")?.addEventListener("click", () => {
+      openFactModal();
+    });
     document.getElementById("profile-daily-puzzle-btn")?.addEventListener("click", () => {
       try {
         const wrap = document.getElementById("profile-menu-wrap");
@@ -1249,10 +1449,21 @@
       } catch (_) {}
       openPuzzleModal();
     });
+    document.getElementById("profile-daily-fact-btn")?.addEventListener("click", () => {
+      try {
+        const wrap = document.getElementById("profile-menu-wrap");
+        const btn = document.getElementById("profile-avatar-btn");
+        if (wrap) wrap.classList.remove("open");
+        if (btn) btn.setAttribute("aria-expanded", "false");
+      } catch (_) {}
+      openFactModal();
+    });
     document.getElementById("settings-open-shop")?.addEventListener("click", openShopModal);
+    document.getElementById("elective-pick-save")?.addEventListener("click", saveElectivePick);
 
     bindModalClose("streak-modal");
     bindModalClose("puzzle-modal");
+    bindModalClose("fact-modal");
     bindModalClose("shop-modal");
 
     // Replace legacy sidebar timer handlers
@@ -1305,6 +1516,15 @@
           if (dm) dm.checked = false;
           if (ds) ds.checked = false;
         }
+        syncElectiveSettingsUi({
+          section: sec,
+          dropMath: sec === "Super 3" && !!document.getElementById("settings-drop-math")?.checked,
+          dropScience: sec === "Super 3" && !!document.getElementById("settings-drop-science")?.checked,
+          elective: document.getElementById("settings-elective")?.disabled
+            ? document.getElementById("settings-elective")?.value
+            : "",
+          electiveLocked: !!document.getElementById("settings-elective")?.disabled,
+        });
         if (isLoggedIn()) {
           savePrefsFromSettings({ quiet: true }).catch(() => {});
         }
@@ -1344,6 +1564,7 @@
       summaryGen++;
       summary = null;
       summaryInflight = null;
+      electivePromptShown = false;
       renderNavbarGuest();
       loadSummary(true);
       refreshStudyToday();
@@ -1352,6 +1573,7 @@
       summaryGen++;
       summary = null;
       summaryInflight = null;
+      electivePromptShown = false;
       renderNavbarGuest();
       renderStudyToday([]);
     },

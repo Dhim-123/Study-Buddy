@@ -106,6 +106,8 @@ def get_openai_client():
     return OpenAI(api_key=OPENAI_API_KEY)
 
 DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+# Cheap/fast model for greetings, thanks, jokes — saves tokens & TPM on light turns
+LIGHT_GROQ_MODEL = (os.getenv("GROQ_LIGHT_MODEL") or "llama-3.1-8b-instant").strip() or "llama-3.1-8b-instant"
 # Groq vision models (llama-3.2-*-vision-preview were decommissioned)
 DEFAULT_GROQ_VISION_MODEL = "qwen/qwen3.6-27b"
 _DECOMMISSIONED_VISION_MODELS = {
@@ -798,6 +800,12 @@ else:
 _RATE_BUCKETS = defaultdict(list)
 _RATE_LOCK = threading.Lock()
 
+# Short-lived cache for flashcards/quiz regenerates (same chat → reuse reply)
+_FEATURE_REPLY_CACHE = {}
+_FEATURE_CACHE_LOCK = threading.Lock()
+_FEATURE_CACHE_TTL_SEC = 900
+_FEATURE_CACHE_MAX = 80
+
 
 def rate_limit(max_calls=40, window_sec=60):
     """Reject abusive bursts that burn LLM quota."""
@@ -816,6 +824,64 @@ def rate_limit(max_calls=40, window_sec=60):
             return fn(*args, **kwargs)
         return wrapped
     return decorator
+
+
+def _consume_rate_slot(bucket_key: str, max_calls: int, window_sec: int):
+    """
+    Shared burst limiter. Returns None if allowed, or a Flask 429 response if blocked.
+    """
+    now = time.time()
+    with _RATE_LOCK:
+        hits = [t for t in _RATE_BUCKETS[bucket_key] if now - t < window_sec]
+        if len(hits) >= max_calls:
+            return jsonify({
+                "error": "That feature was used a lot just now. Please wait a few minutes and try again."
+            }), 429
+        hits.append(now)
+        _RATE_BUCKETS[bucket_key] = hits
+    return None
+
+
+def _feature_cache_key(uid, endpoint: str, messages, lang_code: str, extra: str = "") -> str:
+    payload = {
+        "u": uid or 0,
+        "e": endpoint,
+        "l": lang_code or "",
+        "x": extra or "",
+        "m": [
+            (m.get("role"), (m.get("content") or "")[:1800])
+            for m in (messages or [])[-24:]
+            if isinstance(m, dict)
+        ],
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _feature_cache_get(key: str):
+    now = time.time()
+    with _FEATURE_CACHE_LOCK:
+        item = _FEATURE_REPLY_CACHE.get(key)
+        if not item:
+            return None
+        ts, reply = item
+        if now - ts > _FEATURE_CACHE_TTL_SEC:
+            _FEATURE_REPLY_CACHE.pop(key, None)
+            return None
+        return reply
+
+
+def _feature_cache_set(key: str, reply: str):
+    if not key or not reply:
+        return
+    now = time.time()
+    with _FEATURE_CACHE_LOCK:
+        if len(_FEATURE_REPLY_CACHE) >= _FEATURE_CACHE_MAX:
+            # Drop oldest roughly half
+            ordered = sorted(_FEATURE_REPLY_CACHE.items(), key=lambda kv: kv[1][0])
+            for stale_key, _ in ordered[: max(1, _FEATURE_CACHE_MAX // 2)]:
+                _FEATURE_REPLY_CACHE.pop(stale_key, None)
+        _FEATURE_REPLY_CACHE[key] = (now, reply)
 
 
 def safety_precheck(text: str):
@@ -1979,6 +2045,7 @@ def fs_push_gamification(user_id):
                 "language": (prefs["language"] if prefs else None) or "multi",
                 "notify_streak": int(prefs["notify_streak"] or 1) if prefs else 1,
                 "notify_puzzle": int(prefs["notify_puzzle"] or 1) if prefs else 1,
+                "notify_fact": int(prefs["notify_fact"] or 1) if prefs and "notify_fact" in prefs.keys() else 1,
                 "high_contrast": int(prefs["high_contrast"] or 0) if prefs else 0,
                 "font_scale": float(prefs["font_scale"] or 1.0) if prefs else 1.0,
                 "reduced_motion": int(prefs["reduced_motion"] or 0) if prefs else 0,
@@ -1986,6 +2053,7 @@ def fs_push_gamification(user_id):
                 "section": (prefs["section"] if prefs and "section" in prefs.keys() else "") or "",
                 "drop_math": int(prefs["drop_math"] or 0) if prefs and "drop_math" in prefs.keys() else 0,
                 "drop_science": int(prefs["drop_science"] or 0) if prefs and "drop_science" in prefs.keys() else 0,
+                "elective": (prefs["elective"] if prefs and "elective" in prefs.keys() else "") or "",
             },
             "inventory": {r["item_id"]: int(r["qty"] or 0) for r in inv},
             "milestones": [
@@ -2073,12 +2141,24 @@ def fs_pull_gamification(user_id):
                     section = normalize_section(prefs.get("section") or "")
                     drop_math = 1 if prefs.get("drop_math") and section == "Super 3" else 0
                     drop_science = 1 if prefs.get("drop_science") and section == "Super 3" else 0
+                    elective = normalize_elective(prefs.get("elective") or "")
+                    # Never overwrite a local locked elective with empty remote
+                    cur_el = conn.execute(
+                        "SELECT elective FROM user_prefs WHERE user_id=?", (user_id,)
+                    ).fetchone()
+                    local_el = normalize_elective((cur_el["elective"] if cur_el else "") or "")
+                    if local_el and not elective:
+                        elective = local_el
+                    elif local_el and elective and local_el != elective:
+                        elective = local_el  # lock wins
                     conn.execute(
                         """
                         UPDATE user_prefs SET
                           grade=?, language=?, notify_streak=?, notify_puzzle=?,
+                          notify_fact=?,
                           high_contrast=?, font_scale=?, reduced_motion=?,
                           preferred_subjects=?, section=?, drop_math=?, drop_science=?,
+                          elective=?,
                           updated_at=datetime('now')
                         WHERE user_id=?
                         """,
@@ -2087,6 +2167,7 @@ def fs_pull_gamification(user_id):
                             (prefs.get("language") or "multi")[:20],
                             1 if prefs.get("notify_streak", 1) else 0,
                             1 if prefs.get("notify_puzzle", 1) else 0,
+                            1 if prefs.get("notify_fact", 1) else 0,
                             1 if prefs.get("high_contrast", 0) else 0,
                             float(prefs.get("font_scale") or 1.0),
                             1 if prefs.get("reduced_motion", 0) else 0,
@@ -2094,6 +2175,7 @@ def fs_pull_gamification(user_id):
                             section,
                             drop_math,
                             drop_science,
+                            elective,
                             user_id,
                         ),
                     )
@@ -3138,11 +3220,24 @@ def subject_dropped_for_prefs(subject: str, drop_math: bool, drop_science: bool)
     return False
 
 
+ELECTIVE_BASE = (
+    "Physical Education",
+    "Commercial Applications",
+    "Economics Application",
+    "Art",
+)
+ELECTIVE_ECONOMICS = "Economics"
+ELECTIVE_LAW = "Law"
+ALL_ELECTIVES = ELECTIVE_BASE + (ELECTIVE_ECONOMICS, ELECTIVE_LAW)
+
+
 def _ensure_prefs_section_columns(conn):
     for ddl in (
         "ALTER TABLE user_prefs ADD COLUMN section TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE user_prefs ADD COLUMN drop_math INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE user_prefs ADD COLUMN drop_science INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE user_prefs ADD COLUMN elective TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE user_prefs ADD COLUMN notify_fact INTEGER NOT NULL DEFAULT 1",
     ):
         try:
             conn.execute(ddl)
@@ -3150,12 +3245,46 @@ def _ensure_prefs_section_columns(conn):
             pass
 
 
+def normalize_elective(raw) -> str:
+    s = (raw or "").strip()
+    for v in ALL_ELECTIVES:
+        if s.lower() == v.lower():
+            return v
+    return ""
+
+
+def allowed_electives_for_drops(drop_math=False, drop_science=False):
+    """Elective choices given Super 3 drop flags (already gated to Super 3 upstream)."""
+    if drop_math and drop_science:
+        return [ELECTIVE_LAW]
+    opts = list(ELECTIVE_BASE)
+    if drop_science and not drop_math:
+        opts.append(ELECTIVE_ECONOMICS)
+    return opts
+
+
+def validate_elective_choice(elective_raw, drop_math=False, drop_science=False):
+    """
+    Returns (ok, normalized_or_error).
+    Both drops → Law only. Science-only → base + Economics. Else → base.
+    """
+    allowed = allowed_electives_for_drops(drop_math, drop_science)
+    if drop_math and drop_science:
+        return True, ELECTIVE_LAW
+    elective = normalize_elective(elective_raw)
+    if not elective:
+        return False, "Please select an elective."
+    if elective not in allowed:
+        return False, f"That elective is not available. Choose one of: {', '.join(allowed)}."
+    return True, elective
+
+
 def get_user_section_prefs(user_id):
-    """Return {section, track, drop_math, drop_science} for a student."""
+    """Return {section, track, drop_math, drop_science, elective} for a student."""
     with get_db() as conn:
         _ensure_prefs_section_columns(conn)
         row = conn.execute(
-            "SELECT section, drop_math, drop_science FROM user_prefs WHERE user_id=?",
+            "SELECT section, drop_math, drop_science, elective FROM user_prefs WHERE user_id=?",
             (user_id,),
         ).fetchone()
     if not row:
@@ -3164,26 +3293,47 @@ def get_user_section_prefs(user_id):
             "track": "whiz",
             "drop_math": False,
             "drop_science": False,
+            "elective": "",
         }
-    section = normalize_section(row["section"] if "section" in row.keys() else "")
+    keys = row.keys()
+    section = normalize_section(row["section"] if "section" in keys else "")
     drop_math = bool(int(row["drop_math"] or 0)) if section == "Super 3" else False
     drop_science = bool(int(row["drop_science"] or 0)) if section == "Super 3" else False
+    elective = ""
+    if "elective" in keys:
+        elective = normalize_elective(row["elective"] or "")
     return {
         "section": section,
         "track": section_track(section),
         "drop_math": drop_math,
         "drop_science": drop_science,
+        "elective": elective,
     }
 
 
-def apply_section_prefs(user_id, section_raw, drop_math=False, drop_science=False):
-    """Persist section (+ Super 3 drops). Returns (ok, error_or_section)."""
+def apply_section_prefs(
+    user_id,
+    section_raw,
+    drop_math=False,
+    drop_science=False,
+    elective=None,
+    set_elective=False,
+):
+    """Persist section (+ Super 3 drops). Optionally set elective once if empty / forced.
+
+    Returns (ok, error_or_section).
+    """
     section = normalize_section(section_raw)
     if not section:
         return False, "Please select your section (Whiz 1–3 or Super 1–3)."
     if section != "Super 3":
         drop_math = False
         drop_science = False
+    elective_norm = None
+    if set_elective or elective is not None:
+        ok_e, elective_norm = validate_elective_choice(elective, drop_math, drop_science)
+        if not ok_e:
+            return False, elective_norm
     with get_db() as conn:
         _ensure_prefs_section_columns(conn)
         if not conn.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone():
@@ -3200,11 +3350,59 @@ def apply_section_prefs(user_id, section_raw, drop_math=False, drop_science=Fals
             """,
             (section, 1 if drop_math else 0, 1 if drop_science else 0, user_id),
         )
+        if elective_norm:
+            cur = conn.execute(
+                "SELECT elective FROM user_prefs WHERE user_id=?", (user_id,)
+            ).fetchone()
+            existing = normalize_elective((cur["elective"] if cur else "") or "")
+            if not existing:
+                conn.execute(
+                    "UPDATE user_prefs SET elective=?, updated_at=datetime('now') WHERE user_id=?",
+                    (elective_norm, user_id),
+                )
+            elif set_elective and existing != elective_norm:
+                # Locked — never overwrite an already chosen elective
+                pass
     try:
         fs_push_gamification(user_id)
     except Exception:
         pass
     return True, section
+
+
+def apply_elective_once(user_id, elective_raw, drop_math=None, drop_science=None):
+    """Set elective only if currently empty. Returns (ok, elective_or_error)."""
+    sec = get_user_section_prefs(user_id)
+    if sec.get("elective"):
+        return False, "Elective cannot be changed once chosen."
+    dm = sec.get("drop_math") if drop_math is None else bool(drop_math)
+    ds = sec.get("drop_science") if drop_science is None else bool(drop_science)
+    if sec.get("section") != "Super 3":
+        dm, ds = False, False
+    ok, val = validate_elective_choice(elective_raw, dm, ds)
+    if not ok:
+        return False, val
+    with get_db() as conn:
+        _ensure_prefs_section_columns(conn)
+        conn.execute(
+            "INSERT OR IGNORE INTO user_prefs (user_id, language) VALUES (?, 'multi')",
+            (user_id,),
+        )
+        cur = conn.execute(
+            "SELECT elective FROM user_prefs WHERE user_id=?", (user_id,)
+        ).fetchone()
+        existing = normalize_elective((cur["elective"] if cur else "") or "")
+        if existing:
+            return False, "Elective cannot be changed once chosen."
+        conn.execute(
+            "UPDATE user_prefs SET elective=?, updated_at=datetime('now') WHERE user_id=?",
+            (val, user_id),
+        )
+    try:
+        fs_push_gamification(user_id)
+    except Exception:
+        pass
+    return True, val
 
 
 def _exam_row_to_dict(row, today=None, resolve_for_track=None):
@@ -3526,8 +3724,12 @@ def format_exams_for_prompt(exams):
     return "\n".join(lines)
 
 
-def format_student_context_for_prompt(user_id):
-    """Compact personalization: buddy, style, section, weak subjects/topics, recent mistakes."""
+def format_student_context_for_prompt(user_id, include_mistake_details=True):
+    """Compact personalization: buddy, style, section, weak subjects/topics, recent mistakes.
+
+    include_mistake_details=False keeps weak-topic hints but skips the long Mistake Vault
+    Q&A dump (saves tokens on ordinary study turns).
+    """
     if not user_id:
         return ""
     try:
@@ -3538,16 +3740,18 @@ def format_student_context_for_prompt(user_id):
             buddy = ((urow["buddy_name"] if urow else None) or "Max").strip() or "Max"
             profile = get_or_create_learning_dna(conn, user_id)
             style = (profile.get("preferred_style") or "Step-by-Step").strip() or "Step-by-Step"
-            mistakes = conn.execute(
-                """
-                SELECT subject, topic, question, wrong_answer, correct_answer
-                FROM student_mistakes
-                WHERE user_id=? AND COALESCE(mastered, 0)=0
-                ORDER BY created_at DESC
-                LIMIT 8
-                """,
-                (user_id,),
-            ).fetchall()
+            mistakes = []
+            if include_mistake_details:
+                mistakes = conn.execute(
+                    """
+                    SELECT subject, topic, question, wrong_answer, correct_answer
+                    FROM student_mistakes
+                    WHERE user_id=? AND COALESCE(mastered, 0)=0
+                    ORDER BY created_at DESC
+                    LIMIT 8
+                    """,
+                    (user_id,),
+                ).fetchall()
             weak_topics = conn.execute(
                 """
                 SELECT TRIM(COALESCE(topic, '')) AS topic,
@@ -3571,7 +3775,7 @@ def format_student_context_for_prompt(user_id):
             "\n\nPERSONAL TUTOR CONTEXT:",
             f"- You are {buddy}, this student's study buddy. Be warm and personal, but stay focused on learning.",
             f"- Preferred explanation style: {style}.",
-            "- You have access to this student's Mistake Vault via the list below (when present). "
+            "- You have access to this student's Mistake Vault when details are listed below. "
             "If they ask to check/review the vault or their mistakes, summarize and teach from that list. "
             "Never say you cannot access the Mistake Vault.",
         ]
@@ -3620,19 +3824,20 @@ def format_student_context_for_prompt(user_id):
                     + "; ".join(topic_bits)
                     + "."
                 )
-        if mistakes:
-            lines.append(f"- Mistake Vault ({len(mistakes)} recent unmastered item(s)):")
-            for m in mistakes:
-                q = (m["question"] or "")[:140].replace("\n", " ")
-                wrong = (m["wrong_answer"] or "")[:70].replace("\n", " ")
-                right = (m["correct_answer"] or "")[:70].replace("\n", " ")
-                subj = (m["subject"] or "General")[:40]
-                topic = (m["topic"] or "General")[:40]
-                lines.append(f"  • [{subj}/{topic}] Q: {q} | Wrong: {wrong} | Right: {right}")
-        else:
-            lines.append(
-                "- Mistake Vault is currently empty. If they ask about it, say so and suggest a short quiz."
-            )
+        if include_mistake_details:
+            if mistakes:
+                lines.append(f"- Mistake Vault ({len(mistakes)} recent unmastered item(s)):")
+                for m in mistakes:
+                    q = (m["question"] or "")[:140].replace("\n", " ")
+                    wrong = (m["wrong_answer"] or "")[:70].replace("\n", " ")
+                    right = (m["correct_answer"] or "")[:70].replace("\n", " ")
+                    subj = (m["subject"] or "General")[:40]
+                    topic = (m["topic"] or "General")[:40]
+                    lines.append(f"  • [{subj}/{topic}] Q: {q} | Wrong: {wrong} | Right: {right}")
+            else:
+                lines.append(
+                    "- Mistake Vault is currently empty. If they ask about it, say so and suggest a short quiz."
+                )
         lines.append(
             "- After hard explanations, ask one short check-for-understanding question. "
             "If stuck, hint first. Reuse known mistakes when the topic matches.\n"
@@ -3758,6 +3963,8 @@ def auth_me():
         "section": sec.get("section") or "",
         "dropMath": sec.get("drop_math"),
         "dropScience": sec.get("drop_science"),
+        "elective": sec.get("elective") or "",
+        "electiveLocked": bool(sec.get("elective")),
     })
 
 
@@ -4061,7 +4268,26 @@ def _section_from_request_data(data):
     section = normalize_section(data.get("section") or "")
     drop_math = bool(data.get("dropMath", data.get("drop_math", False)))
     drop_science = bool(data.get("dropScience", data.get("drop_science", False)))
-    return section, drop_math, drop_science
+    elective = data.get("elective") or data.get("Elective") or ""
+    return section, drop_math, drop_science, elective
+
+
+def _auth_user_payload(row, sec=None):
+    sec = sec or get_user_section_prefs(row["id"])
+    pw = row["password_hash"] or ""
+    return {
+        "identifier": row["identifier"],
+        "buddyName": row["buddy_name"],
+        "avatarB64": _row_get(row, "avatar_b64"),
+        "hasPassword": bool(pw) and not str(pw).startswith("firebase_only:"),
+        "userId": row["id"],
+        "email": _row_get(row, "email"),
+        "section": sec.get("section") or "",
+        "dropMath": sec.get("drop_math"),
+        "dropScience": sec.get("drop_science"),
+        "elective": sec.get("elective") or "",
+        "electiveLocked": bool(sec.get("elective")),
+    }
 
 
 @app.route("/api/auth/register", methods=["POST"])
@@ -4073,7 +4299,7 @@ def auth_register():
     buddy_name = (data.get("buddyName")  or "Max").strip() or "Max"
 
     confirm_password = (data.get("confirmPassword") or "").strip()
-    section, drop_math, drop_science = _section_from_request_data(data)
+    section, drop_math, drop_science, elective = _section_from_request_data(data)
 
     if not identifier or not password:
         return jsonify({"error": "Username and password are required."}), 400
@@ -4088,6 +4314,12 @@ def auth_register():
         return jsonify({"error": "Password and confirmation do not match."}), 400
     if not section:
         return jsonify({"error": "Please select your section (Whiz 1–3 or Super 1–3)."}), 400
+    if section != "Super 3":
+        drop_math = False
+        drop_science = False
+    ok_e, elective_val = validate_elective_choice(elective, drop_math, drop_science)
+    if not ok_e:
+        return jsonify({"error": elective_val}), 400
 
     ph = hash_password(password)
     try:
@@ -4105,19 +4337,14 @@ def auth_register():
         session.permanent = True
         session["user_id"] = row["id"]
         session["identifier"] = row["identifier"]
-        apply_section_prefs(row["id"], section, drop_math, drop_science)
+        ok, err = apply_section_prefs(
+            row["id"], section, drop_math, drop_science,
+            elective=elective_val, set_elective=True,
+        )
+        if not ok:
+            return jsonify({"error": err}), 400
         sec = get_user_section_prefs(row["id"])
-        return jsonify({
-            "identifier": row["identifier"],
-            "buddyName": row["buddy_name"],
-            "avatarB64": _row_get(row, "avatar_b64"),
-            "hasPassword": True,
-            "userId": row["id"],
-            "email": _row_get(row, "email"),
-            "section": sec.get("section") or section,
-            "dropMath": sec.get("drop_math"),
-            "dropScience": sec.get("drop_science"),
-        })
+        return jsonify(_auth_user_payload(row, sec))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -4128,12 +4355,9 @@ def auth_login():
     data = request.get_json(force=True)
     identifier = (data.get("identifier") or "").strip()
     password   = (data.get("password")   or "").strip()
-    section, drop_math, drop_science = _section_from_request_data(data)
 
     if not identifier or not password:
         return jsonify({"error": "Incorrect username or password"}), 400
-    if not section:
-        return jsonify({"error": "Please select your section before logging in."}), 400
 
     with get_db() as conn:
         row = conn.execute(
@@ -4154,19 +4378,8 @@ def auth_login():
     session.permanent = True
     session["user_id"] = row["id"]
     session["identifier"] = row["identifier"]
-    apply_section_prefs(row["id"], section, drop_math, drop_science)
-    sec = get_user_section_prefs(row["id"])
-    return jsonify({
-        "identifier": row["identifier"],
-        "buddyName": row["buddy_name"],
-        "avatarB64": _row_get(row, "avatar_b64"),
-        "hasPassword": True,
-        "userId": row["id"],
-        "email": _row_get(row, "email"),
-        "section": sec.get("section") or section,
-        "dropMath": sec.get("drop_math"),
-        "dropScience": sec.get("drop_science"),
-    })
+    # Do not overwrite section/elective on login — change those in Settings
+    return jsonify(_auth_user_payload(row))
 
 @app.route("/api/auth/update_buddy", methods=["POST"])
 def auth_update_buddy():
@@ -4292,9 +4505,8 @@ def auth_firebase():
     id_token = (data.get("idToken") or "").strip()
     if not id_token:
         return jsonify({"error": "idToken is required."}), 400
-    section, drop_math, drop_science = _section_from_request_data(data)
-    if not section:
-        return jsonify({"error": "Please select your section before signing in."}), 400
+    section, drop_math, drop_science, elective = _section_from_request_data(data)
+    # Section/elective only applied for brand-new prefs (register-with-Google), never overwritten on return visits
 
     try:
         decoded = fb_auth.verify_id_token(id_token)
@@ -4313,6 +4525,7 @@ def auth_firebase():
             row = conn.execute(
                 "SELECT * FROM users WHERE firebase_uid=?", (firebase_uid,)
             ).fetchone()
+            created_new = False
 
             if not row and email:
                 existing = conn.execute(
@@ -4329,6 +4542,7 @@ def auth_firebase():
                     ).fetchone()
 
             if not row:
+                created_new = True
                 nick = allocate_unique_identifier(conn, base_nick)
                 unusable = "firebase_only:" + secrets.token_hex(32)
                 try:
@@ -4368,20 +4582,25 @@ def auth_firebase():
         session.permanent = True
         session["user_id"] = row["id"]
         session["identifier"] = row["identifier"]
-        apply_section_prefs(row["id"], section, drop_math, drop_science)
-        sec = get_user_section_prefs(row["id"])
-        pw = row["password_hash"] or ""
-        return jsonify({
-            "identifier": row["identifier"],
-            "buddyName": row["buddy_name"],
-            "avatarB64": _row_get(row, "avatar_b64"),
-            "hasPassword": bool(pw) and not str(pw).startswith("firebase_only:"),
-            "email": _row_get(row, "email") or email or None,
-            "userId": row["id"],
-            "section": sec.get("section") or section,
-            "dropMath": sec.get("drop_math"),
-            "dropScience": sec.get("drop_science"),
-        })
+
+        existing_sec = get_user_section_prefs(row["id"])
+        # First-time Google signup from register form: apply section + elective once
+        if section and not existing_sec.get("section"):
+            if section != "Super 3":
+                drop_math = False
+                drop_science = False
+            ok_e, elective_val = validate_elective_choice(elective, drop_math, drop_science)
+            if not ok_e and (created_new or not existing_sec.get("elective")):
+                return jsonify({"error": elective_val}), 400
+            apply_section_prefs(
+                row["id"], section, drop_math, drop_science,
+                elective=elective_val if ok_e else None,
+                set_elective=bool(ok_e),
+            )
+        elif elective and not existing_sec.get("elective"):
+            apply_elective_once(row["id"], elective)
+
+        return jsonify(_auth_user_payload(row))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -4755,25 +4974,81 @@ _LIVE_INFO_RE = re.compile(
     r"news|headline|headlines|update|updates|trending|"
     r"election|elections|polls|prime\s+minister|president|"
     r"ipl|world\s+cup|fifa|olympics|nba|nfl|premier\s+league|"
-    r"isro|nasa|spacex|chatgpt|iphone|android|"
-    r"stock|crypto|bitcoin|sensex|nifty|"
-    r"2024|2025|2026|2027|2028"
+    r"isro|nasa|spacex|"
+    r"stock\s+price|crypto|bitcoin|sensex|nifty"
     r")\b",
     re.I,
 )
 
 
 def needs_live_info(text: str) -> bool:
-    """True when the query likely needs up-to-date / internet information."""
+    """True when the query likely needs up-to-date / internet information.
+
+    Years alone (e.g. 'Class 10 syllabus 2026') do NOT trigger search — that was
+    burning tokens on ordinary school questions.
+    """
     t = (text or "").strip()
     if not t:
         return False
     if _LIVE_INFO_RE.search(t):
         return True
-    # Year mentions like "in 2026"
-    if re.search(r"\b20(2[4-9]|[3-9]\d)\b", t):
+    # Year + explicit recency cue (not year alone)
+    if re.search(r"\b20(2[4-9]|[3-9]\d)\b", t) and re.search(
+        r"\b(latest|current|recent|this\s+year|new|updated|winner|result|news)\b",
+        t,
+        re.I,
+    ):
         return True
     return False
+
+
+_NOTES_REFER_RE = re.compile(
+    r"\b("
+    r"notes?|notebook|uploaded|from\s+the\s+page|case\s*stud(?:y|ies)|"
+    r"refer(?:ring)?\s+to|ocr|extracted\s+page|study\s+material|"
+    r"from\s+(?:my|the)\s+notes|living\s+notebook"
+    r")\b",
+    re.I,
+)
+_EXAM_CONTEXT_RE = re.compile(
+    r"\b("
+    r"exam|exams|test\b|tests\b|portion|syllabus|revise|revision|"
+    r"boards?|pre-?boards?|mock\s*test|study\s*plan|upcoming|"
+    r"timetable|schedule|marks?\s+weightage"
+    r")\b",
+    re.I,
+)
+_MISTAKE_ASK_RE = re.compile(
+    r"\b("
+    r"mistake\s*vault|my\s+mistakes|past\s+mistakes|wrong\s+answers?|"
+    r"what\s+did\s+i\s+get\s+wrong|review\s+my\s+mistakes|weak\s+(?:topics?|areas?|subjects?)"
+    r")\b",
+    re.I,
+)
+
+
+def _needs_notes_context(text: str, notes: str = "") -> bool:
+    """Attach notes/notebook only when the student is clearly using them.
+
+    Having leftover uploaded notes in the client payload is NOT enough — that was
+    sending huge OCR blobs on every 'hi' / ordinary question.
+    """
+    t = (text or "").strip()
+    if not t and not (notes or "").strip():
+        return False
+    if "EXTRACTED PAGE TEXT" in t or "I'm referring to the page photo" in t:
+        return True
+    if _NOTES_REFER_RE.search(t):
+        return True
+    return False
+
+
+def _needs_exam_context(text: str) -> bool:
+    return bool(_EXAM_CONTEXT_RE.search(text or ""))
+
+
+def _needs_mistake_context(text: str) -> bool:
+    return bool(_MISTAKE_ASK_RE.search(text or ""))
 
 
 _STOPWORDS = {
@@ -4963,23 +5238,38 @@ def format_search_context(results) -> str:
     return "\n".join(lines)
 
 
-def apply_smart_routing(system_prompt: str, messages, notes: str, endpoint: str):
+def apply_smart_routing(system_prompt: str, messages, notes: str, endpoint: str, casual: bool = False):
     """
     Notes/Notebook → Live search (if needed) → Internal knowledge.
     Skips notes pipeline when empty. Never asks the user for permission to search.
     Returns (system_prompt, sources_list).
+
+    Token-saving: skip notebook/notes/search on casual turns; only attach study
+    material when the student refers to notes or sent notes with the request.
     """
     uid = current_user_id()
     last_q = _last_user_text(messages)
-    # For feature endpoints with a custom topic, last user message is the topic prompt
     query_for_live = last_q
 
     notes_text = (notes or "").strip() if isinstance(notes, str) else ""
-    notebook_text = get_user_notebook_text(uid) if uid else ""
+    attach_material = (not casual) and _needs_notes_context(last_q, notes_text)
+    notebook_text = ""
+    if attach_material and uid:
+        # Only pull Living Notebook when explicitly referring to notes/notebook
+        if _NOTES_REFER_RE.search(last_q or "") or "notebook" in (last_q or "").lower():
+            notebook_text = get_user_notebook_text(uid)
+    # Use client-uploaded notes only when this turn asked for them
+    if not attach_material:
+        notes_text = ""
     has_material = bool(notes_text) or bool(notebook_text)
 
     sources = []
-    live = needs_live_info(query_for_live)
+    # Never web-search for greetings/jokes; only when live cues are clear
+    live = (not casual) and needs_live_info(query_for_live) and endpoint in ("chat", "crosscheck", "definitions")
+    # Feature endpoints (quiz/flashcards/podcast) rarely need live search
+    if endpoint in ("quiz", "flashcards", "podcast"):
+        live = False
+
     combined_material = "\n".join(x for x in (notes_text, notebook_text) if x)
     covered_by_material = has_material and material_likely_answers(query_for_live, combined_material)
     # Explicit "refer to page / case study" with uploaded notes → always treat as covered
@@ -4994,7 +5284,7 @@ def apply_smart_routing(system_prompt: str, messages, notes: str, endpoint: str)
     if has_material:
         blocks = []
         if notes_text:
-            blocks.append(f"--- UPLOADED NOTES ---\n{notes_text[:16000]}\n--- END UPLOADED NOTES ---")
+            blocks.append(f"--- UPLOADED NOTES ---\n{notes_text[:12000]}\n--- END UPLOADED NOTES ---")
         if notebook_text:
             blocks.append(f"--- LIVING NOTEBOOK ---\n{notebook_text}\n--- END NOTEBOOK ---")
         system_prompt = (
@@ -5018,7 +5308,7 @@ def apply_smart_routing(system_prompt: str, messages, notes: str, endpoint: str)
     # Skip search when notes/notebook already look sufficient.
     if live and query_for_live and not covered_by_material:
         print(f"[Search] Auto web search for: {query_for_live[:120]}")
-        sources = web_search(query_for_live, max_results=5)
+        sources = web_search(query_for_live, max_results=4)
         if sources:
             ctx = format_search_context(sources)
             system_prompt = (
@@ -5037,8 +5327,8 @@ def apply_smart_routing(system_prompt: str, messages, notes: str, endpoint: str)
                 "Say clearly that you could not verify the latest facts online, and avoid stating outdated "
                 "winners/scores/releases as if they are current."
             )
-    elif not live:
-        # Step 3: general knowledge — no search
+    elif not live and not casual and endpoint == "chat":
+        # Step 3: general knowledge — no search (skip on casual to save tokens)
         system_prompt = (
             f"{system_prompt}\n\n"
             "This looks like a general knowledge / academic question. "
@@ -5285,19 +5575,30 @@ def chat():
     _latest_is_casual = (
         endpoint == "chat" and _is_entertainment_or_casual_turn(_peek_last_user)
     )
+    _want_exam_ctx = (not _latest_is_casual) and (
+        endpoint != "chat"
+        or _needs_exam_context(_peek_last_user)
+    )
+    _want_mistake_details = (not _latest_is_casual) and (
+        endpoint != "chat" or _needs_mistake_context(_peek_last_user)
+    )
 
     try:
         uid = user.get("id") if isinstance(user, dict) else None
         if uid:
             upcoming_for_user = list_upcoming_exams_for_user(uid, limit=8)
-            system_prompt += format_exams_for_prompt(upcoming_for_user)
             exam_week = compute_exam_week(uid, exams=upcoming_for_user)
+            # Exams / portions only when relevant (or exam-week mode is active)
+            if _want_exam_ctx or (exam_week.get("active") and not _latest_is_casual):
+                system_prompt += format_exams_for_prompt(upcoming_for_user)
             if exam_week.get("active") and not _latest_is_casual:
                 system_prompt += format_exam_week_for_prompt(exam_week)
             # Don't pull Mistake Vault / weak-subject reinforce into joke/game turns
             if not _latest_is_casual:
-                system_prompt += format_student_context_for_prompt(uid)
-        else:
+                system_prompt += format_student_context_for_prompt(
+                    uid, include_mistake_details=_want_mistake_details or endpoint != "chat"
+                )
+        elif _want_exam_ctx:
             system_prompt += format_exams_for_prompt(list_upcoming_exams(limit=6))
     except Exception as e:
         print(f"[WARN] exam personalization prompt failed: {e}")
@@ -5620,10 +5921,36 @@ def chat():
     if not messages:
         return jsonify({"error": "No messages provided."}), 400
 
+    # Heavy features: stricter per-user limits (token burners)
+    _rate_uid = user.get("id") if isinstance(user, dict) else None
+    _rate_who = _rate_uid or request.remote_addr or "anon"
+    if endpoint == "podcast":
+        heavy_block = _consume_rate_slot(f"heavy:podcast:{_rate_who}", max_calls=3, window_sec=600)
+        if heavy_block:
+            return heavy_block
+
+    # Flashcards / quiz: reuse identical regenerates for ~15 minutes
+    feature_cache_key = None
+    if endpoint in ("flashcards", "quiz"):
+        extra = "nb1" if (endpoint == "quiz" and data.get("notebook_only")) else ""
+        feature_cache_key = _feature_cache_key(
+            _rate_uid, endpoint, messages, lang_code, extra=extra
+        )
+        cached_reply = _feature_cache_get(feature_cache_key)
+        if cached_reply:
+            print(f"[Cache] hit {endpoint} for user {_rate_who}")
+            return jsonify({
+                "reply": cached_reply,
+                "conversation_id": conv_id,
+                "cached": True,
+            })
+
     # Smart routing: notes/notebook (if any) → live search when needed → internal knowledge
     sources = []
     try:
-        system_prompt, sources = apply_smart_routing(system_prompt, messages, notes, endpoint)
+        system_prompt, sources = apply_smart_routing(
+            system_prompt, messages, notes, endpoint, casual=_latest_is_casual
+        )
     except Exception as e:
         print(f"[Routing] apply_smart_routing failed: {e}")
 
@@ -5632,13 +5959,24 @@ def chat():
         client = get_groq_client()
         # Podcast: fast model + enough tokens for named teaching scripts
         if endpoint == "podcast":
-            target_model = "llama-3.1-8b-instant"
+            target_model = LIGHT_GROQ_MODEL
             completion_kwargs = {"max_tokens": 750}
+        elif endpoint == "chat" and _latest_is_casual:
+            # Greetings / jokes / thanks → cheap model + tiny output budget
+            target_model = LIGHT_GROQ_MODEL
+            completion_kwargs = {"max_tokens": 220}
+        elif endpoint == "chat":
+            target_model = resolve_groq_model(model_name)
+            completion_kwargs = {"max_tokens": 550}
+        elif endpoint in ("flashcards", "quiz", "definitions", "crosscheck"):
+            target_model = resolve_groq_model(model_name)
+            completion_kwargs = {"max_tokens": 900}
         else:
             target_model = resolve_groq_model(model_name)
             completion_kwargs = {}
 
         # Keep original messages for DB persistence; send a trimmed copy to Groq
+        # (safety net for TPM only — does not change saved chat history)
         sys_for_model, msgs_for_model = trim_groq_payload(
             system_prompt, messages, endpoint, aggressive=False
         )
@@ -5761,6 +6099,8 @@ def chat():
                         print(f"[Firestore] chat persist mirror failed: {e}")
 
         # Podcast script only — TTS is a separate /api/podcast/tts call (avoids proxy timeouts)
+        if endpoint in ("flashcards", "quiz") and feature_cache_key and reply:
+            _feature_cache_set(feature_cache_key, reply)
         payload = {"reply": reply, "conversation_id": conv_id}
         if sources:
             payload["sources"] = [
@@ -6269,7 +6609,7 @@ def _normalize_mock_total_to_tens(sections_out, current_total, target_total, mar
 
 
 @app.route("/api/mock-test", methods=["POST"])
-@rate_limit(max_calls=12, window_sec=60)
+@rate_limit(max_calls=4, window_sec=600)
 def api_mock_test():
     """
     Generate a pre-boards style board exam paper (JSON) via Groq.
@@ -6279,6 +6619,11 @@ def api_mock_test():
     user, err = require_auth()
     if err:
         return err
+    # Extra soft cap: mock papers are very expensive
+    who = (user.get("id") if isinstance(user, dict) else None) or request.remote_addr or "anon"
+    heavy_block = _consume_rate_slot(f"heavy:mock-test:{who}", max_calls=3, window_sec=900)
+    if heavy_block:
+        return heavy_block
     data = request.get_json(force=True) or {}
     subject = (data.get("subject") or "Physics").strip()[:80]
     exam = (data.get("exam") or "CBSE").strip()[:80]
@@ -6387,14 +6732,16 @@ def api_mock_test():
         "For quick papers omit unused sections. Options text must NOT be prefixed with A)/B)."
     )
 
-    # Live context when subject/chapters look time-sensitive
+    # Live context only when subject/chapters clearly need current events
     mock_query = f"{subject} {chapters} {exam} {grade}".strip()
     system_mock = (
         "You are an experienced CBSE/ICSE exam paper setter writing PRE-BOARD papers. "
         "Output strict JSON only — no markdown fences, no commentary."
     )
-    if needs_live_info(mock_query):
-        live = web_search(mock_query, max_results=4)
+    # Prefer quick papers to cost less by default when client asks standard — leave as requested.
+    # Skip web search for ordinary syllabus mocks (huge token waste).
+    if needs_live_info(chapters) or needs_live_info(subject):
+        live = web_search(mock_query, max_results=3)
         if live:
             system_mock += (
                 "\n\nLIVE WEB CONTEXT (use for current/recent facts in questions when relevant):\n"
@@ -6403,6 +6750,8 @@ def api_mock_test():
 
     try:
         client = get_groq_client()
+        # Cap output: quick drills need far fewer tokens than full 50-mark papers
+        mock_max_tokens = 3500 if size == "quick" else 6500
         completion = client.chat.completions.create(
             model=resolve_groq_model(data.get("model")),
             messages=[
@@ -6410,7 +6759,7 @@ def api_mock_test():
                 {"role": "user", "content": prompt},
             ],
             temperature=0.45,
-            max_tokens=8000,
+            max_tokens=mock_max_tokens,
         )
         raw = (completion.choices[0].message.content or "").strip()
         if not raw:
