@@ -647,8 +647,27 @@ def register_gamification_routes(
     resolve_groq_model,
     fs_pull_gamification=None,
     fs_push_gamification=None,
+    llm_chat_completion=None,
 ):
     """Attach all gamification routes to the Flask app."""
+
+    def _llm_json_text(messages, *, max_tokens=500, temperature=0.7):
+        if llm_chat_completion:
+            text, _meta = llm_chat_completion(
+                messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                light=False,
+            )
+            return text
+        client = get_groq_client()
+        completion = client.chat.completions.create(
+            model=resolve_groq_model(None),
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return (completion.choices[0].message.content or "").strip()
 
     def _pull_game(uid):
         if fs_pull_gamification:
@@ -1178,7 +1197,6 @@ def register_gamification_routes(
         return "", ""
 
     def _generate_puzzle(grade: int, subject: str, local_date: str, topic_hint: str = "") -> dict:
-        client = get_groq_client()
         hint_bit = f" Focus topic if possible: {topic_hint[:160]}." if (topic_hint or "").strip() else ""
         prompt = (
             f"Create ONE short school puzzle for Grade {grade} students in {subject}. "
@@ -1188,17 +1206,19 @@ def register_gamification_routes(
             "Answer must be a short string (number or few words). "
             "No markdown fences."
         )
-        completion = client.chat.completions.create(
-            model=resolve_groq_model(None),
-            messages=[
-                {"role": "system", "content": "You write educational daily puzzles. Output JSON only."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.7,
-            max_tokens=500,
-        )
-        raw = (completion.choices[0].message.content or "").strip()
-        raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.I)
+        try:
+            raw = _llm_json_text(
+                [
+                    {"role": "system", "content": "You write educational daily puzzles. Output JSON only."},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=500,
+                temperature=0.7,
+            )
+        except Exception as e:
+            print(f"[puzzle] LLM failed: {e}")
+            raw = ""
+        raw = re.sub(r"^```(?:json)?\s*", "", (raw or "").strip(), flags=re.I)
         raw = re.sub(r"\s*```$", "", raw)
         try:
             data = json.loads(raw)
@@ -1433,7 +1453,6 @@ def register_gamification_routes(
 
     def _generate_fact(grade: int, local_date: str) -> dict:
         try:
-            client = get_groq_client()
             prompt = (
                 f"Write ONE short, wow school-safe fun fact for Grade {grade} students. "
                 f"Date seed: {local_date}. "
@@ -1442,20 +1461,18 @@ def register_gamification_routes(
                 "Return STRICT JSON only with keys: title (short), body (2–3 sentences), "
                 "category (one word or short phrase). No markdown fences."
             )
-            completion = client.chat.completions.create(
-                model=resolve_groq_model(None),
-                messages=[
+            raw = _llm_json_text(
+                [
                     {
                         "role": "system",
                         "content": "You write delightful educational daily facts. Output JSON only.",
                     },
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.85,
                 max_tokens=280,
+                temperature=0.85,
             )
-            raw = (completion.choices[0].message.content or "").strip()
-            raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.I)
+            raw = re.sub(r"^```(?:json)?\s*", "", (raw or "").strip(), flags=re.I)
             raw = re.sub(r"\s*```$", "", raw)
             data = json.loads(raw)
             title = str(data.get("title") or "Daily Fact").strip()[:120]

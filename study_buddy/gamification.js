@@ -199,14 +199,41 @@
     if (fill) {
       fill(el, dropMath, dropScience, current || el.value);
     } else {
+      const display = [
+        "Physical Education",
+        "Commercial Applications",
+        "Economics Application",
+        "Economics",
+        "Art",
+      ];
+      const selectable = allowed.length
+        ? allowed
+        : (dropMath && dropScience
+          ? ["Law"]
+          : (dropScience && !dropMath
+            ? display
+            : display.filter((n) => n !== "Economics")));
       el.innerHTML = '<option value="">Select elective…</option>';
-      (allowed.length ? allowed : ["Physical Education", "Commercial Applications", "Economics Application", "Art"]).forEach((name) => {
+      if (dropMath && dropScience) {
         const o = document.createElement("option");
-        o.value = name;
-        o.textContent = name;
+        o.value = "Law";
+        o.textContent = "Law";
         el.appendChild(o);
-      });
-      if (current) el.value = current;
+        el.value = "Law";
+      } else {
+        display.forEach((name) => {
+          const o = document.createElement("option");
+          o.value = name;
+          if (name === "Economics" && !selectable.includes("Economics")) {
+            o.textContent = "Economics (requires Drop Science)";
+            o.disabled = true;
+          } else {
+            o.textContent = name;
+          }
+          el.appendChild(o);
+        });
+        if (current) el.value = current;
+      }
     }
     if (locked && current) {
       // Ensure locked value is present even if not in current drop matrix
@@ -219,9 +246,16 @@
       el.value = current;
       el.disabled = true;
       if (hint) hint.textContent = "Elective cannot be changed.";
+    } else if (dropMath && dropScience) {
+      el.disabled = true;
+      if (hint) {
+        hint.textContent = "Both Math and Science dropped — Law is required.";
+      }
     } else {
       el.disabled = false;
-      if (hint) hint.textContent = "Pick once — elective cannot be changed later.";
+      if (hint) {
+        hint.textContent = "Pick once — elective cannot be changed later. Economics requires Super 3 Drop Science.";
+      }
     }
   }
 

@@ -63,6 +63,19 @@ else:
 # Store API key in module variable to avoid environment access issues during runtime
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+GEMINI_API_KEY = (
+    os.getenv("GEMINI_API_KEY", "").strip()
+    or os.getenv("GOOGLE_API_KEY", "").strip()
+    or os.getenv("GOOGLE_AI_API_KEY", "").strip()
+)
+OPENROUTER_API_KEY = (
+    os.getenv("OPENROUTER_API_KEY", "").strip()
+    or os.getenv("OPENROUTER_KEY", "").strip()
+)
+DEEPSEEK_API_KEY = (
+    os.getenv("DEEPSEEK_API_KEY", "").strip()
+    or os.getenv("DEEPSEEK_KEY", "").strip()
+)
 # Diagram images via OpenAI (gpt-image-1 / dall-e-3). Override with OPENAI_IMAGE_MODEL.
 OPENAI_IMAGE_MODEL = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1").strip() or "gpt-image-1"
 OPENAI_IMAGE_MODEL_FALLBACKS = []
@@ -79,13 +92,24 @@ HF_FLUX_MODEL = os.getenv(
     "black-forest-labs/FLUX.1-schnell",
 ).strip()
 
-if not GROQ_API_KEY:
-    print("\n[WARNING] No GROQ_API_KEY found!")
-    print("   Create a file called  .env  in this folder and add:")
-    print("   GROQ_API_KEY=your-key-here\n")
+_CHAT_KEYS_PRESENT = any(
+    (GROQ_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, DEEPSEEK_API_KEY)
+)
+if not _CHAT_KEYS_PRESENT:
+    print("\n[WARNING] No chat API keys found!")
+    print("   Set GEMINI_API_KEY, OPENROUTER_API_KEY, DEEPSEEK_API_KEY, OPENAI_API_KEY, and/or GROQ_API_KEY\n")
 
 if not OPENAI_API_KEY:
-    print("[INFO] No OPENAI_API_KEY — diagram photos use Groq SVG fallback (chat still uses Groq).")
+    print("[INFO] No OPENAI_API_KEY — diagram photos use Groq SVG fallback when Groq is set.")
+
+for _label, _present in (
+    ("GEMINI_API_KEY", bool(GEMINI_API_KEY)),
+    ("OPENROUTER_API_KEY", bool(OPENROUTER_API_KEY)),
+    ("DEEPSEEK_API_KEY", bool(DEEPSEEK_API_KEY)),
+    ("OPENAI_API_KEY", bool(OPENAI_API_KEY)),
+    ("GROQ_API_KEY", bool(GROQ_API_KEY)),
+):
+    print(f"[{'OK' if _present else 'INFO'}] {_label} {'loaded' if _present else 'not set'}.")
 
 # Centralized Groq Client
 _groq_client_instance = None
@@ -105,9 +129,215 @@ def get_openai_client():
     from openai import OpenAI
     return OpenAI(api_key=OPENAI_API_KEY)
 
+
+def get_gemini_openai_client():
+    """Gemini via OpenAI-compatible endpoint (uses existing openai package)."""
+    if not GEMINI_API_KEY:
+        raise ValueError("Set GEMINI_API_KEY for Gemini chat.")
+    from openai import OpenAI
+    return OpenAI(
+        api_key=GEMINI_API_KEY,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    )
+
+
+def get_openrouter_client():
+    """OpenRouter — one key, many models (OpenAI-compatible)."""
+    if not OPENROUTER_API_KEY:
+        raise ValueError("Set OPENROUTER_API_KEY for OpenRouter chat.")
+    from openai import OpenAI
+    return OpenAI(
+        api_key=OPENROUTER_API_KEY,
+        base_url="https://openrouter.ai/api/v1",
+        default_headers={
+            "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "https://study-buddy.app").strip()
+            or "https://study-buddy.app",
+            "X-Title": os.getenv("OPENROUTER_APP_NAME", "Study Buddy").strip() or "Study Buddy",
+        },
+    )
+
+
+def get_deepseek_client():
+    """DeepSeek via OpenAI-compatible endpoint."""
+    if not DEEPSEEK_API_KEY:
+        raise ValueError("Set DEEPSEEK_API_KEY for DeepSeek chat.")
+    from openai import OpenAI
+    return OpenAI(
+        api_key=DEEPSEEK_API_KEY,
+        base_url="https://api.deepseek.com",
+    )
+
+
 DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
 # Cheap/fast model for greetings, thanks, jokes — saves tokens & TPM on light turns
 LIGHT_GROQ_MODEL = (os.getenv("GROQ_LIGHT_MODEL") or "llama-3.1-8b-instant").strip() or "llama-3.1-8b-instant"
+DEFAULT_GEMINI_MODEL = (os.getenv("GEMINI_CHAT_MODEL") or "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+LIGHT_GEMINI_MODEL = (os.getenv("GEMINI_LIGHT_MODEL") or "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+DEFAULT_OPENAI_CHAT_MODEL = (os.getenv("OPENAI_CHAT_MODEL") or "gpt-4o-mini").strip() or "gpt-4o-mini"
+LIGHT_OPENAI_CHAT_MODEL = (os.getenv("OPENAI_LIGHT_MODEL") or "gpt-4o-mini").strip() or "gpt-4o-mini"
+DEFAULT_OPENROUTER_MODEL = (
+    os.getenv("OPENROUTER_CHAT_MODEL") or "deepseek/deepseek-chat"
+).strip() or "deepseek/deepseek-chat"
+LIGHT_OPENROUTER_MODEL = (
+    os.getenv("OPENROUTER_LIGHT_MODEL") or DEFAULT_OPENROUTER_MODEL
+).strip() or DEFAULT_OPENROUTER_MODEL
+DEFAULT_DEEPSEEK_MODEL = (os.getenv("DEEPSEEK_CHAT_MODEL") or "deepseek-chat").strip() or "deepseek-chat"
+LIGHT_DEEPSEEK_MODEL = (os.getenv("DEEPSEEK_LIGHT_MODEL") or "deepseek-chat").strip() or "deepseek-chat"
+# Volume/quality first, then aggregators & cheap backups, then fast Groq
+_CHAT_ORDER_RAW = (
+    os.getenv("CHAT_PROVIDER_ORDER")
+    or "gemini,openrouter,deepseek,openai,groq"
+).strip().lower()
+CHAT_PROVIDER_ORDER = [p.strip() for p in _CHAT_ORDER_RAW.split(",") if p.strip()]
+if not CHAT_PROVIDER_ORDER:
+    CHAT_PROVIDER_ORDER = ["gemini", "openrouter", "deepseek", "openai", "groq"]
+
+
+def _friendly_llm_error(exc) -> str:
+    """User-facing error — never dump raw provider stack traces in the chat UI."""
+    s = str(exc or "").lower()
+    if any(x in s for x in ("api key", "invalid_api_key", "authentication", "401", "403", "permission")):
+        return (
+            "AI keys look wrong or missing. Check GEMINI_API_KEY / OPENROUTER_API_KEY / "
+            "DEEPSEEK_API_KEY / OPENAI_API_KEY / GROQ_API_KEY."
+        )
+    if any(x in s for x in ("rate", "429", "quota", "resource_exhausted", "tpm", "rpm", "too many")):
+        return "AI is rate-limited right now. Wait ~30 seconds and try again."
+    if any(x in s for x in ("timeout", "timed out", "deadline")):
+        return "AI took too long to reply. Please try again."
+    if any(x in s for x in ("payload", "too large", "context length", "maximum context", "token")):
+        return "That message was too long for the AI. Start a new chat or shorten your notes."
+    if "no chat api" in s or "no provider" in s:
+        return "No AI provider is configured. Set OPENROUTER_API_KEY or GEMINI_API_KEY (recommended)."
+    return "Couldn't get an AI reply. Please try again in a moment."
+
+
+def _openai_compat_complete(client, model, messages, max_tokens, temperature, provider_label):
+    res = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
+    text = (res.choices[0].message.content or "").strip()
+    if not text:
+        raise RuntimeError(f"{provider_label} returned an empty reply.")
+    print(f"[LLM] provider={provider_label} model={model}")
+    return text, {"provider": provider_label, "model": model}
+
+
+def llm_chat_completion(
+    messages,
+    *,
+    max_tokens=900,
+    temperature=0.45,
+    light=False,
+    preferred_groq_model=None,
+):
+    """
+    Multi-provider chat: Gemini → OpenRouter → DeepSeek → OpenAI → Groq (configurable).
+    messages: OpenAI-style [{role, content}, ...] (system allowed).
+    Returns (reply_text, meta_dict).
+    """
+    if not isinstance(messages, list) or not messages:
+        raise ValueError("No messages provided for AI completion.")
+
+    errors = []
+    for provider in CHAT_PROVIDER_ORDER:
+        try:
+            if provider == "gemini":
+                if not GEMINI_API_KEY:
+                    continue
+                client = get_gemini_openai_client()
+                models_try = []
+                primary = LIGHT_GEMINI_MODEL if light else DEFAULT_GEMINI_MODEL
+                for m in (primary, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-1.5-flash"):
+                    if m and m not in models_try:
+                        models_try.append(m)
+                last_gemini_err = None
+                for model in models_try:
+                    try:
+                        return _openai_compat_complete(
+                            client, model, messages, max_tokens, temperature, "gemini"
+                        )
+                    except Exception as ge:
+                        last_gemini_err = ge
+                        print(f"[LLM] gemini model {model} failed: {ge}")
+                        continue
+                if last_gemini_err:
+                    raise last_gemini_err
+                continue
+
+            if provider == "openrouter":
+                if not OPENROUTER_API_KEY:
+                    continue
+                client = get_openrouter_client()
+                models_try = []
+                primary = LIGHT_OPENROUTER_MODEL if light else DEFAULT_OPENROUTER_MODEL
+                for m in (
+                    primary,
+                    "deepseek/deepseek-chat",
+                    "deepseek/deepseek-chat-v3-0324",
+                    "mistralai/mistral-small-3.1-24b-instruct",
+                    "google/gemini-2.0-flash-001",
+                ):
+                    if m and m not in models_try:
+                        models_try.append(m)
+                last_or_err = None
+                for model in models_try:
+                    try:
+                        return _openai_compat_complete(
+                            client, model, messages, max_tokens, temperature, "openrouter"
+                        )
+                    except Exception as oe:
+                        last_or_err = oe
+                        print(f"[LLM] openrouter model {model} failed: {oe}")
+                        continue
+                if last_or_err:
+                    raise last_or_err
+                continue
+
+            if provider == "deepseek":
+                if not DEEPSEEK_API_KEY:
+                    continue
+                client = get_deepseek_client()
+                model = LIGHT_DEEPSEEK_MODEL if light else DEFAULT_DEEPSEEK_MODEL
+                return _openai_compat_complete(
+                    client, model, messages, max_tokens, temperature, "deepseek"
+                )
+
+            if provider == "openai":
+                if not OPENAI_API_KEY:
+                    continue
+                client = get_openai_client()
+                model = LIGHT_OPENAI_CHAT_MODEL if light else DEFAULT_OPENAI_CHAT_MODEL
+                return _openai_compat_complete(
+                    client, model, messages, max_tokens, temperature, "openai"
+                )
+
+            if provider == "groq":
+                if not GROQ_API_KEY:
+                    continue
+                client = get_groq_client()
+                if light:
+                    model = LIGHT_GROQ_MODEL
+                else:
+                    model = (preferred_groq_model or DEFAULT_GROQ_MODEL).strip() or DEFAULT_GROQ_MODEL
+                return _openai_compat_complete(
+                    client, model, messages, max_tokens, temperature, "groq"
+                )
+        except Exception as e:
+            print(f"[LLM] {provider} failed: {e}")
+            errors.append(f"{provider}: {e}")
+            continue
+
+    if not errors:
+        raise RuntimeError(
+            "No chat API provider is configured "
+            "(need GEMINI_API_KEY, OPENROUTER_API_KEY, DEEPSEEK_API_KEY, OPENAI_API_KEY, or GROQ_API_KEY)."
+        )
+    raise RuntimeError("All AI providers failed. " + " | ".join(errors[:3]))
+
 # Groq vision models (llama-3.2-*-vision-preview were decommissioned)
 DEFAULT_GROQ_VISION_MODEL = "qwen/qwen3.6-27b"
 _DECOMMISSIONED_VISION_MODELS = {
@@ -695,17 +925,13 @@ def synthesize_podcast_audio(script: str, host_a_voice: str = None, host_b_voice
 
 SYSTEM_PROMPT = os.getenv(
     "STUDY_BUDDY_SYSTEM_PROMPT",
-    "You are Study Buddy — a trusted school tutor for students roughly ages 12–18. "
-    "Teach clearly at the student's grade level. Prefer short, structured explanations, "
-    "worked examples, and checks for understanding over long lectures. "
-    "When a syllabus/board is implied (CBSE/ICSE/IB), stay aligned with typical school topics "
-    "for that level — do not invent board-official papers or claim official mark schemes. "
-    "After a hard explanation, ask one short check-for-understanding question. "
-    "If the student seems stuck, prefer a hint before dumping the full answer. "
-    "When the topic matches a known misconception from their recent mistakes, briefly warn about it. "
-    "You receive PERSONAL TUTOR CONTEXT with Mistake Vault items when available. "
-    "If the student asks to check/review their Mistake Vault or past mistakes, use that list: "
-    "summarize the mistakes and teach from them. Never claim you cannot access their Mistake Vault."
+    "You are Study Buddy — a sharp, friendly school tutor for ages 12–18. "
+    "Be TO THE POINT: short clear answers, not essays. "
+    "Prefer 3–6 bullets or a short paragraph + one tiny example when useful. "
+    "Skip filler, long intros, and repeating the question. "
+    "Match CBSE/ICSE/IB style when implied; never invent official papers. "
+    "If stuck, hint briefly; if they want the full solution, give clean numbered steps. "
+    "Use PERSONAL TUTOR CONTEXT / Mistake Vault when provided — never claim you cannot access it."
 )
 
 # Minor-safe rails (always appended for generative study endpoints)
@@ -4933,10 +5159,8 @@ GREETING_TITLE_RE = re.compile(
     re.IGNORECASE
 )
 
-def generate_smart_title(client, user_msg: str, target_model: str) -> str:
-    """Generate a short natural title (3-5 words) using Groq AI from conversation prompt.
-    Returns empty string if user_msg is a pure greeting/smalltalk.
-    """
+def generate_smart_title(user_msg: str, client=None, target_model: str = None) -> str:
+    """Generate a short natural title (3-5 words). client/target_model kept for call-site compat."""
     cleaned = (user_msg or "").strip()
     if not cleaned or GREETING_TITLE_RE.match(cleaned):
         return ""
@@ -4948,13 +5172,13 @@ def generate_smart_title(client, user_msg: str, target_model: str) -> str:
             "Return ONLY the title text as plain text. Do not use quotes, punctuation, markdown, or prefix words.\n\n"
             f"Student Query: {cleaned}"
         )
-        res = client.chat.completions.create(
-            model=target_model,
-            messages=[{"role": "user", "content": title_prompt}],
+        raw_title, _meta = llm_chat_completion(
+            [{"role": "user", "content": title_prompt}],
             max_tokens=15,
-            temperature=0.3
+            temperature=0.3,
+            light=True,
         )
-        raw_title = (res.choices[0].message.content or "").strip()
+        raw_title = (raw_title or "").strip()
         raw_title = re.sub(r'^[#*"`\'\s]+|[#*"`\'\s\.]+$', '', raw_title)
         if raw_title and len(raw_title) <= 50:
             return raw_title
@@ -5802,6 +6026,8 @@ def chat():
         system_prompt = (
             f"{system_prompt}\n\n"
             "RESPONSE STYLE RULES — follow these precisely:\n\n"
+            "LENGTH: Keep answers concise and to the point. Prefer short bullets over long paragraphs. "
+            "Do not pad with introductions, conclusions, or repeating the question.\n\n"
             "0. NEVER narrate your thinking out loud. Do NOT write drafts, self-corrections, "
             "or filler like 'I think…', 'wait…', 'no…', 'I got it…', 'overthinking…', "
             "'isn't correct…', 'let me reconsider…'. Decide silently, then reply with the "
@@ -5954,34 +6180,36 @@ def chat():
     except Exception as e:
         print(f"[Routing] apply_smart_routing failed: {e}")
 
-    # --- Talk to Groq AI ---
+    # --- Talk to LLM (Gemini → OpenAI → Groq) ---
     try:
-        client = get_groq_client()
-        # Podcast: fast model + enough tokens for named teaching scripts
+        # Podcast: enough tokens for named teaching scripts
         if endpoint == "podcast":
-            target_model = LIGHT_GROQ_MODEL
-            completion_kwargs = {"max_tokens": 750}
+            completion_max_tokens = 750
+            use_light = True
         elif endpoint == "chat" and _latest_is_casual:
-            # Greetings / jokes / thanks → cheap model + tiny output budget
-            target_model = LIGHT_GROQ_MODEL
-            completion_kwargs = {"max_tokens": 220}
+            completion_max_tokens = 180
+            use_light = True
         elif endpoint == "chat":
-            target_model = resolve_groq_model(model_name)
-            completion_kwargs = {"max_tokens": 550}
+            # Short, to-the-point replies; more capacity comes from multi-provider failover
+            completion_max_tokens = 450
+            use_light = False
         elif endpoint in ("flashcards", "quiz", "definitions", "crosscheck"):
-            target_model = resolve_groq_model(model_name)
-            completion_kwargs = {"max_tokens": 900}
+            completion_max_tokens = 900
+            use_light = False
         else:
-            target_model = resolve_groq_model(model_name)
-            completion_kwargs = {}
+            completion_max_tokens = 700
+            use_light = False
 
-        # Keep original messages for DB persistence; send a trimmed copy to Groq
-        # (safety net for TPM only — does not change saved chat history)
+        preferred_groq = None
+        if not use_light:
+            preferred_groq = resolve_groq_model(model_name)
+
+        # Keep original messages for DB persistence; send a trimmed copy to the model
         sys_for_model, msgs_for_model = trim_groq_payload(
             system_prompt, messages, endpoint, aggressive=False
         )
 
-        def _build_groq_messages(sys_p, msgs):
+        def _build_llm_messages(sys_p, msgs):
             out = []
             if sys_p:
                 out.append({"role": "system", "content": sys_p})
@@ -5991,28 +6219,32 @@ def chat():
             return out
 
         try:
-            response = client.chat.completions.create(
-                model=target_model,
-                messages=_build_groq_messages(sys_for_model, msgs_for_model),
-                **completion_kwargs,
+            reply, llm_meta = llm_chat_completion(
+                _build_llm_messages(sys_for_model, msgs_for_model),
+                max_tokens=completion_max_tokens,
+                temperature=0.4 if endpoint == "chat" else 0.5,
+                light=use_light,
+                preferred_groq_model=preferred_groq,
             )
         except Exception as first_err:
-            if not _is_groq_payload_too_large(first_err):
+            if not _is_groq_payload_too_large(first_err) and "too large" not in str(first_err).lower() and "context" not in str(first_err).lower():
                 raise
-            print(f"[Groq] Payload too large on {endpoint}; retrying with aggressive trim: {first_err}")
+            print(f"[LLM] Payload too large on {endpoint}; retrying with aggressive trim: {first_err}")
             sys_for_model, msgs_for_model = trim_groq_payload(
                 system_prompt, messages, endpoint, aggressive=True
             )
-            response = client.chat.completions.create(
-                model=target_model,
-                messages=_build_groq_messages(sys_for_model, msgs_for_model),
-                **completion_kwargs,
+            reply, llm_meta = llm_chat_completion(
+                _build_llm_messages(sys_for_model, msgs_for_model),
+                max_tokens=min(completion_max_tokens, 800),
+                temperature=0.4 if endpoint == "chat" else 0.5,
+                light=use_light,
+                preferred_groq_model=preferred_groq,
             )
 
-        reply = response.choices[0].message.content
         if endpoint == "chat":
             reply = polish_chat_reply(reply)
         last_message = messages[-1]["content"] if messages else ""
+        target_model = (llm_meta or {}).get("model") or preferred_groq or DEFAULT_GROQ_MODEL
 
         # --- Persist to DB (only for /api/chat when user is logged in) ---
         if endpoint == "chat":
@@ -6029,7 +6261,7 @@ def chat():
                             ).fetchone()
 
                         if not conv_row:
-                            smart_title = generate_smart_title(client, last_message, target_model)
+                            smart_title = generate_smart_title(last_message)
                             title = smart_title if smart_title else "New Chat"
                             _ensure_local_wipe_gen_columns(conn)
                             wg = current_content_wipe_gen(uid)
@@ -6043,7 +6275,7 @@ def chat():
                                 (conv_id, uid),
                             ).fetchone()
                         elif conv_row["title"] == "New Chat":
-                            smart_title = generate_smart_title(client, last_message, target_model)
+                            smart_title = generate_smart_title(last_message)
                             if smart_title:
                                 conn.execute(
                                     "UPDATE conversations SET title=?, updated_at=datetime('now') WHERE id=?",
@@ -6102,6 +6334,9 @@ def chat():
         if endpoint in ("flashcards", "quiz") and feature_cache_key and reply:
             _feature_cache_set(feature_cache_key, reply)
         payload = {"reply": reply, "conversation_id": conv_id}
+        if llm_meta:
+            payload["provider"] = llm_meta.get("provider")
+            payload["model"] = llm_meta.get("model")
         if sources:
             payload["sources"] = [
                 {"title": s.get("title") or "Source", "url": s.get("url") or "", "snippet": s.get("snippet") or ""}
@@ -6112,8 +6347,8 @@ def chat():
 
     except Exception as e:
         error_msg = str(e)
-        print(f"[ERROR] Groq API: {error_msg}")
-        return jsonify({"error": error_msg}), 500
+        print(f"[ERROR] LLM API: {error_msg}")
+        return jsonify({"error": _friendly_llm_error(e)}), 500
 
 
 @app.route("/api/podcast/tts", methods=["POST"])
@@ -8058,21 +8293,17 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no code 
 Provide exactly 5 careers ranked by compatibility (highest first, range 60\u201398). Be specific, realistic, and use the Indian education context."""
 
     try:
-        client = get_groq_client()
-        target_model = resolve_groq_model(model_name)
-
-        groq_messages = [
-            {"role": "system", "content": career_system_prompt},
-            {"role": "user", "content": prompt}
-        ]
-
-        response = client.chat.completions.create(
-            model=target_model,
-            messages=groq_messages,
-            response_format={"type": "json_object"}
+        reply_text, _meta = llm_chat_completion(
+            [
+                {"role": "system", "content": career_system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=1800,
+            temperature=0.5,
+            light=False,
+            preferred_groq_model=resolve_groq_model(model_name),
         )
-
-        reply_text = response.choices[0].message.content.strip()
+        reply_text = (reply_text or "").strip()
 
         if "```" in reply_text:
             reply_text = _re.sub(r"```(?:json)?\s*", "", reply_text)
@@ -8088,8 +8319,8 @@ Provide exactly 5 careers ranked by compatibility (highest first, range 60\u2013
     except _json.JSONDecodeError as e:
         return jsonify({"error": f"AI returned invalid JSON. Please retry. ({str(e)})"}), 200
     except Exception as e:
-        error_msg = str(e)
-        return jsonify({"error": error_msg}), 200
+        print(f"[ERROR] career-analyze: {e}")
+        return jsonify({"error": _friendly_llm_error(e)}), 200
 
 
 # ── Learning DNA Routes ───────────────────────────────────────────────
@@ -8869,6 +9100,7 @@ try:
         resolve_groq_model,
         fs_pull_gamification=fs_pull_gamification,
         fs_push_gamification=fs_push_gamification,
+        llm_chat_completion=llm_chat_completion,
     )
 except Exception as e:
     print(f"[WARN] Gamification routes not registered: {e}")

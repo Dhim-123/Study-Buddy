@@ -4648,6 +4648,58 @@
       color: #fb7185;
     }
 
+    /* Avatar crop modal */
+    #avatar-crop-modal {
+      z-index: 4200;
+    }
+    .avatar-crop-card {
+      width: min(380px, calc(100vw - 28px));
+      max-width: 380px;
+    }
+    .avatar-crop-stage {
+      position: relative;
+      width: 280px;
+      height: 280px;
+      max-width: 100%;
+      margin: 12px auto 8px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: #0b1220;
+      border: 2px solid var(--border);
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+    .avatar-crop-stage:active {
+      cursor: grabbing;
+    }
+    .avatar-crop-stage canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .avatar-crop-hint {
+      margin: 0 0 10px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    .avatar-crop-zoom-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 14px;
+    }
+    .avatar-crop-zoom-row label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--muted);
+      min-width: 42px;
+    }
+    .avatar-crop-zoom-row input[type="range"] {
+      flex: 1;
+    }
+
     .refer-page-chip {
       display: none;
       align-items: center;
@@ -5706,6 +5758,26 @@
     </div>
   </div>
 
+  <!-- Avatar crop modal -->
+  <div id="avatar-crop-modal" class="clear-confirm-modal" hidden aria-hidden="true">
+    <div class="clear-confirm-backdrop" id="avatar-crop-backdrop"></div>
+    <div class="clear-confirm-card avatar-crop-card" role="dialog" aria-modal="true" aria-labelledby="avatar-crop-title">
+      <h3 id="avatar-crop-title">Crop profile picture</h3>
+      <p class="avatar-crop-hint">Drag to reposition. Zoom to frame your face.</p>
+      <div class="avatar-crop-stage" id="avatar-crop-stage" title="Drag to move">
+        <canvas id="avatar-crop-canvas" width="280" height="280"></canvas>
+      </div>
+      <div class="avatar-crop-zoom-row">
+        <label for="avatar-crop-zoom">Zoom</label>
+        <input type="range" id="avatar-crop-zoom" min="1" max="3" step="0.01" value="1" />
+      </div>
+      <div class="clear-confirm-actions">
+        <button type="button" class="btn-secondary" id="avatar-crop-cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="avatar-crop-confirm" style="width:auto;padding:10px 16px;">Use photo</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Floating Settings Panel -->
   <div id="settings-panel" class="settings-panel" role="dialog" aria-modal="false" aria-labelledby="settings-panel-title" hidden>
     <div class="settings-panel-card">
@@ -5795,7 +5867,7 @@
             <select id="settings-elective" class="input" style="padding:6px 8px;width:100%;">
               <option value="">Select elective…</option>
             </select>
-            <p class="settings-hint" id="settings-elective-hint" style="margin:0;font-size:0.72rem;">Pick once — elective cannot be changed later.</p>
+            <p class="settings-hint" id="settings-elective-hint" style="margin:0;font-size:0.72rem;">Pick once — elective cannot be changed later. Economics requires Super 3 Drop Science.</p>
           </div>
         </div>
       </div>
@@ -5982,7 +6054,7 @@
     <div class="sb-game-backdrop"></div>
     <div class="sb-game-card" role="dialog" aria-modal="true" aria-labelledby="elective-pick-title">
       <h3 id="elective-pick-title">Choose your elective</h3>
-      <p style="color:var(--muted);font-size:0.88rem;margin:0 0 12px;">Pick once — you cannot change this later.</p>
+      <p style="color:var(--muted);font-size:0.88rem;margin:0 0 12px;">Pick once — you cannot change this later. Economics requires Super 3 Drop Science.</p>
       <select id="elective-pick-select" class="input" style="width:100%;margin-bottom:12px;">
         <option value="">Select elective…</option>
       </select>
@@ -6071,7 +6143,7 @@
             <select class="input" id="auth-elective">
               <option value="">Select elective…</option>
             </select>
-            <p class="settings-hint" id="auth-elective-hint" style="margin:6px 0 0;font-size:0.75rem;">You cannot change your elective later.</p>
+            <p class="settings-hint" id="auth-elective-hint" style="margin:6px 0 0;font-size:0.75rem;">You cannot change your elective later. Economics requires Super 3 Drop Science.</p>
           </div>
         </div>
         <div class="field" style="margin-top: 10px;">
@@ -7317,7 +7389,9 @@
       if (t.closest && (
         t.closest("#clear-history-sheet") ||
         t.closest("#clear-confirm-modal") ||
-        t.closest("#clear-toast")
+        t.closest("#clear-toast") ||
+        t.closest("#profile-open-settings-btn") ||
+        t.closest("#avatar-crop-modal")
       )) return;
       closeSettingsPanel();
     });
@@ -9014,24 +9088,45 @@
         return opts;
       }
 
+      /** Display order for the five electives (Economics always listed; gated by Drop Science). */
+      const ELECTIVE_DISPLAY = [
+        "Physical Education",
+        "Commercial Applications",
+        "Economics Application",
+        "Economics",
+        "Art",
+      ];
+
       function fillElectiveSelect(selectEl, dropMath, dropScience, selected) {
         if (!selectEl) return;
-        const opts = allowedElectivesForDrops(!!dropMath, !!dropScience);
+        const dm = !!dropMath;
+        const ds = !!dropScience;
+        const selectable = allowedElectivesForDrops(dm, ds);
         const prev = selected != null ? selected : selectEl.value;
         selectEl.innerHTML = '<option value="">Select elective…</option>';
-        opts.forEach((name) => {
+        if (dm && ds) {
           const o = document.createElement("option");
-          o.value = name;
-          o.textContent = name;
+          o.value = "Law";
+          o.textContent = "Law";
           selectEl.appendChild(o);
-        });
-        if (opts.length === 1 && opts[0] === "Law") {
           selectEl.value = "Law";
           selectEl.disabled = true;
-        } else {
-          selectEl.disabled = false;
-          if (prev && opts.includes(prev)) selectEl.value = prev;
+          return;
         }
+        ELECTIVE_DISPLAY.forEach((name) => {
+          const o = document.createElement("option");
+          o.value = name;
+          if (name === "Economics" && !selectable.includes("Economics")) {
+            o.textContent = "Economics (requires Drop Science)";
+            o.disabled = true;
+          } else {
+            o.textContent = name;
+          }
+          selectEl.appendChild(o);
+        });
+        selectEl.disabled = false;
+        if (prev && selectable.includes(prev)) selectEl.value = prev;
+        else selectEl.value = "";
       }
 
       function syncAuthSuper3DropsUi() {
@@ -9706,7 +9801,254 @@
           document.getElementById("profile-pic-input")?.click();
         });
 
-        document.getElementById("profile-pic-input")?.addEventListener("change", async (e) => {
+        const avatarCrop = {
+          img: null,
+          nw: 0,
+          nh: 0,
+          baseScale: 1,
+          zoom: 1,
+          ox: 0,
+          oy: 0,
+          focusX: 0.5,
+          focusY: 0.5,
+          dragging: false,
+          lastX: 0,
+          lastY: 0,
+          viewSize: 280,
+          exportSize: 256,
+        };
+
+        function avatarCropScale() {
+          return avatarCrop.baseScale * avatarCrop.zoom;
+        }
+
+        function clampAvatarCropPan() {
+          const s = avatarCropScale();
+          const dw = avatarCrop.nw * s;
+          const dh = avatarCrop.nh * s;
+          const V = avatarCrop.viewSize;
+          // Keep viewport covered (cover mode)
+          if (dw >= V) {
+            avatarCrop.ox = Math.min(0, Math.max(V - dw, avatarCrop.ox));
+          } else {
+            avatarCrop.ox = (V - dw) / 2;
+          }
+          if (dh >= V) {
+            avatarCrop.oy = Math.min(0, Math.max(V - dh, avatarCrop.oy));
+          } else {
+            avatarCrop.oy = (V - dh) / 2;
+          }
+        }
+
+        function drawAvatarCrop() {
+          const canvas = document.getElementById("avatar-crop-canvas");
+          if (!canvas || !avatarCrop.img) return;
+          const ctx = canvas.getContext("2d");
+          const V = avatarCrop.viewSize;
+          if (canvas.width !== V) canvas.width = V;
+          if (canvas.height !== V) canvas.height = V;
+          clampAvatarCropPan();
+          ctx.clearRect(0, 0, V, V);
+          ctx.fillStyle = "#0b1220";
+          ctx.fillRect(0, 0, V, V);
+          const s = avatarCropScale();
+          ctx.drawImage(
+            avatarCrop.img,
+            avatarCrop.ox,
+            avatarCrop.oy,
+            avatarCrop.nw * s,
+            avatarCrop.nh * s
+          );
+        }
+
+        function centerAvatarCropOnFocus() {
+          const s = avatarCropScale();
+          const V = avatarCrop.viewSize;
+          avatarCrop.ox = V / 2 - avatarCrop.focusX * avatarCrop.nw * s;
+          avatarCrop.oy = V / 2 - avatarCrop.focusY * avatarCrop.nh * s;
+          clampAvatarCropPan();
+        }
+
+        async function detectAvatarFocus(img) {
+          avatarCrop.focusX = 0.5;
+          avatarCrop.focusY = 0.45;
+          if (typeof window.FaceDetector !== "function") return;
+          try {
+            const detector = new window.FaceDetector({ fastMode: true, maxDetectedFaces: 3 });
+            const faces = await detector.detect(img);
+            if (!faces || !faces.length) return;
+            let best = faces[0];
+            let bestArea = 0;
+            faces.forEach((f) => {
+              const b = f.boundingBox;
+              const area = (b.width || 0) * (b.height || 0);
+              if (area > bestArea) {
+                bestArea = area;
+                best = f;
+              }
+            });
+            const box = best.boundingBox;
+            avatarCrop.focusX = (box.x + box.width / 2) / img.naturalWidth;
+            avatarCrop.focusY = (box.y + box.height / 2) / img.naturalHeight;
+            // Slight zoom so face fills more of the circle
+            const faceSide = Math.max(box.width, box.height);
+            const coverSide = Math.min(img.naturalWidth, img.naturalHeight);
+            if (faceSide > 0 && coverSide > 0) {
+              const target = Math.min(2.4, Math.max(1, (coverSide / faceSide) * 0.55));
+              avatarCrop.zoom = target;
+              const zoomEl = document.getElementById("avatar-crop-zoom");
+              if (zoomEl) zoomEl.value = String(target);
+            }
+          } catch (_) {
+            /* FaceDetector unsupported or failed */
+          }
+        }
+
+        function exportAvatarCropDataUrl() {
+          const out = document.createElement("canvas");
+          const S = avatarCrop.exportSize;
+          out.width = S;
+          out.height = S;
+          const ctx = out.getContext("2d");
+          const scaleRatio = S / avatarCrop.viewSize;
+          const s = avatarCropScale() * scaleRatio;
+          ctx.fillStyle = "#0b1220";
+          ctx.fillRect(0, 0, S, S);
+          ctx.drawImage(
+            avatarCrop.img,
+            avatarCrop.ox * scaleRatio,
+            avatarCrop.oy * scaleRatio,
+            avatarCrop.nw * s,
+            avatarCrop.nh * s
+          );
+          // Prefer JPEG for size; fall back through qualities
+          let dataUrl = out.toDataURL("image/jpeg", 0.88);
+          if (dataUrl.length > 850000) dataUrl = out.toDataURL("image/jpeg", 0.72);
+          if (dataUrl.length > 850000) dataUrl = out.toDataURL("image/jpeg", 0.55);
+          return dataUrl;
+        }
+
+        function closeAvatarCropModal() {
+          const modal = document.getElementById("avatar-crop-modal");
+          if (!modal) return;
+          modal.hidden = true;
+          modal.setAttribute("aria-hidden", "true");
+          avatarCrop.img = null;
+          avatarCrop.dragging = false;
+        }
+
+        async function openAvatarCropModal(dataUrl) {
+          const modal = document.getElementById("avatar-crop-modal");
+          const zoomEl = document.getElementById("avatar-crop-zoom");
+          if (!modal) return;
+          const img = new Image();
+          img.onload = async () => {
+            avatarCrop.img = img;
+            avatarCrop.nw = img.naturalWidth || img.width;
+            avatarCrop.nh = img.naturalHeight || img.height;
+            const V = avatarCrop.viewSize;
+            avatarCrop.baseScale = V / Math.min(avatarCrop.nw, avatarCrop.nh);
+            avatarCrop.zoom = 1;
+            if (zoomEl) zoomEl.value = "1";
+            await detectAvatarFocus(img);
+            centerAvatarCropOnFocus();
+            drawAvatarCrop();
+            modal.hidden = false;
+            modal.setAttribute("aria-hidden", "false");
+            closeProfileMenu();
+          };
+          img.onerror = () => profileFlash("Could not read that image.", true);
+          img.src = dataUrl;
+        }
+
+        async function saveCroppedAvatar() {
+          if (!avatarCrop.img) return;
+          const dataUrl = exportAvatarCropDataUrl();
+          if (!dataUrl || dataUrl.length > 1100000) {
+            profileFlash("Cropped image still too large. Zoom in more.", true);
+            return;
+          }
+          const confirmBtn = document.getElementById("avatar-crop-confirm");
+          if (confirmBtn) confirmBtn.disabled = true;
+          try {
+            const res = await fetch("/api/auth/update_avatar", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ avatarB64: dataUrl }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              profileFlash(data.error || "Failed to update picture.", true);
+              return;
+            }
+            currentUser.avatarB64 = data.avatarB64 || dataUrl;
+            rememberAvatarLocally(currentUser.avatarB64);
+            applyAvatarEverywhere(currentUser.avatarB64);
+            closeAvatarCropModal();
+            profileFlash("Profile picture updated");
+          } catch (err) {
+            profileFlash(err.message || "Network error", true);
+          } finally {
+            if (confirmBtn) confirmBtn.disabled = false;
+          }
+        }
+
+        (function initAvatarCropUi() {
+          const stage = document.getElementById("avatar-crop-stage");
+          const zoomEl = document.getElementById("avatar-crop-zoom");
+          const cancelBtn = document.getElementById("avatar-crop-cancel");
+          const confirmBtn = document.getElementById("avatar-crop-confirm");
+          const backdrop = document.getElementById("avatar-crop-backdrop");
+
+          zoomEl?.addEventListener("input", () => {
+            const prevScale = avatarCropScale();
+            const V = avatarCrop.viewSize;
+            const cx = (V / 2 - avatarCrop.ox) / prevScale;
+            const cy = (V / 2 - avatarCrop.oy) / prevScale;
+            avatarCrop.zoom = Math.max(1, Math.min(3, parseFloat(zoomEl.value) || 1));
+            const nextScale = avatarCropScale();
+            avatarCrop.ox = V / 2 - cx * nextScale;
+            avatarCrop.oy = V / 2 - cy * nextScale;
+            drawAvatarCrop();
+          });
+
+          const onPointerDown = (e) => {
+            if (!avatarCrop.img) return;
+            avatarCrop.dragging = true;
+            avatarCrop.lastX = e.clientX;
+            avatarCrop.lastY = e.clientY;
+            try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+          };
+          const onPointerMove = (e) => {
+            if (!avatarCrop.dragging) return;
+            const dx = e.clientX - avatarCrop.lastX;
+            const dy = e.clientY - avatarCrop.lastY;
+            avatarCrop.lastX = e.clientX;
+            avatarCrop.lastY = e.clientY;
+            avatarCrop.ox += dx;
+            avatarCrop.oy += dy;
+            drawAvatarCrop();
+          };
+          const onPointerUp = (e) => {
+            avatarCrop.dragging = false;
+            try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
+          };
+          stage?.addEventListener("pointerdown", onPointerDown);
+          stage?.addEventListener("pointermove", onPointerMove);
+          stage?.addEventListener("pointerup", onPointerUp);
+          stage?.addEventListener("pointercancel", onPointerUp);
+
+          cancelBtn?.addEventListener("click", closeAvatarCropModal);
+          backdrop?.addEventListener("click", closeAvatarCropModal);
+          confirmBtn?.addEventListener("click", () => { saveCroppedAvatar(); });
+          document.addEventListener("keydown", (e) => {
+            const modal = document.getElementById("avatar-crop-modal");
+            if (e.key === "Escape" && modal && !modal.hidden) closeAvatarCropModal();
+          });
+        })();
+
+        document.getElementById("profile-pic-input")?.addEventListener("change", (e) => {
           const file = e.target.files && e.target.files[0];
           e.target.value = "";
           if (!file) return;
@@ -9714,65 +10056,59 @@
             profileFlash("Please choose an image file.", true);
             return;
           }
-          if (file.size > 900000) {
-            profileFlash("Image too large. Use a smaller photo.", true);
+          // Allow larger source files; crop export is compressed
+          if (file.size > 12 * 1024 * 1024) {
+            profileFlash("Image too large. Use a photo under 12MB.", true);
             return;
           }
           const reader = new FileReader();
-          reader.onload = async () => {
-            const dataUrl = reader.result;
-            try {
-              const res = await fetch("/api/auth/update_avatar", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({ avatarB64: dataUrl }),
-              });
-              const data = await res.json();
-              if (!res.ok) {
-                profileFlash(data.error || "Failed to update picture.", true);
-                return;
-              }
-              currentUser.avatarB64 = data.avatarB64 || dataUrl;
-              rememberAvatarLocally(currentUser.avatarB64);
-              applyAvatarEverywhere(currentUser.avatarB64);
-              profileFlash("Profile picture updated");
-            } catch (err) {
-              profileFlash(err.message || "Network error", true);
-            }
+          reader.onload = () => {
+            openAvatarCropModal(reader.result);
           };
+          reader.onerror = () => profileFlash("Could not read that image.", true);
           reader.readAsDataURL(file);
         });
 
-        function openSidebarAccountSettings() {
+        function openSidebarAccountSettings(e) {
+          if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+          if (e && typeof e.preventDefault === "function") e.preventDefault();
           closeProfileMenu();
-          if (typeof openSettingsPanel === "function") openSettingsPanel();
-          const target =
-            document.getElementById("buddy-name-input") ||
-            document.getElementById("username-input") ||
-            document.getElementById("settings-account-block");
-          const scrollRoot = document.querySelector("#settings-panel .settings-panel-card");
-          const focusField = () => {
-            if (!target) return;
-            try {
-              target.scrollIntoView({ behavior: "smooth", block: "center" });
-            } catch (_) {
-              target.scrollIntoView();
+          const open = () => {
+            if (typeof openSettingsPanel === "function") openSettingsPanel();
+            else {
+              const gear = document.getElementById("settings-toggle-btn") || document.getElementById("settings-btn");
+              if (gear) gear.click();
             }
-            if (typeof target.focus === "function") {
-              try { target.focus({ preventScroll: true }); } catch (_) { target.focus(); }
+            const target =
+              document.getElementById("buddy-name-input") ||
+              document.getElementById("username-input") ||
+              document.getElementById("settings-account-block") ||
+              document.getElementById("settings-section");
+            const scrollRoot = document.querySelector("#settings-panel .settings-panel-card");
+            const focusField = () => {
+              if (!target) return;
+              try {
+                target.scrollIntoView({ behavior: "smooth", block: "center" });
+              } catch (_) {
+                target.scrollIntoView();
+              }
+              if (typeof target.focus === "function") {
+                try { target.focus({ preventScroll: true }); } catch (_) { target.focus(); }
+              }
+            };
+            setTimeout(focusField, 120);
+            if (scrollRoot && target) {
+              setTimeout(() => {
+                try {
+                  const rootRect = scrollRoot.getBoundingClientRect();
+                  const tRect = target.getBoundingClientRect();
+                  scrollRoot.scrollTop += (tRect.top - rootRect.top) - 24;
+                } catch (_) { /* ignore */ }
+              }, 140);
             }
           };
-          setTimeout(focusField, 120);
-          if (scrollRoot && target) {
-            setTimeout(() => {
-              try {
-                const rootRect = scrollRoot.getBoundingClientRect();
-                const tRect = target.getBoundingClientRect();
-                scrollRoot.scrollTop += (tRect.top - rootRect.top) - 24;
-              } catch (_) { /* ignore */ }
-            }, 140);
-          }
+          // Defer so the same click does not count as an outside-click on settings
+          requestAnimationFrame(() => setTimeout(open, 0));
         }
 
         // Settings → Account: change password (collapsed by default)
@@ -9830,13 +10166,8 @@
           }
         });
 
-        document.getElementById("profile-open-settings-btn")?.addEventListener("click", () => {
-          closeProfileMenu();
-          if (typeof openSettingsPanel === "function") openSettingsPanel();
-          else {
-            const gear = document.getElementById("settings-toggle-btn") || document.getElementById("settings-btn");
-            if (gear) gear.click();
-          }
+        document.getElementById("profile-open-settings-btn")?.addEventListener("click", (e) => {
+          openSidebarAccountSettings(e);
         });
 
         document.getElementById("profile-logout-btn")?.addEventListener("click", async () => {
@@ -10898,15 +11229,15 @@
         removeTyping(typingId);
 
         // ── Read the server's response ──
-        const data = await res.json();
-        // ^ Convert the server's response from JSON text back into
-        //   a JavaScript object. This is the reverse of JSON.stringify().
+        let data = {};
+        try {
+          data = await res.json();
+        } catch (_) {
+          data = { error: res.ok ? "Empty AI response." : `Server error ${res.status}` };
+        }
 
         // ── Check if something went wrong ──
         if (!res.ok) {
-          // ^ res.ok is true if the server returned a success code (200).
-          //   If it's false, something went wrong (bad key, server error, etc.)
-
           const msg = data?.error || `Server error ${res.status}`;
           if (res.status === 401) {
             currentUser = { loggedIn: false };
@@ -10919,10 +11250,13 @@
         }
 
         // ── Show the AI's reply ──
-        const reply = data.reply || "(no response)";
-        // ^ Get the reply text from the server's response.
-        //   If for some reason it's empty, show "(no response)".
-
+        const reply = (data.reply || "").trim() || "(no response)";
+        if (!data.reply || !String(data.reply).trim()) {
+          appendBubble("ai", "❌ **Error:** AI returned an empty reply. Try again.");
+          history.pop();
+          userInputEl.value = text;
+          return;
+        }
         appendBubble("ai", reply, text, data.sources || null);
         // ^ Show the AI's reply as a chat bubble on the left side.
         //   'text' is passed so the bubble can decide which action buttons to show.
