@@ -882,6 +882,29 @@
       font-weight: 900;
       color: var(--text);
     }
+    #focus-tab-lock {
+      position: fixed;
+      inset: 0;
+      z-index: 9800;
+      background: rgba(6, 10, 20, 0.78);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #focus-tab-lock[hidden] { display: none !important; }
+    .focus-tab-lock-card {
+      width: min(420px, 100%);
+      background: var(--settings-glass, #111827);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px;
+      text-align: center;
+      color: var(--text);
+    }
+    .focus-tab-lock-card h3 { margin: 0 0 8px; }
+    .focus-tab-lock-card p { margin: 0 0 16px; color: var(--muted); font-size: 0.9rem; }
+    .focus-tab-lock-actions { display: flex; gap: 10px; }
     .sidebar-account-card {
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -1444,6 +1467,54 @@
 
     .auth-card[data-mode="register"]:not([data-logged-in="1"]) .register-only-field {
       display: block !important;
+    }
+
+    .auth-card .login-only-field,
+    .auth-card .forgot-only-field {
+      display: none !important;
+    }
+
+    .auth-card[data-mode="login"]:not([data-logged-in="1"]) .login-only-field {
+      display: block !important;
+    }
+
+    .auth-card .login-register-field {
+      display: none !important;
+    }
+
+    .auth-card[data-mode="login"]:not([data-logged-in="1"]) .login-register-field,
+    .auth-card[data-mode="register"]:not([data-logged-in="1"]) .login-register-field {
+      display: block !important;
+    }
+
+    .auth-card[data-mode="forgot"]:not([data-logged-in="1"]) .forgot-only-field {
+      display: block !important;
+    }
+
+    .auth-card[data-mode="forgot"] #forgot-new-password-wrap,
+    .auth-card[data-mode="forgot"] #forgot-confirm-password-wrap {
+      display: none !important;
+    }
+
+    .auth-card[data-mode="forgot"][data-forgot-ready="1"] #forgot-new-password-wrap,
+    .auth-card[data-mode="forgot"][data-forgot-ready="1"] #forgot-confirm-password-wrap {
+      display: block !important;
+    }
+
+    .auth-card[data-mode="forgot"] #auth-password,
+    .auth-card[data-mode="forgot"] label[for="auth-password"] {
+      display: none !important;
+    }
+
+    .auth-forgot-link {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 8px 0 0;
+      text-align: left;
     }
 
     .input {
@@ -5808,6 +5879,9 @@
           <input type="text" class="input" id="buddy-name-input" placeholder="Buddy name" style="width:100%;padding:8px 10px;" />
           <label for="username-input" style="font-size:0.82rem;font-weight:700;">Username</label>
           <input type="text" class="input" id="username-input" placeholder="Username" autocomplete="username" style="width:100%;padding:8px 10px;" />
+          <label for="settings-email-input" style="font-size:0.82rem;font-weight:700;">Recovery email</label>
+          <input type="email" class="input" id="settings-email-input" placeholder="you@example.com" autocomplete="email" style="width:100%;padding:8px 10px;" />
+          <p class="settings-hint" style="margin:0;font-size:0.72rem;">Needed for Forgot password. Google accounts already have an email.</p>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px;">
             <button type="button" class="btn-primary" id="save-settings-btn" style="width:100%;padding:10px;">Save</button>
             <button type="button" class="btn-icon" id="logout-btn" style="width:100%;padding:10px;justify-content:center;background:rgba(244,63,94,0.1);border-color:rgba(244,63,94,0.2);color:#f43f5e;">Log out</button>
@@ -6154,6 +6228,23 @@
           <label for="auth-password">Password</label>
           <input type="password" class="input" id="auth-password" placeholder="Minimum 6 characters" />
         </div>
+        <div class="field login-register-field" id="auth-email-field" style="margin-top: 10px;">
+          <label for="auth-email">Recovery email</label>
+          <input type="email" class="input" id="auth-email" placeholder="you@example.com" autocomplete="email" />
+          <p class="settings-hint" style="margin:6px 0 0;font-size:0.75rem;">Used only to reset your password.</p>
+        </div>
+        <div class="field forgot-only-field" id="forgot-email-field" style="margin-top: 10px;">
+          <label for="forgot-email">Recovery email</label>
+          <input type="email" class="input" id="forgot-email" placeholder="Email on this account" autocomplete="email" />
+        </div>
+        <div class="field forgot-only-field" id="forgot-new-password-wrap" style="margin-top: 10px;">
+          <label for="forgot-new-password">New password</label>
+          <input type="password" class="input" id="forgot-new-password" placeholder="Minimum 6 characters" autocomplete="new-password" />
+        </div>
+        <div class="field forgot-only-field" id="forgot-confirm-password-wrap" style="margin-top: 10px;">
+          <label for="forgot-confirm-password">Confirm new password</label>
+          <input type="password" class="input" id="forgot-confirm-password" placeholder="Re-type the same password" autocomplete="new-password" />
+        </div>
         <div class="field register-only-field" id="password-confirm-field" style="margin-top: 10px;">
           <label for="auth-password-confirm">Confirm Password</label>
           <input type="password" class="input" id="auth-password-confirm" placeholder="Re-type the same password" autocomplete="new-password" />
@@ -6166,6 +6257,7 @@
           <button class="btn-primary" id="auth-submit-btn" style="flex:1;">Login</button>
           <button class="btn-icon" id="auth-toggle-btn" type="button" style="flex:1; justify-content:center;">Register</button>
         </div>
+        <button type="button" class="auth-forgot-link login-only-field" id="auth-forgot-btn">Forgot password?</button>
         <div id="auth-google-wrap" class="logged-out-only" style="margin-top:12px;">
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; color:var(--muted); font-size:0.78rem;">
             <span style="flex:1; height:1px; background:var(--border);"></span>
@@ -6360,7 +6452,7 @@
     <div class="section-container">
       <div class="feature-header">
         <h2>🎯 Flashcard Generator</h2>
-        <p>Create flashcards from a topic, or leave blank to use the entire conversation. Flip a card, then mark Again / Good for spaced review.</p>
+        <p>Create flashcards from a topic, or leave blank to use the entire conversation. Flip every card, then mark Good for spaced review.</p>
       </div>
       <div class="flashcard-input">
         <textarea id="flashcard-input" placeholder="Leave blank to use the entire conversation" rows="2"></textarea>
@@ -7247,22 +7339,31 @@
         div.className = "flashcard";
         div.textContent = q;
         div.dataset.answer = a;
-        div.addEventListener("click", function () {
-          this.classList.toggle("flipped");
-          this.textContent = this.classList.contains("flipped") ? a : q;
-        });
         const controls = document.createElement("div");
         controls.style.cssText = "display:flex;gap:8px;justify-content:center;";
         controls.innerHTML = `
-          <button type="button" class="qs-btn" data-srs="again" style="flex:1;padding:8px;">Again</button>
-          <button type="button" class="qs-btn" data-srs="good" style="flex:1;padding:8px;">Good</button>`;
-        controls.querySelector('[data-srs="again"]')?.addEventListener("click", (e) => {
-          e.stopPropagation();
-          srsRate(id, 0);
-          if (dueOnly) wrap.remove();
+          <button type="button" class="qs-btn" data-srs="good" disabled style="flex:1;padding:8px;opacity:.45;">Good</button>`;
+        const goodBtn = controls.querySelector('[data-srs="good"]');
+        const syncGoodButtons = () => {
+          const cards = output.querySelectorAll(".flashcard");
+          const allFlipped = cards.length > 0 && [...cards].every((c) => c.classList.contains("flipped"));
+          output.querySelectorAll('[data-srs="good"]').forEach((btn) => {
+            btn.disabled = !allFlipped;
+            btn.style.opacity = allFlipped ? "1" : ".45";
+            btn.title = allFlipped ? "Mark as known" : "Flip every card first";
+          });
+          const hintEl = output.querySelector(".flashcard-good-hint");
+          if (hintEl) hintEl.style.display = allFlipped ? "none" : "";
+        };
+        div.addEventListener("click", function () {
+          this.classList.toggle("flipped");
+          this.textContent = this.classList.contains("flipped") ? a : q;
+          syncGoodButtons();
         });
-        controls.querySelector('[data-srs="good"]')?.addEventListener("click", (e) => {
+        goodBtn?.addEventListener("click", (e) => {
           e.stopPropagation();
+          const cards = output.querySelectorAll(".flashcard");
+          if (![...cards].every((c) => c.classList.contains("flipped"))) return;
           srsRate(id, 1);
           if (dueOnly) wrap.remove();
         });
@@ -7270,6 +7371,11 @@
         wrap.appendChild(controls);
         output.appendChild(wrap);
       });
+      const hint = document.createElement("div");
+      hint.className = "flashcard-good-hint";
+      hint.style.cssText = "grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.82rem;font-weight:700;";
+      hint.textContent = "Flip all cards to unlock Good.";
+      output.appendChild(hint);
       refreshSrsBanner();
     }
     function parseFlashcardPairs(responseText) {
@@ -7871,6 +7977,8 @@
           if (logoutBtn) logoutBtn.style.display = "";
           if (buddyNameEl) buddyNameEl.value = currentUser.buddyName || "Max";
           if (usernameInputEl) usernameInputEl.value = currentUser.identifier || "";
+          const settingsEmailEl = document.getElementById("settings-email-input");
+          if (settingsEmailEl) settingsEmailEl.value = currentUser.email || "";
           cfg.buddyName = currentUser.buddyName || "Max";
           localStorage.setItem("sb_config", JSON.stringify({ buddyName: cfg.buddyName }));
           if (typeof syncToolsSectionFromAuth === "function") syncToolsSectionFromAuth();
@@ -7932,6 +8040,17 @@
           if (authModeTitle) authModeTitle.textContent = "Register New Account";
           if (authSubmitBtn) authSubmitBtn.textContent = "Register";
           if (authToggleBtn) authToggleBtn.textContent = "Already have an account? Login";
+        } else if (authCard.dataset.mode === "forgot" && !currentUser?.loggedIn) {
+          if (authModeTitle) authModeTitle.textContent = "Reset password";
+          if (authSubmitBtn) {
+            authSubmitBtn.style.display = "block";
+            authSubmitBtn.textContent = authCard.dataset.forgotReady === "1" ? "Save new password" : "Verify account";
+          }
+          if (authToggleBtn) {
+            authToggleBtn.style.display = "block";
+            authToggleBtn.textContent = "Back to Login";
+          }
+          if (googleWrap) googleWrap.style.display = "none";
         } else if (!currentUser?.loggedIn) {
           if (authSubmitBtn) authSubmitBtn.textContent = "Login";
           if (authToggleBtn) authToggleBtn.textContent = "New user? Register";
@@ -8759,6 +8878,31 @@
               ok = false;
             }
           }
+
+          // 3. Save recovery email
+          const newEmail = (document.getElementById("settings-email-input")?.value || "").trim();
+          if (newEmail && newEmail !== (currentUser.email || "")) {
+            try {
+              const res = await fetch("/api/auth/update_email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ email: newEmail }),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (res.ok) {
+                currentUser.email = data.email || newEmail;
+                const emailEl = document.getElementById("profile-email-display");
+                if (emailEl) emailEl.textContent = currentUser.email || "—";
+              } else {
+                showAuthMessage(data.error || "Failed to update recovery email", true);
+                ok = false;
+              }
+            } catch (err) {
+              console.error("Error updating email:", err);
+              ok = false;
+            }
+          }
         }
 
         const saved = document.createElement("span");
@@ -9267,6 +9411,13 @@
       
       authIdentifierInput.value = localStorage.getItem("sb_auth_identifier") || "";
       authBuddyNameInput.value = localStorage.getItem("sb_auth_buddy_name") || "";
+      const authEmailInput = document.getElementById("auth-email");
+      if (authEmailInput) {
+        try { authEmailInput.value = localStorage.getItem("sb_recovery_email") || ""; } catch (_) {}
+        authEmailInput.addEventListener("input", () => {
+          try { localStorage.setItem("sb_recovery_email", authEmailInput.value.trim()); } catch (_) {}
+        });
+      }
 
       authIdentifierInput.addEventListener("input", () => {
         localStorage.setItem("sb_auth_identifier", authIdentifierInput.value);
@@ -9276,13 +9427,27 @@
       });
 
       // Toggle between login and register modes
+      let forgotResetToken = "";
       authToggleBtn.addEventListener("click", () => {
-        if (authCard.dataset.mode === "register") {
+        if (authCard.dataset.mode === "register" || authCard.dataset.mode === "forgot") {
           authCard.dataset.mode = "login";
+          authCard.dataset.forgotReady = "0";
+          forgotResetToken = "";
         } else {
           authCard.dataset.mode = "register";
         }
         updateAuthUI();
+      });
+      document.getElementById("auth-forgot-btn")?.addEventListener("click", () => {
+        authCard.dataset.mode = "forgot";
+        authCard.dataset.forgotReady = "0";
+        forgotResetToken = "";
+        const np = document.getElementById("forgot-new-password");
+        const cp = document.getElementById("forgot-confirm-password");
+        if (np) np.value = "";
+        if (cp) cp.value = "";
+        updateAuthUI({ clearMessage: true });
+        showAuthMessage("Enter your username and recovery email to reset your password.");
       });
 
       // Handle Login/Register submission
@@ -9293,6 +9458,76 @@
         const buddyName = (authBuddyNameInput.value || "").trim() || "Max";
         const mode = authCard.dataset.mode || "login";
         const sectionPayload = readAuthSectionPayload();
+        const registerEmail = (document.getElementById("auth-email")?.value || "").trim();
+
+        if (mode === "forgot") {
+          authSubmitBtn.disabled = true;
+          try {
+            if (authCard.dataset.forgotReady === "1" && forgotResetToken) {
+              const newPw = (document.getElementById("forgot-new-password")?.value || "").trim();
+              const conf = (document.getElementById("forgot-confirm-password")?.value || "").trim();
+              if (newPw.length < 6) {
+                showAuthMessage("New password must be at least 6 characters.", true);
+                return;
+              }
+              if (newPw !== conf) {
+                showAuthMessage("New password and confirmation do not match.", true);
+                return;
+              }
+              const res = await fetch("/api/auth/reset_password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                  resetToken: forgotResetToken,
+                  newPassword: newPw,
+                  confirmPassword: conf,
+                }),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                showAuthMessage(data.error || "Could not reset password.", true);
+                return;
+              }
+              forgotResetToken = "";
+              authCard.dataset.forgotReady = "0";
+              authCard.dataset.mode = "login";
+              const np = document.getElementById("forgot-new-password");
+              const cp = document.getElementById("forgot-confirm-password");
+              if (np) np.value = "";
+              if (cp) cp.value = "";
+              updateAuthUI({ clearMessage: false });
+              showAuthMessage(data.message || "Password updated. Log in with your new password.");
+              return;
+            }
+            const recEmail = (document.getElementById("forgot-email")?.value || "").trim();
+            if (!identifier || !recEmail) {
+              showAuthMessage("Username and recovery email are required.", true);
+              return;
+            }
+            const res = await fetch("/api/auth/forgot_password", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ identifier, email: recEmail }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              showAuthMessage(data.error || "Could not verify account.", true);
+              return;
+            }
+            forgotResetToken = data.resetToken || "";
+            authCard.dataset.forgotReady = "1";
+            updateAuthUI({ clearMessage: false });
+            showAuthMessage(data.message || "Verified. Set a new password below.");
+            document.getElementById("forgot-new-password")?.focus();
+          } catch (err) {
+            showAuthMessage(err.message || "Network error.", true);
+          } finally {
+            authSubmitBtn.disabled = false;
+          }
+          return;
+        }
 
         if (mode === "register" && !sectionPayload.section) {
           showAuthMessage("Please select your section (Whiz 1–3 or Super 1–3) first.", true);
@@ -9338,6 +9573,11 @@
             return;
           }
         }
+        if ((mode === "login" || mode === "register") && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerEmail)) {
+          showAuthMessage("Please enter a recovery email so you can reset your password later.", true);
+          document.getElementById("auth-email")?.focus();
+          return;
+        }
         // Only block real email-shaped values; allow usernames that contain "@" (e.g. ADMIN!@#)
         if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(identifier)) {
           showAuthMessage("Please use a username, not an email.", true);
@@ -9381,6 +9621,7 @@
               password,
               confirmPassword,
               buddyName,
+              email: registerEmail,
               section: sectionPayload.section,
               dropMath: sectionPayload.dropMath,
               dropScience: sectionPayload.dropScience,
@@ -9391,6 +9632,7 @@
             body = {
               identifier,
               password,
+              email: registerEmail,
             };
           }
 
@@ -9429,6 +9671,10 @@
               elective: data.elective || "",
             };
             localStorage.setItem("sb_auth_identifier", data.identifier || identifier);
+            try {
+              const savedEmail = data.email || registerEmail;
+              if (savedEmail) localStorage.setItem("sb_recovery_email", savedEmail);
+            } catch (_) {}
             const uname = data.identifier || identifier || "friend";
             let successMsg = `Login successful. Welcome, ${uname}!`;
             if (currentUser.section) successMsg += ` (${currentUser.section})`;
@@ -9676,6 +9922,8 @@
         if (emailEl) emailEl.textContent = currentUser?.email || "—";
         const usernameInput = document.getElementById("username-input");
         if (usernameInput && currentUser?.identifier) usernameInput.value = currentUser.identifier;
+        const settingsEmail = document.getElementById("settings-email-input");
+        if (settingsEmail) settingsEmail.value = currentUser?.email || "";
         const avatar = currentUser?.avatarB64 || null;
         if (avatar) rememberAvatarLocally(avatar);
         applyAvatarEverywhere(avatar);

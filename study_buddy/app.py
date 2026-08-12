@@ -1384,6 +1384,22 @@ def init_db():
         except Exception:
             pass
 
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
+        except Exception:
+            pass
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                token_hash TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                used INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+
         # Gamification tables (XP, streaks, shop, puzzle, planner, prefs)
         try:
             try:
@@ -4523,6 +4539,7 @@ def auth_register():
     identifier = (data.get("identifier") or "").strip()
     password   = (data.get("password")   or "").strip()
     buddy_name = (data.get("buddyName")  or "Max").strip() or "Max"
+    email = _normalize_email(data.get("email"))
 
     confirm_password = (data.get("confirmPassword") or "").strip()
     section, drop_math, drop_science, elective = _section_from_request_data(data)
@@ -4532,6 +4549,8 @@ def auth_register():
     # Block email-shaped ids only (allow usernames that merely contain "@", e.g. ADMIN!@#)
     if re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", identifier):
         return jsonify({"error": "Please use a username, not an email."}), 400
+    if not _valid_email(email):
+        return jsonify({"error": "Please enter a recovery email so you can reset your password later."}), 400
     if len(password) < 6:
         return jsonify({"error": "Password must be at least 6 characters."}), 400
     if not confirm_password:
@@ -4555,8 +4574,8 @@ def auth_register():
                 return jsonify({"error": "Username is taken"}), 400
 
             conn.execute(
-                "INSERT INTO users (identifier, password_hash, buddy_name) VALUES (?,?,?)",
-                (identifier, ph, buddy_name)
+                "INSERT INTO users (identifier, password_hash, buddy_name, email) VALUES (?,?,?,?)",
+                (identifier, ph, buddy_name, email)
             )
             row = conn.execute("SELECT * FROM users WHERE identifier=?", (identifier,)).fetchone()
         session.clear()
@@ -4581,9 +4600,12 @@ def auth_login():
     data = request.get_json(force=True)
     identifier = (data.get("identifier") or "").strip()
     password   = (data.get("password")   or "").strip()
+    email = _normalize_email(data.get("email"))
 
     if not identifier or not password:
         return jsonify({"error": "Incorrect username or password"}), 400
+    if not _valid_email(email):
+        return jsonify({"error": "Please enter your recovery email."}), 400
 
     with get_db() as conn:
         row = conn.execute(
@@ -4599,6 +4621,8 @@ def auth_login():
                 "UPDATE users SET password_hash=? WHERE id=?",
                 (hash_password(password), row["id"]),
             )
+        conn.execute("UPDATE users SET email=? WHERE id=?", (email, row["id"]))
+        row = conn.execute("SELECT * FROM users WHERE id=?", (row["id"],)).fetchone()
 
     session.clear()
     session.permanent = True
@@ -4676,6 +4700,153 @@ def auth_update_password():
             (hash_password(new_pw), uid),
         )
     return jsonify({"ok": True})
+
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _normalize_email(raw) -> str:
+    return (raw or "").strip().lower()
+
+
+def _valid_email(raw) -> bool:
+    return bool(_EMAIL_RE.match(_normalize_email(raw)))
+
+
+def _user_has_local_password(row) -> bool:
+    pw = (row["password_hash"] if row else "") or ""
+    return bool(pw) and not str(pw).startswith("firebase_only:")
+
+
+def _try_send_reset_email(to_email: str, code: str) -> bool:
+    host = (os.getenv("SMTP_HOST") or "").strip()
+    user = (os.getenv("SMTP_USER") or "").strip()
+    password = (os.getenv("SMTP_PASSWORD") or os.getenv("SMTP_PASS") or "").strip()
+    from_addr = (os.getenv("SMTP_FROM") or user or "").strip()
+    if not host or not from_addr:
+        return False
+    try:
+        port = int(os.getenv("SMTP_PORT") or "587")
+    except ValueError:
+        port = 587
+    try:
+        import smtplib
+        from email.message import EmailMessage
+        msg = EmailMessage()
+        msg["Subject"] = "Study Buddy password reset code"
+        msg["From"] = from_addr
+        msg["To"] = to_email
+        msg.set_content(
+            f"Your Study Buddy reset code is: {code}\n\n"
+            "It expires in 15 minutes. If you didn't request this, ignore this email.\n"
+        )
+        with smtplib.SMTP(host, port, timeout=20) as smtp:
+            smtp.ehlo()
+            try:
+                smtp.starttls()
+            except Exception:
+                pass
+            if user and password:
+                smtp.login(user, password)
+            smtp.send_message(msg)
+        print(f"[Auth] reset email sent to {to_email}")
+        return True
+    except Exception as e:
+        print(f"[Auth] reset email failed: {e}")
+        return False
+
+
+@app.route("/api/auth/update_email", methods=["POST"])
+def auth_update_email():
+    """Set or change recovery email while logged in."""
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not logged in."}), 401
+    data = request.get_json(force=True) or {}
+    email = _normalize_email(data.get("email"))
+    if not _valid_email(email):
+        return jsonify({"error": "Enter a valid recovery email."}), 400
+    with get_db() as conn:
+        conn.execute("UPDATE users SET email=? WHERE id=?", (email, uid))
+    return jsonify({"ok": True, "email": email})
+
+
+@app.route("/api/auth/forgot_password", methods=["POST"])
+@rate_limit(max_calls=8, window_sec=300)
+def auth_forgot_password():
+    """Start reset: username + recovery email must match a local-password account."""
+    data = request.get_json(force=True) or {}
+    identifier = (data.get("identifier") or "").strip()
+    email = _normalize_email(data.get("email"))
+    if not identifier or not _valid_email(email):
+        return jsonify({"error": "Username and recovery email are required."}), 400
+
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM users WHERE identifier=?", (identifier,)).fetchone()
+        stored_email = _normalize_email(_row_get(row, "email") if row else "")
+        if not row or stored_email != email:
+            return jsonify({"error": "Username and recovery email don't match."}), 400
+        if not _user_has_local_password(row):
+            return jsonify({
+                "error": "This account uses Google Sign-In. Use Continue with Google instead of a password reset.",
+            }), 400
+
+        token = secrets.token_urlsafe(24)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        expires = (datetime.utcnow() + timedelta(minutes=15)).strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute("UPDATE password_reset_tokens SET used=1 WHERE user_id=? AND used=0", (row["id"],))
+        conn.execute(
+            "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?,?,?)",
+            (row["id"], token_hash, expires),
+        )
+
+    return jsonify({
+        "ok": True,
+        "resetToken": token,
+        "message": "Verified. Set a new password below.",
+    })
+
+
+@app.route("/api/auth/reset_password", methods=["POST"])
+@rate_limit(max_calls=8, window_sec=300)
+def auth_reset_password():
+    """Finish reset with the one-time token from forgot_password."""
+    data = request.get_json(force=True) or {}
+    token = (data.get("resetToken") or data.get("token") or "").strip()
+    new_pw = (data.get("newPassword") or "").strip()
+    confirm_pw = (data.get("confirmPassword") or "").strip()
+    if not token:
+        return jsonify({"error": "Reset session expired. Start again."}), 400
+    if len(new_pw) < 6:
+        return jsonify({"error": "New password must be at least 6 characters."}), 400
+    if new_pw != confirm_pw:
+        return jsonify({"error": "New password and confirmation do not match."}), 400
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    with get_db() as conn:
+        row = conn.execute(
+            """
+            SELECT t.id, t.user_id, t.used, t.expires_at, u.password_hash
+            FROM password_reset_tokens t
+            JOIN users u ON u.id = t.user_id
+            WHERE t.token_hash=?
+            ORDER BY t.id DESC LIMIT 1
+            """,
+            (token_hash,),
+        ).fetchone()
+        if not row or row["used"]:
+            return jsonify({"error": "Reset link is invalid or already used."}), 400
+        if str(row["expires_at"] or "") < now:
+            return jsonify({"error": "Reset expired. Start again."}), 400
+        if str(row["password_hash"] or "").startswith("firebase_only:"):
+            return jsonify({"error": "This account uses Google Sign-In."}), 400
+        conn.execute(
+            "UPDATE users SET password_hash=? WHERE id=?",
+            (hash_password(new_pw), row["user_id"]),
+        )
+        conn.execute("UPDATE password_reset_tokens SET used=1 WHERE id=?", (row["id"],))
+    return jsonify({"ok": True, "message": "Password updated. You can log in now."})
 
 
 @app.route("/api/auth/update_avatar", methods=["POST"])

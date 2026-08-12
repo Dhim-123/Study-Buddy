@@ -417,7 +417,8 @@
       this.interval = setInterval(() => this.tick(), 1000);
       this.syncUi();
       this.persist();
-      if (!silent) toast("Focus timer started", "success");
+      this.hideAwayOverlay();
+      if (!silent) toast("Focus timer started — stay in this browser tab", "success");
     },
 
     pause() {
@@ -442,6 +443,7 @@
       try {
         sessionStorage.removeItem(FOCUS_AWARD_KEY);
       } catch (_) {}
+      this.hideAwayOverlay();
       this.syncUi();
       this.persist();
     },
@@ -450,6 +452,47 @@
       clearInterval(this.interval);
       this.interval = null;
       this.running = false;
+      this.hideAwayOverlay();
+    },
+
+    ensureAwayOverlay() {
+      let overlay = document.getElementById("focus-tab-lock");
+      if (overlay) return overlay;
+      overlay = document.createElement("div");
+      overlay.id = "focus-tab-lock";
+      overlay.hidden = true;
+      overlay.innerHTML = `
+        <div class="focus-tab-lock-card" role="dialog" aria-modal="true" aria-labelledby="focus-tab-lock-title">
+          <h3 id="focus-tab-lock-title">Stay on this browser tab</h3>
+          <p>Focus timer paused because you switched to another browser tab or app. Chat and Quiz are fine — don't leave Study Buddy.</p>
+          <div class="focus-tab-lock-actions">
+            <button type="button" class="btn-primary" id="focus-tab-lock-resume" style="flex:1;">Resume</button>
+            <button type="button" class="btn-secondary" id="focus-tab-lock-stop" style="flex:1;">Reset</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      overlay.querySelector("#focus-tab-lock-resume")?.addEventListener("click", () => {
+        overlay.hidden = true;
+        this.start();
+      });
+      overlay.querySelector("#focus-tab-lock-stop")?.addEventListener("click", () => {
+        overlay.hidden = true;
+        this.reset();
+      });
+      return overlay;
+    },
+
+    hideAwayOverlay() {
+      const overlay = document.getElementById("focus-tab-lock");
+      if (overlay) overlay.hidden = true;
+    },
+
+    onLeftTab() {
+      if (!this.running) return;
+      this.pause();
+      const overlay = this.ensureAwayOverlay();
+      overlay.hidden = false;
+      toast("Focus timer paused — you left the tab", "warn");
     },
   };
 
@@ -647,7 +690,16 @@
     const body = document.getElementById("puzzle-modal-body");
     if (body) body.innerHTML = `<div class="sb-skel">Loading today's puzzle…</div>`;
     try {
-      if (puzzleInflight) await puzzleInflight;
+      if (puzzleInflight) {
+        try {
+          lastPuzzle = await puzzleInflight;
+          puzzleInflight = null;
+          renderPuzzle(lastPuzzle);
+          return;
+        } catch (_) {
+          puzzleInflight = null;
+        }
+      }
       const grade = parseInt(
         document.getElementById("settings-grade")?.value
           || localStorage.getItem("sb_grade")
@@ -658,10 +710,11 @@
         `/api/daily_puzzle?localDate=${encodeURIComponent(localDate())}&grade=${grade}`
       );
       lastPuzzle = await puzzleInflight;
-      puzzleInflight = null;
       renderPuzzle(lastPuzzle);
     } catch (e) {
       if (body) body.innerHTML = `<p class="sb-err">${e.message}</p>`;
+    } finally {
+      puzzleInflight = null;
     }
   }
 
@@ -1511,6 +1564,18 @@
     }
     Focus.restore();
     Focus.syncUi();
+    Focus.ensureAwayOverlay();
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && Focus.running) Focus.onLeftTab();
+    });
+    window.addEventListener("pagehide", () => {
+      if (Focus.running) Focus.onLeftTab();
+    });
+    window.addEventListener("beforeunload", (e) => {
+      if (!Focus.running) return;
+      e.preventDefault();
+      e.returnValue = "Focus timer is running. Stay on this tab.";
+    });
 
     document.getElementById("settings-save-prefs")?.addEventListener("click", savePrefsFromSettings);
     document.getElementById("settings-language")?.addEventListener("change", (e) => {

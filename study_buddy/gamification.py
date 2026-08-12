@@ -635,7 +635,7 @@ def _subject_for_date(local_date: str) -> str:
 def _normalize_answer(s: str) -> str:
     s = (s or "").strip().lower()
     s = re.sub(r"\s+", " ", s)
-    s = re.sub(r"[^\w\s./+-]", "", s)
+    s = re.sub(r"[^\w\s/+-]", "", s)
     return s
 
 
@@ -1222,6 +1222,8 @@ def register_gamification_routes(
         raw = re.sub(r"\s*```$", "", raw)
         try:
             data = json.loads(raw)
+            if not isinstance(data, dict):
+                raise ValueError("puzzle JSON was not an object")
         except Exception:
             # Fallback static puzzle
             data = {
@@ -1231,11 +1233,21 @@ def register_gamification_routes(
                 "answer": "96",
                 "solution": "12 × 8 = 96.",
             }
+        answer = str(data.get("answer") or "").strip()[:200]
+        if not answer:
+            data = {
+                "difficulty": "Medium",
+                "prompt": f"Grade {grade} {subject}: What is 12 × 8?",
+                "hint": "Think 10×8 then 2×8.",
+                "answer": "96",
+                "solution": "12 × 8 = 96.",
+            }
+            answer = "96"
         return {
             "difficulty": str(data.get("difficulty") or "Medium")[:20],
             "prompt": str(data.get("prompt") or "Solve today's puzzle.")[:2000],
             "hint": str(data.get("hint") or "Break it into smaller steps.")[:1000],
-            "answer": str(data.get("answer") or "").strip()[:200],
+            "answer": answer,
             "solution": str(data.get("solution") or "")[:2000],
             "xp_reward": 25,
         }
@@ -1248,6 +1260,7 @@ def register_gamification_routes(
         uid = user["id"]
         local_date = _parse_local_date(request.args)
         _pull_game(uid)
+        generated = None
         with get_db() as conn:
             prefs = _get_prefs(conn, uid)
             grade = int(request.args.get("grade") or prefs.get("grade") or 9)
@@ -1269,27 +1282,37 @@ def register_gamification_routes(
                 """,
                 (local_date, grade, subject),
             ).fetchone()
+            need_generate = row is None
+
+        if need_generate:
+            generated = _generate_puzzle(grade, subject, local_date, topic_hint=topic_hint)
+
+        with get_db() as conn:
+            if generated:
+                try:
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO daily_puzzles
+                        (puzzle_date, grade, subject, difficulty, prompt, hint, answer, xp_reward, solution)
+                        VALUES (?,?,?,?,?,?,?,?,?)
+                        """,
+                        (
+                            local_date, grade, subject,
+                            generated["difficulty"], generated["prompt"], generated["hint"],
+                            generated["answer"], generated["xp_reward"], generated["solution"],
+                        ),
+                    )
+                except Exception as e:
+                    print(f"[puzzle] insert failed: {e}")
+            row = conn.execute(
+                """
+                SELECT * FROM daily_puzzles
+                WHERE puzzle_date=? AND grade=? AND subject=?
+                """,
+                (local_date, grade, subject),
+            ).fetchone()
             if not row:
-                generated = _generate_puzzle(grade, subject, local_date, topic_hint=topic_hint)
-                conn.execute(
-                    """
-                    INSERT INTO daily_puzzles
-                    (puzzle_date, grade, subject, difficulty, prompt, hint, answer, xp_reward, solution)
-                    VALUES (?,?,?,?,?,?,?,?,?)
-                    """,
-                    (
-                        local_date, grade, subject,
-                        generated["difficulty"], generated["prompt"], generated["hint"],
-                        generated["answer"], generated["xp_reward"], generated["solution"],
-                    ),
-                )
-                row = conn.execute(
-                    """
-                    SELECT * FROM daily_puzzles
-                    WHERE puzzle_date=? AND grade=? AND subject=?
-                    """,
-                    (local_date, grade, subject),
-                ).fetchone()
+                return jsonify({"error": "Could not load today's puzzle. Try again."}), 500
 
             attempt = conn.execute(
                 """
@@ -1330,6 +1353,7 @@ def register_gamification_routes(
         with get_db() as conn:
             prefs = _get_prefs(conn, uid)
             grade = int(data.get("grade") or prefs.get("grade") or 9)
+            grade = max(1, min(12, grade))
             subject = (data.get("subject") or _subject_for_date(local_date)).strip()
             row = conn.execute(
                 "SELECT * FROM daily_puzzles WHERE puzzle_date=? AND grade=? AND subject=?",
@@ -1355,9 +1379,10 @@ def register_gamification_routes(
                     "answer": row["answer"],
                 })
 
-            correct = _normalize_answer(user_answer) == _normalize_answer(row["answer"])
-            # Also accept if answer contained in response
-            if not correct and _normalize_answer(row["answer"]) in _normalize_answer(user_answer):
+            expected = _normalize_answer(row["answer"])
+            given = _normalize_answer(user_answer)
+            correct = bool(expected) and given == expected
+            if not correct and expected and len(expected) >= 1 and expected in given:
                 correct = True
 
             xp_awarded = 0
@@ -1408,6 +1433,7 @@ def register_gamification_routes(
         with get_db() as conn:
             prefs = _get_prefs(conn, uid)
             grade = int(data.get("grade") or prefs.get("grade") or 9)
+            grade = max(1, min(12, grade))
             subject = (data.get("subject") or _subject_for_date(local_date)).strip()
             row = conn.execute(
                 "SELECT * FROM daily_puzzles WHERE puzzle_date=? AND grade=? AND subject=?",
