@@ -4600,12 +4600,9 @@ def auth_login():
     data = request.get_json(force=True)
     identifier = (data.get("identifier") or "").strip()
     password   = (data.get("password")   or "").strip()
-    email = _normalize_email(data.get("email"))
 
     if not identifier or not password:
         return jsonify({"error": "Incorrect username or password"}), 400
-    if not _valid_email(email):
-        return jsonify({"error": "Please enter your recovery email."}), 400
 
     with get_db() as conn:
         row = conn.execute(
@@ -4621,8 +4618,7 @@ def auth_login():
                 "UPDATE users SET password_hash=? WHERE id=?",
                 (hash_password(password), row["id"]),
             )
-        conn.execute("UPDATE users SET email=? WHERE id=?", (email, row["id"]))
-        row = conn.execute("SELECT * FROM users WHERE id=?", (row["id"],)).fetchone()
+            row = conn.execute("SELECT * FROM users WHERE id=?", (row["id"],)).fetchone()
 
     session.clear()
     session.permanent = True

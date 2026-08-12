@@ -638,11 +638,11 @@
       overflow: hidden;
     }
 
-    /* First-time product tour */
+    /* First-time product tour — above spotlight dim (9205) so Next stays readable */
     .sb-tour {
       position: fixed;
       inset: 0;
-      z-index: 9200;
+      z-index: 9600;
       pointer-events: none;
     }
     .sb-tour[hidden] {
@@ -666,7 +666,23 @@
       background: rgba(18, 26, 42, 0.98);
       box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
       pointer-events: auto;
-      z-index: 9300;
+      isolation: isolate;
+      z-index: 9600;
+    }
+    #sb-tour-next {
+      width: auto;
+      min-width: 88px;
+      background: var(--accent) !important;
+      color: #fff !important;
+      border: none !important;
+      opacity: 1 !important;
+      box-shadow: 0 4px 12px var(--glow-accent);
+    }
+    #sb-tour-next:hover,
+    #sb-tour-next:active {
+      background: var(--accent-hover) !important;
+      color: #fff !important;
+      opacity: 1 !important;
     }
     .sb-tour-step {
       font-size: 0.75rem;
@@ -6228,7 +6244,7 @@
           <label for="auth-password">Password</label>
           <input type="password" class="input" id="auth-password" placeholder="Minimum 6 characters" />
         </div>
-        <div class="field login-register-field" id="auth-email-field" style="margin-top: 10px;">
+        <div class="field register-only-field" id="auth-email-field" style="margin-top: 10px;">
           <label for="auth-email">Recovery email</label>
           <input type="email" class="input" id="auth-email" placeholder="you@example.com" autocomplete="email" />
           <p class="settings-hint" style="margin:6px 0 0;font-size:0.75rem;">Used only to reset your password.</p>
@@ -9573,7 +9589,7 @@
             return;
           }
         }
-        if ((mode === "login" || mode === "register") && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerEmail)) {
+        if (mode === "register" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerEmail)) {
           showAuthMessage("Please enter a recovery email so you can reset your password later.", true);
           document.getElementById("auth-email")?.focus();
           return;
@@ -9632,7 +9648,6 @@
             body = {
               identifier,
               password,
-              email: registerEmail,
             };
           }
 
