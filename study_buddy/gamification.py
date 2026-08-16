@@ -6,9 +6,15 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from datetime import datetime, timedelta
 
 from flask import jsonify, request
+
+# Internal DB key only — grades are removed from the student UI
+GRADE_KEY = 10
+_puzzle_gen_locks = {}
+_puzzle_gen_locks_mu = threading.Lock()
 
 # ── Constants ─────────────────────────────────────────────────────────
 
@@ -103,7 +109,7 @@ FACT_FALLBACKS = [
 
 PUZZLE_SUBJECTS = [
     "Math", "Physics", "Chemistry", "Biology", "English",
-    "History", "Geography", "Computer", "General Knowledge",
+    "History", "Geography", "Computer", "Sports", "General Knowledge",
 ]
 
 MILESTONES = [
@@ -651,13 +657,13 @@ def register_gamification_routes(
 ):
     """Attach all gamification routes to the Flask app."""
 
-    def _llm_json_text(messages, *, max_tokens=500, temperature=0.7):
+    def _llm_json_text(messages, *, max_tokens=500, temperature=0.7, light=False):
         if llm_chat_completion:
             text, _meta = llm_chat_completion(
                 messages,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                light=False,
+                light=light,
             )
             return text
         client = get_groq_client()
@@ -904,11 +910,7 @@ def register_gamification_routes(
         with get_db() as conn:
             _ensure_xp_streak(conn, uid)
             current = _get_prefs(conn, uid)
-            grade = data.get("grade", current.get("grade", 9))
-            try:
-                grade = max(1, min(12, int(grade)))
-            except Exception:
-                grade = 9
+            grade = GRADE_KEY
             language = (data.get("language") or current.get("language") or "multi").strip().lower()[:20] or "multi"
             if language not in ("en", "hi", "te", "es", "fr", "multi", "auto", "multilingual"):
                 language = "multi"
@@ -1123,7 +1125,13 @@ def register_gamification_routes(
             ("civics", "Civics"),
             ("science", "Science"),
             ("computer", "Computer"),
+            ("sport", "Sports"),
+            ("cricket", "Sports"),
+            ("football", "Sports"),
+            ("olympics", "Sports"),
             ("hindi", "Hindi"),
+            ("general knowledge", "General Knowledge"),
+            ("gk", "General Knowledge"),
         ]
         for key, label in mapping:
             if key in t and label in PUZZLE_SUBJECTS:
@@ -1197,23 +1205,21 @@ def register_gamification_routes(
         return "", ""
 
     def _generate_puzzle(grade: int, subject: str, local_date: str, topic_hint: str = "") -> dict:
-        hint_bit = f" Focus topic if possible: {topic_hint[:160]}." if (topic_hint or "").strip() else ""
+        hint_bit = f" Topic: {topic_hint[:80]}." if (topic_hint or "").strip() else ""
         prompt = (
-            f"Create ONE short school puzzle for Grade {grade} students in {subject}. "
-            f"Date seed: {local_date}.{hint_bit} "
-            "Return STRICT JSON only with keys: "
-            "difficulty (Easy|Medium|Hard), prompt, hint, answer, solution. "
-            "Answer must be a short string (number or few words). "
-            "No markdown fences."
+            f"ONE short {subject} school puzzle.{hint_bit} Seed:{local_date}. "
+            "STRICT JSON keys only: difficulty (Easy|Medium|Hard), prompt, hint, answer, solution. "
+            "prompt under 40 words; answer a number or few words. No markdown."
         )
         try:
             raw = _llm_json_text(
                 [
-                    {"role": "system", "content": "You write educational daily puzzles. Output JSON only."},
+                    {"role": "system", "content": "Educational daily puzzles. JSON only. Be brief."},
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=500,
-                temperature=0.7,
+                max_tokens=200,
+                temperature=0.55,
+                light=True,
             )
         except Exception as e:
             print(f"[puzzle] LLM failed: {e}")
@@ -1225,10 +1231,9 @@ def register_gamification_routes(
             if not isinstance(data, dict):
                 raise ValueError("puzzle JSON was not an object")
         except Exception:
-            # Fallback static puzzle
             data = {
                 "difficulty": "Medium",
-                "prompt": f"Grade {grade} {subject}: What is 12 × 8?",
+                "prompt": f"{subject}: What is 12 × 8?",
                 "hint": "Think 10×8 then 2×8.",
                 "answer": "96",
                 "solution": "12 × 8 = 96.",
@@ -1237,7 +1242,7 @@ def register_gamification_routes(
         if not answer:
             data = {
                 "difficulty": "Medium",
-                "prompt": f"Grade {grade} {subject}: What is 12 × 8?",
+                "prompt": f"{subject}: What is 12 × 8?",
                 "hint": "Think 10×8 then 2×8.",
                 "answer": "96",
                 "solution": "12 × 8 = 96.",
@@ -1252,6 +1257,14 @@ def register_gamification_routes(
             "xp_reward": 25,
         }
 
+    def _puzzle_lock_for(key: str) -> threading.Lock:
+        with _puzzle_gen_locks_mu:
+            lock = _puzzle_gen_locks.get(key)
+            if lock is None:
+                lock = threading.Lock()
+                _puzzle_gen_locks[key] = lock
+            return lock
+
     @app.route("/api/daily_puzzle", methods=["GET"])
     def daily_puzzle_get():
         user, err = require_auth()
@@ -1259,12 +1272,9 @@ def register_gamification_routes(
             return err
         uid = user["id"]
         local_date = _parse_local_date(request.args)
-        _pull_game(uid)
         generated = None
         with get_db() as conn:
-            prefs = _get_prefs(conn, uid)
-            grade = int(request.args.get("grade") or prefs.get("grade") or 9)
-            grade = max(1, min(12, grade))
+            grade = GRADE_KEY
             requested = (request.args.get("subject") or "").strip()
             topic_hint = ""
             if requested and requested in PUZZLE_SUBJECTS:
@@ -1285,7 +1295,20 @@ def register_gamification_routes(
             need_generate = row is None
 
         if need_generate:
-            generated = _generate_puzzle(grade, subject, local_date, topic_hint=topic_hint)
+            lock_key = f"{local_date}|{grade}|{subject}"
+            lock = _puzzle_lock_for(lock_key)
+            with lock:
+                # Re-check after waiting — another request may have inserted
+                with get_db() as conn:
+                    row = conn.execute(
+                        """
+                        SELECT * FROM daily_puzzles
+                        WHERE puzzle_date=? AND grade=? AND subject=?
+                        """,
+                        (local_date, grade, subject),
+                    ).fetchone()
+                if row is None:
+                    generated = _generate_puzzle(grade, subject, local_date, topic_hint=topic_hint)
 
         with get_db() as conn:
             if generated:
@@ -1352,8 +1375,7 @@ def register_gamification_routes(
         _pull_game(uid)
         with get_db() as conn:
             prefs = _get_prefs(conn, uid)
-            grade = int(data.get("grade") or prefs.get("grade") or 9)
-            grade = max(1, min(12, grade))
+            grade = GRADE_KEY
             subject = (data.get("subject") or _subject_for_date(local_date)).strip()
             row = conn.execute(
                 "SELECT * FROM daily_puzzles WHERE puzzle_date=? AND grade=? AND subject=?",
@@ -1432,8 +1454,7 @@ def register_gamification_routes(
         _pull_game(uid)
         with get_db() as conn:
             prefs = _get_prefs(conn, uid)
-            grade = int(data.get("grade") or prefs.get("grade") or 9)
-            grade = max(1, min(12, grade))
+            grade = GRADE_KEY
             subject = (data.get("subject") or _subject_for_date(local_date)).strip()
             row = conn.execute(
                 "SELECT * FROM daily_puzzles WHERE puzzle_date=? AND grade=? AND subject=?",
@@ -1480,23 +1501,21 @@ def register_gamification_routes(
     def _generate_fact(grade: int, local_date: str) -> dict:
         try:
             prompt = (
-                f"Write ONE short, wow school-safe fun fact for Grade {grade} students. "
-                f"Date seed: {local_date}. "
-                "Style: start the body with 'Did you know' and include a surprising number, "
-                "timeline, or comparison (like Everest height trivia). "
-                "Return STRICT JSON only with keys: title (short), body (2–3 sentences), "
-                "category (one word or short phrase). No markdown fences."
+                f"ONE short school-safe fun fact. Seed:{local_date}. "
+                "Body starts with 'Did you know'. Include a surprising number. "
+                "STRICT JSON: title, body (2 sentences), category. No markdown."
             )
             raw = _llm_json_text(
                 [
                     {
                         "role": "system",
-                        "content": "You write delightful educational daily facts. Output JSON only.",
+                        "content": "Delightful educational daily facts. JSON only. Be brief.",
                     },
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=280,
-                temperature=0.85,
+                max_tokens=180,
+                temperature=0.75,
+                light=True,
             )
             raw = re.sub(r"^```(?:json)?\s*", "", (raw or "").strip(), flags=re.I)
             raw = re.sub(r"\s*```$", "", raw)
@@ -1525,12 +1544,9 @@ def register_gamification_routes(
             return err
         uid = user["id"]
         local_date = _parse_local_date(request.args)
-        _pull_game(uid)
         with get_db() as conn:
             migrate_gamification_tables(conn)
-            prefs = _get_prefs(conn, uid)
-            grade = int(request.args.get("grade") or prefs.get("grade") or 9)
-            grade = max(1, min(12, grade))
+            grade = GRADE_KEY
             row = conn.execute(
                 "SELECT * FROM daily_facts WHERE fact_date=? AND grade=?",
                 (local_date, grade),
@@ -1582,12 +1598,9 @@ def register_gamification_routes(
         uid = user["id"]
         data = request.get_json(force=True) or {}
         local_date = _parse_local_date(data)
-        _pull_game(uid)
         with get_db() as conn:
             migrate_gamification_tables(conn)
-            prefs = _get_prefs(conn, uid)
-            grade = int(data.get("grade") or prefs.get("grade") or 9)
-            grade = max(1, min(12, grade))
+            grade = GRADE_KEY
             row = conn.execute(
                 "SELECT * FROM daily_facts WHERE fact_date=? AND grade=?",
                 (local_date, grade),

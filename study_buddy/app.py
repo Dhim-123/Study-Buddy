@@ -4193,12 +4193,14 @@ def auth_me():
         return jsonify({"loggedIn": False, "isAdmin": admin})
     pw = row["password_hash"] or ""
     sec = get_user_section_prefs(row["id"])
+    has_password = bool(pw) and not str(pw).startswith("firebase_only:")
     return jsonify({
         "loggedIn": True,
         "identifier": row["identifier"],
         "buddyName": row["buddy_name"],
         "avatarB64": _row_get(row, "avatar_b64"),
-        "hasPassword": bool(pw) and not str(pw).startswith("firebase_only:"),
+        "hasPassword": has_password,
+        "needsLocalPassword": not has_password,
         "email": _row_get(row, "email"),
         "userId": row["id"],
         "isAdmin": admin,
@@ -4533,6 +4535,7 @@ def _auth_user_payload(row, sec=None):
 
 
 @app.route("/api/auth/register", methods=["POST"])
+@rate_limit(max_calls=12, window_sec=300)
 def auth_register():
     """Register a new user with username + password."""
     data = request.get_json(force=True)
@@ -4540,6 +4543,7 @@ def auth_register():
     password   = (data.get("password")   or "").strip()
     buddy_name = (data.get("buddyName")  or "Max").strip() or "Max"
     email = _normalize_email(data.get("email"))
+    remember = bool(data.get("rememberMe", True))
 
     confirm_password = (data.get("confirmPassword") or "").strip()
     section, drop_math, drop_science, elective = _section_from_request_data(data)
@@ -4579,7 +4583,7 @@ def auth_register():
             )
             row = conn.execute("SELECT * FROM users WHERE identifier=?", (identifier,)).fetchone()
         session.clear()
-        session.permanent = True
+        session.permanent = remember
         session["user_id"] = row["id"]
         session["identifier"] = row["identifier"]
         ok, err = apply_section_prefs(
@@ -4595,11 +4599,13 @@ def auth_register():
 
 
 @app.route("/api/auth/login", methods=["POST"])
+@rate_limit(max_calls=20, window_sec=300)
 def auth_login():
     """Log in with username + password."""
     data = request.get_json(force=True)
     identifier = (data.get("identifier") or "").strip()
     password   = (data.get("password")   or "").strip()
+    remember = bool(data.get("rememberMe", True))
 
     if not identifier or not password:
         return jsonify({"error": "Incorrect username or password"}), 400
@@ -4621,7 +4627,7 @@ def auth_login():
             row = conn.execute("SELECT * FROM users WHERE id=?", (row["id"],)).fetchone()
 
     session.clear()
-    session.permanent = True
+    session.permanent = remember
     session["user_id"] = row["id"]
     session["identifier"] = row["identifier"]
     # Do not overwrite section/elective on login — change those in Settings
@@ -4796,9 +4802,10 @@ def auth_forgot_password():
             (row["id"], token_hash, expires),
         )
 
+    session["pwd_reset_token"] = token
+    session["pwd_reset_expires"] = expires
     return jsonify({
         "ok": True,
-        "resetToken": token,
         "message": "Verified. Set a new password below.",
     })
 
@@ -4808,7 +4815,7 @@ def auth_forgot_password():
 def auth_reset_password():
     """Finish reset with the one-time token from forgot_password."""
     data = request.get_json(force=True) or {}
-    token = (data.get("resetToken") or data.get("token") or "").strip()
+    token = (data.get("resetToken") or data.get("token") or session.get("pwd_reset_token") or "").strip()
     new_pw = (data.get("newPassword") or "").strip()
     confirm_pw = (data.get("confirmPassword") or "").strip()
     if not token:
@@ -4842,6 +4849,8 @@ def auth_reset_password():
             (hash_password(new_pw), row["user_id"]),
         )
         conn.execute("UPDATE password_reset_tokens SET used=1 WHERE id=?", (row["id"],))
+    session.pop("pwd_reset_token", None)
+    session.pop("pwd_reset_expires", None)
     return jsonify({"ok": True, "message": "Password updated. You can log in now."})
 
 
@@ -4972,7 +4981,8 @@ def auth_firebase():
                 ).fetchone()
 
         session.clear()
-        session.permanent = True
+        remember = bool(data.get("rememberMe", True))
+        session.permanent = remember
         session["user_id"] = row["id"]
         session["identifier"] = row["identifier"]
 
@@ -4993,9 +5003,52 @@ def auth_firebase():
         elif elective and not existing_sec.get("elective"):
             apply_elective_once(row["id"], elective)
 
-        return jsonify(_auth_user_payload(row))
+        payload = _auth_user_payload(row)
+        payload["needsLocalPassword"] = not payload.get("hasPassword")
+        return jsonify(payload)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/auth/set_local_credentials", methods=["POST"])
+@rate_limit(max_calls=10, window_sec=300)
+def auth_set_local_credentials():
+    """Google accounts must set a username + password for password login."""
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "Not logged in."}), 401
+    data = request.get_json(force=True) or {}
+    identifier = (data.get("identifier") or "").strip()
+    password = (data.get("password") or "").strip()
+    confirm = (data.get("confirmPassword") or "").strip()
+    if not identifier or not password:
+        return jsonify({"error": "Username and password are required."}), 400
+    if re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", identifier):
+        return jsonify({"error": "Please use a username, not an email."}), 400
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters."}), 400
+    if password != confirm:
+        return jsonify({"error": "Password and confirmation do not match."}), 400
+
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+        if not row:
+            return jsonify({"error": "Not logged in."}), 401
+        taken = conn.execute(
+            "SELECT id FROM users WHERE identifier=? AND id!=?",
+            (identifier, uid),
+        ).fetchone()
+        if taken:
+            return jsonify({"error": "Username is taken"}), 400
+        conn.execute(
+            "UPDATE users SET identifier=?, password_hash=? WHERE id=?",
+            (identifier, hash_password(password), uid),
+        )
+        row = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    session["identifier"] = row["identifier"]
+    payload = _auth_user_payload(row)
+    payload["needsLocalPassword"] = False
+    return jsonify(payload)
 
 
 # ── Conversation Routes ───────────────────────────────────────────────
@@ -5945,17 +5998,7 @@ def chat():
     notes      = data.get("notes", "")
     conv_id    = data.get("conversation_id")   # may be None (first message)
     lang_code  = (data.get("language") or "multi").strip().lower()[:20] or "multi"
-    grade_hint = data.get("grade")
-    try:
-        grade_hint = max(1, min(12, int(grade_hint))) if grade_hint is not None else None
-    except Exception:
-        grade_hint = None
     system_prompt = SYSTEM_PROMPT + SAFETY_RULES
-    if grade_hint:
-        system_prompt += (
-            f"\n\nSTUDENT LEVEL: Teach for Grade {grade_hint} "
-            f"(age-appropriate depth, vocabulary, and examples).\n"
-        )
     # Peek at latest user text early (before personalization) for casual/topic gates
     _raw_messages = data.get("messages") if isinstance(data.get("messages"), list) else messages
     _peek_last_user = ""
@@ -6258,10 +6301,10 @@ def chat():
         )
         system_prompt = (
             f"{system_prompt}\n\n"
-            "Using the full conversation history, create flashcard Q&A pairs for active recall. "
+            "Create 6–8 flashcards for active recall. One fact or concept per card. "
             f"Write every question and answer in {card_lang}. "
-            "Prefer one concept per card. Mix definitions, 'why', and quick application. "
-            "Format: 'Q: [question]\nA: [answer]' on separate lines. Create 5-10 cards."
+            "Keep each Q under 18 words and each A under 30 words. No essays, lists, or fluff. "
+            "Format exactly: 'Q: [question]\nA: [answer]' on separate lines."
         )
     elif endpoint == "quiz":
         quiz_lang = (
@@ -6269,17 +6312,29 @@ def chat():
             if multilingual else reply_lang_name
         )
         notebook_only = bool(data.get("notebook_only"))
+        quiz_source = (data.get("source") or "").strip().lower()
         quiz_extra = ""
         if notebook_only:
             quiz_extra = (
                 " CRITICAL: Quiz ONLY from the notebook/study material provided in the user message. "
                 "Do not invent outside syllabus topics. If material is thin, ask simpler recall questions from it."
             )
+        if quiz_source == "mistakes":
+            quiz_extra += (
+                " CRITICAL: Build every question from the student's Mistake Vault / wrong answers "
+                "in the user message. Target the exact misconceptions; do not invent unrelated topics."
+            )
+        elif quiz_source == "weakest":
+            quiz_extra += (
+                " CRITICAL: Focus on the weakest subject/topics and open mistakes listed in the user message. "
+                "Questions must probe those gaps specifically."
+            )
         system_prompt = (
             f"{system_prompt}\n\n"
-            "Using the full conversation history, create a 5-question multiple choice quiz for retrieval practice. "
+            "Create exactly 5 school-board style MCQs for retrieval practice. "
             f"Write all questions and options in {quiz_lang}. "
-            "One correct answer; plausible distractors. "
+            "Each question needs exactly 4 options (A–D), one clearly correct answer, and plausible distractors. "
+            "No explanations in the options. Always include an Answer line with the correct letter A–D. "
             "Format each as: 'Q[number]: [question]\nA) [option]\nB) [option]\nC) [option]\n"
             f"D) [option]\nAnswer: [correct letter]' on separate lines.{quiz_extra}"
         )
@@ -7180,6 +7235,7 @@ def api_mock_test():
             "D": "case_study",
             "E": "long",
         }
+        paper_number = 1
         for sec in payload.get("sections") or []:
             if not isinstance(sec, dict):
                 continue
@@ -7187,12 +7243,13 @@ def api_mock_test():
             title = str(sec.get("title") or f"Section {sid}").strip()[:140]
             default_type = defaults.get(sid, "mcq")
             qs = []
-            for i, q in enumerate(sec.get("questions") or []):
+            for q in sec.get("questions") or []:
                 if not isinstance(q, dict):
                     continue
-                item = _normalize_mock_question(q, default_type, sid.lower(), i + 1)
+                item = _normalize_mock_question(q, default_type, sid.lower(), paper_number)
                 if item:
                     qs.append(item)
+                    paper_number += 1
             if qs:
                 sections_out.append({"id": sid, "title": title, "questions": qs})
 

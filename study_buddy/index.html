@@ -1502,6 +1502,10 @@
     .auth-card[data-mode="register"]:not([data-logged-in="1"]) .login-register-field {
       display: block !important;
     }
+    .auth-card[data-mode="login"]:not([data-logged-in="1"]) #auth-remember-wrap,
+    .auth-card[data-mode="register"]:not([data-logged-in="1"]) #auth-remember-wrap {
+      display: flex !important;
+    }
 
     .auth-card[data-mode="forgot"]:not([data-logged-in="1"]) .forgot-only-field {
       display: block !important;
@@ -3049,11 +3053,12 @@
       display: block;
     }
 
-    /* Flashcards Specific */
+    /* Flashcards Specific — one card at a time */
     .flashcards-container {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
       min-height: 200px;
     }
 
@@ -3062,7 +3067,8 @@
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 24px;
-      min-height: 200px;
+      min-height: 220px;
+      width: min(420px, 100%);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -5929,14 +5935,6 @@
         </button>
         <div class="settings-acc-body">
           <div class="settings-row">
-            <span>Grade</span>
-            <select id="settings-grade" class="input" style="padding:6px 8px;width:auto;">
-              <option value="6">6</option><option value="7">7</option><option value="8">8</option>
-              <option value="9" selected>9</option><option value="10">10</option>
-              <option value="11">11</option><option value="12">12</option>
-            </select>
-          </div>
-          <div class="settings-row">
             <span>Section</span>
             <select id="settings-section" class="input" style="padding:6px 8px;width:auto;">
               <option value="">Select…</option>
@@ -6045,8 +6043,23 @@
         <div class="settings-acc-body">
           <p class="settings-hint" style="margin:0 0 8px;">Study Buddy — streaks, XP, and daily puzzles.</p>
           <button type="button" class="btn-secondary" id="settings-save-prefs" style="width:100%;padding:10px;">Save preferences</button>
-          <button type="button" class="btn-secondary" id="settings-admin-link" style="width:100%;margin-top:8px;padding:8px;font-size:0.85rem;opacity:0.85;">Admin</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Force local username/password after Google sign-in -->
+  <div id="local-creds-modal" class="sb-game-modal" hidden aria-hidden="true">
+    <div class="sb-game-backdrop"></div>
+    <div class="sb-game-card admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="local-creds-title">
+      <h3 id="local-creds-title">Set username &amp; password</h3>
+      <p class="settings-hint" style="margin-top:0;">Google accounts also need a username and password so you can sign in without Google later.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <input id="local-creds-username" class="input" type="text" autocomplete="username" placeholder="Choose a username" />
+        <input id="local-creds-password" class="input" type="password" autocomplete="new-password" placeholder="Password (min 6)" />
+        <input id="local-creds-confirm" class="input" type="password" autocomplete="new-password" placeholder="Confirm password" />
+        <p id="local-creds-msg" class="settings-hint" style="display:none;margin:0;"></p>
+        <button type="button" class="btn-primary" id="local-creds-save" style="width:100%;padding:10px;">Save and continue</button>
       </div>
     </div>
   </div>
@@ -6273,6 +6286,10 @@
           <button class="btn-primary" id="auth-submit-btn" style="flex:1;">Login</button>
           <button class="btn-icon" id="auth-toggle-btn" type="button" style="flex:1; justify-content:center;">Register</button>
         </div>
+        <label class="login-register-field" id="auth-remember-wrap" style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:0.85rem;color:var(--muted);cursor:pointer;">
+          <input type="checkbox" id="auth-remember-me" checked />
+          Remember me
+        </label>
         <button type="button" class="auth-forgot-link login-only-field" id="auth-forgot-btn">Forgot password?</button>
         <div id="auth-google-wrap" class="logged-out-only" style="margin-top:12px;">
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; color:var(--muted); font-size:0.78rem;">
@@ -6837,6 +6854,7 @@
         </select>
         <input type="text" id="mistake-search" placeholder="Search mistakes..." class="form-input" style="flex: 1; min-width: 200px;">
         <button id="add-mistake-btn" class="btn-primary">Add Mistake</button>
+        <button id="quiz-mistakes-btn" class="btn-secondary" type="button">Quiz my mistakes</button>
       </div>
 
       <!-- Mistake List -->
@@ -7203,15 +7221,6 @@
       try { localStorage.setItem("sb_config", JSON.stringify({ buddyName: "Max" })); } catch (_) {}
     }
 
-    function getStudyGrade() {
-      const g = parseInt(
-        document.getElementById("settings-grade")?.value
-          || localStorage.getItem("sb_grade")
-          || "9",
-        10
-      );
-      return Number.isFinite(g) ? Math.min(12, Math.max(1, g)) : 9;
-    }
     function getReplyLang() {
       return (
         document.getElementById("tools-reply-language")?.value
@@ -7263,7 +7272,6 @@
         model: cfg.model,
         notes: typeof notesContent !== "undefined" ? notesContent : "",
         language: getReplyLang(),
-        grade: getStudyGrade(),
         ...(extra || {}),
       };
     }
@@ -7341,57 +7349,81 @@
       const dueOnly = !!(opts && opts.dueOnly);
       output.innerHTML = "";
       if (!pairs.length) {
-        output.innerHTML = `<div style="grid-column: 1/-1; color: var(--muted); text-align: center; padding: 40px;">${dueOnly ? "No cards due right now. Generate some, or come back later." : "No flashcards found in response."}</div>`;
+        output.innerHTML = `<div style="color: var(--muted); text-align: center; padding: 40px;">${dueOnly ? "No cards due right now. Generate some, or come back later." : "No flashcards found in response."}</div>`;
         return;
       }
       if (!dueOnly) srsUpsertCards(pairs);
-      pairs.forEach((p) => {
+      let idx = 0;
+      const progress = document.createElement("div");
+      progress.style.cssText = "color:var(--muted);font-size:0.85rem;font-weight:700;";
+      const cardEl = document.createElement("div");
+      cardEl.className = "flashcard";
+      const controls = document.createElement("div");
+      controls.style.cssText = "display:flex;gap:8px;justify-content:center;width:min(420px,100%);flex-wrap:wrap;";
+      controls.innerHTML = `
+        <button type="button" class="btn-secondary" data-fc="prev" style="padding:8px 14px;">Back</button>
+        <button type="button" class="btn-primary" data-fc="next" style="padding:8px 14px;width:auto;">Next</button>
+        <button type="button" class="qs-btn" data-srs="good" disabled style="padding:8px 14px;opacity:.45;">Good</button>`;
+      const prevBtn = controls.querySelector('[data-fc="prev"]');
+      const nextBtn = controls.querySelector('[data-fc="next"]');
+      const goodBtn = controls.querySelector('[data-srs="good"]');
+
+      const show = () => {
+        const p = pairs[idx];
         const q = p.q;
         const a = p.a || "No answer provided";
-        const id = p.id || srsCardId(q, a);
-        const wrap = document.createElement("div");
-        wrap.style.cssText = "display:flex;flex-direction:column;gap:8px;";
-        const div = document.createElement("div");
-        div.className = "flashcard";
-        div.textContent = q;
-        div.dataset.answer = a;
-        const controls = document.createElement("div");
-        controls.style.cssText = "display:flex;gap:8px;justify-content:center;";
-        controls.innerHTML = `
-          <button type="button" class="qs-btn" data-srs="good" disabled style="flex:1;padding:8px;opacity:.45;">Good</button>`;
-        const goodBtn = controls.querySelector('[data-srs="good"]');
-        const syncGoodButtons = () => {
-          const cards = output.querySelectorAll(".flashcard");
-          const allFlipped = cards.length > 0 && [...cards].every((c) => c.classList.contains("flipped"));
-          output.querySelectorAll('[data-srs="good"]').forEach((btn) => {
-            btn.disabled = !allFlipped;
-            btn.style.opacity = allFlipped ? "1" : ".45";
-            btn.title = allFlipped ? "Mark as known" : "Flip every card first";
-          });
-          const hintEl = output.querySelector(".flashcard-good-hint");
-          if (hintEl) hintEl.style.display = allFlipped ? "none" : "";
-        };
-        div.addEventListener("click", function () {
-          this.classList.toggle("flipped");
-          this.textContent = this.classList.contains("flipped") ? a : q;
-          syncGoodButtons();
-        });
-        goodBtn?.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const cards = output.querySelectorAll(".flashcard");
-          if (![...cards].every((c) => c.classList.contains("flipped"))) return;
-          srsRate(id, 1);
-          if (dueOnly) wrap.remove();
-        });
-        wrap.appendChild(div);
-        wrap.appendChild(controls);
-        output.appendChild(wrap);
+        cardEl.classList.remove("flipped");
+        cardEl.textContent = q;
+        cardEl.dataset.answer = a;
+        cardEl.dataset.qid = p.id || srsCardId(q, a);
+        progress.textContent = `Card ${idx + 1} / ${pairs.length}`;
+        prevBtn.disabled = idx <= 0;
+        nextBtn.textContent = idx >= pairs.length - 1 ? "Done" : "Next";
+        goodBtn.disabled = true;
+        goodBtn.style.opacity = ".45";
+        goodBtn.title = "Flip the card first";
+      };
+
+      cardEl.addEventListener("click", function () {
+        this.classList.toggle("flipped");
+        const p = pairs[idx];
+        this.textContent = this.classList.contains("flipped")
+          ? (p.a || "No answer provided")
+          : p.q;
+        const flipped = this.classList.contains("flipped");
+        goodBtn.disabled = !flipped;
+        goodBtn.style.opacity = flipped ? "1" : ".45";
+        goodBtn.title = flipped ? "Mark as known" : "Flip the card first";
       });
-      const hint = document.createElement("div");
-      hint.className = "flashcard-good-hint";
-      hint.style.cssText = "grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.82rem;font-weight:700;";
-      hint.textContent = "Flip all cards to unlock Good.";
-      output.appendChild(hint);
+      prevBtn.addEventListener("click", () => {
+        if (idx > 0) { idx -= 1; show(); }
+      });
+      nextBtn.addEventListener("click", () => {
+        if (idx < pairs.length - 1) { idx += 1; show(); }
+        else if (dueOnly) output.innerHTML = `<div style="color:var(--muted);text-align:center;padding:24px;">Review complete.</div>`;
+      });
+      goodBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!cardEl.classList.contains("flipped")) return;
+        srsRate(cardEl.dataset.qid, 1);
+        if (dueOnly) {
+          pairs.splice(idx, 1);
+          if (!pairs.length) {
+            output.innerHTML = `<div style="color:var(--muted);text-align:center;padding:24px;">No more due cards.</div>`;
+            refreshSrsBanner();
+            return;
+          }
+          if (idx >= pairs.length) idx = pairs.length - 1;
+        } else if (idx < pairs.length - 1) {
+          idx += 1;
+        }
+        show();
+      });
+
+      output.appendChild(progress);
+      output.appendChild(cardEl);
+      output.appendChild(controls);
+      show();
       refreshSrsBanner();
     }
     function parseFlashcardPairs(responseText) {
@@ -8323,9 +8355,7 @@
       }
 
       function wireAdminUi() {
-        document.getElementById("settings-admin-link")?.addEventListener("click", () => {
-          openAdminFlow();
-        });
+        // Student-facing Admin entry removed (Settings → About). Backend routes remain for ops.
         document.querySelectorAll("[data-admin-close]").forEach((el) => {
           el.addEventListener("click", () => closeSbModal(document.getElementById("admin-login-modal")));
         });
@@ -8406,9 +8436,6 @@
           const chaptersEl = document.getElementById("mock-chapters");
           if (chaptersEl && !chaptersEl.value.trim()) prefillMockChaptersFromExams();
         });
-        if (new URLSearchParams(location.search).get("admin") === "1") {
-          setTimeout(() => openAdminFlow(), 300);
-        }
       }
 
       // Function to check login status on page load
@@ -8455,6 +8482,9 @@
             // Fetch and display chat history if logged in
             await fetchChatHistory();
             await loadUpcomingExams();
+            if (data.needsLocalPassword || !data.hasPassword) {
+              try { await promptLocalCredentials(data.identifier || ""); } catch (_) {}
+            }
           } else {
             currentUser = { loggedIn: false };
             try { localStorage.removeItem("sb_avatar_b64"); } catch (_) {}
@@ -9495,7 +9525,6 @@
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
                 body: JSON.stringify({
-                  resetToken: forgotResetToken,
                   newPassword: newPw,
                   confirmPassword: conf,
                 }),
@@ -9532,7 +9561,7 @@
               showAuthMessage(data.error || "Could not verify account.", true);
               return;
             }
-            forgotResetToken = data.resetToken || "";
+            forgotResetToken = "session";
             authCard.dataset.forgotReady = "1";
             updateAuthUI({ clearMessage: false });
             showAuthMessage(data.message || "Verified. Set a new password below.");
@@ -9602,33 +9631,9 @@
 
         authSubmitBtn.disabled = true;
         try {
-          // Login: try private admin credentials first (ADMIN_USERNAME / ADMIN_PASSWORD)
-          if (mode === "login") {
-            try {
-              const adminRes = await fetch("/api/auth/admin_login", {
-                method: "POST",
-                credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username: identifier, password }),
-              });
-              const adminData = await adminRes.json().catch(() => ({}));
-              if (adminRes.ok && adminData.isAdmin) {
-                isAdminSession = true;
-                authPasswordInput.value = "";
-                updateAuthUI({ clearMessage: false });
-                showAuthMessage("Admin login successful. Opening exam panel…");
-                openSbModal(document.getElementById("admin-panel-modal"));
-                resetAdminExamForm();
-                await refreshAdminExamList();
-                return;
-              }
-            } catch (_) {
-              // Fall through to student login
-            }
-          }
-
           let url = "";
           let body = {};
+          const rememberMe = !!document.getElementById("auth-remember-me")?.checked;
 
           if (mode === "register") {
             url = "/api/auth/register";
@@ -9642,12 +9647,14 @@
               dropMath: sectionPayload.dropMath,
               dropScience: sectionPayload.dropScience,
               elective: sectionPayload.elective,
+              rememberMe,
             };
           } else {
             url = "/api/auth/login";
             body = {
               identifier,
               password,
+              rememberMe,
             };
           }
 
@@ -9685,10 +9692,13 @@
               dropScience: !!data.dropScience,
               elective: data.elective || "",
             };
-            localStorage.setItem("sb_auth_identifier", data.identifier || identifier);
+            try {
+              if (rememberMe) localStorage.setItem("sb_auth_identifier", data.identifier || identifier);
+              else localStorage.removeItem("sb_auth_identifier");
+            } catch (_) {}
             try {
               const savedEmail = data.email || registerEmail;
-              if (savedEmail) localStorage.setItem("sb_recovery_email", savedEmail);
+              if (rememberMe && savedEmail) localStorage.setItem("sb_recovery_email", savedEmail);
             } catch (_) {}
             const uname = data.identifier || identifier || "friend";
             let successMsg = `Login successful. Welcome, ${uname}!`;
@@ -9784,7 +9794,7 @@
           }
           const mode = authCard?.dataset?.mode || "login";
           const sectionPayload = readAuthSectionPayload();
-          const body = { idToken: null };
+          const body = { idToken: null, rememberMe: !!document.getElementById("auth-remember-me")?.checked };
           if (mode === "register") {
             if (!sectionPayload.section) {
               showAuthMessage("Please select your section before continuing with Google.", true);
@@ -9840,12 +9850,18 @@
               dropScience: !!data.dropScience,
               elective: data.elective || "",
             };
-            localStorage.setItem("sb_auth_identifier", data.identifier || "");
+            try {
+              if (body.rememberMe) localStorage.setItem("sb_auth_identifier", data.identifier || "");
+              else localStorage.removeItem("sb_auth_identifier");
+            } catch (_) {}
             updateAuthUI({ clearMessage: false });
             let gMsg = `Login successful. Welcome, ${data.identifier || "friend"}!`;
             if (currentUser.section) gMsg += ` (${currentUser.section})`;
             showAuthMessage(gMsg);
             updateWelcomeGreeting();
+            if (data.needsLocalPassword || !data.hasPassword) {
+              await promptLocalCredentials(data.identifier || "");
+            }
             try { if (window.SBGame) window.SBGame.onLogin(); } catch (_) {}
             await fetchChatHistory();
             await loadUpcomingExams();
@@ -9858,6 +9874,72 @@
           } finally {
             authGoogleBtn.disabled = false;
           }
+        });
+      }
+
+      async function promptLocalCredentials(suggestedUsername) {
+        const modal = document.getElementById("local-creds-modal");
+        const userEl = document.getElementById("local-creds-username");
+        const passEl = document.getElementById("local-creds-password");
+        const confEl = document.getElementById("local-creds-confirm");
+        const msg = document.getElementById("local-creds-msg");
+        if (!modal || !userEl || !passEl || !confEl) return;
+        userEl.value = suggestedUsername || "";
+        passEl.value = "";
+        confEl.value = "";
+        if (msg) { msg.style.display = "none"; msg.textContent = ""; }
+        openSbModal(modal);
+        return new Promise((resolve) => {
+          const saveBtn = document.getElementById("local-creds-save");
+          const onSave = async () => {
+            const identifier = (userEl.value || "").trim();
+            const password = (passEl.value || "").trim();
+            const confirmPassword = (confEl.value || "").trim();
+            if (!identifier || password.length < 6) {
+              if (msg) {
+                msg.style.display = "block";
+                msg.textContent = "Enter a username and a password of at least 6 characters.";
+              }
+              return;
+            }
+            if (password !== confirmPassword) {
+              if (msg) {
+                msg.style.display = "block";
+                msg.textContent = "Password and confirmation do not match.";
+              }
+              return;
+            }
+            saveBtn.disabled = true;
+            try {
+              const res = await fetch("/api/auth/set_local_credentials", {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ identifier, password, confirmPassword }),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(data.error || "Could not save credentials");
+              currentUser = {
+                ...currentUser,
+                identifier: data.identifier || identifier,
+                hasPassword: true,
+              };
+              try { localStorage.setItem("sb_auth_identifier", data.identifier || identifier); } catch (_) {}
+              closeSbModal(modal);
+              showAuthMessage(`Username and password saved. You can also log in as ${data.identifier || identifier}.`);
+              updateAuthUI({ clearMessage: false });
+              saveBtn.removeEventListener("click", onSave);
+              resolve(true);
+            } catch (e) {
+              if (msg) {
+                msg.style.display = "block";
+                msg.textContent = e.message || "Could not save credentials";
+              }
+            } finally {
+              saveBtn.disabled = false;
+            }
+          };
+          saveBtn?.addEventListener("click", onSave);
         });
       }
 
@@ -12709,9 +12791,11 @@
       const question = qLine.replace(/^Q\d+:\s*/i, "").trim();
       const options = lines.filter((l) => /^[A-D]\)/.test(l));
       const answerLine = lines.find((l) => /^Answer:/i.test(l));
-      const correctAnswer = answerLine
-        ? answerLine.replace(/^Answer:\s*/i, "").trim().charAt(0).toUpperCase()
-        : "A";
+      if (!answerLine || options.length < 4 || !question) {
+        return null;
+      }
+      const correctAnswer = answerLine.replace(/^Answer:\s*/i, "").trim().charAt(0).toUpperCase();
+      if (!"ABCD".includes(correctAnswer)) return null;
       const correctOpt = options.find((o) => o.charAt(0).toUpperCase() === correctAnswer) || correctAnswer;
       return { question, options, correctAnswer, correctOpt };
     }
@@ -12723,7 +12807,10 @@
         let correct = 0;
         const wrongItems = [];
         questions.forEach((qBlock, idx) => {
-          const parsed = parseQuizQuestionBlock(qBlock);
+          const parsed = (qBlock && typeof qBlock === "object" && qBlock.correctAnswer)
+            ? qBlock
+            : parseQuizQuestionBlock(qBlock);
+          if (!parsed) return;
           const ua = userAnswers[idx];
           if (ua && ua === parsed.correctAnswer) {
             correct += 1;
@@ -12732,7 +12819,7 @@
           // Only vault answered-wrong items (skip blanks)
           if (!ua) return;
           const wrongOpt =
-            parsed.options.find((o) => o.charAt(0).toUpperCase() === ua) || ua;
+            (parsed.options || []).find((o) => o.charAt(0).toUpperCase() === ua) || ua;
           wrongItems.push({
             question: (parsed.question || `Quiz question ${idx + 1}`).slice(0, 2000),
             wrong_answer: String(wrongOpt).slice(0, 500),
@@ -12804,7 +12891,8 @@
 
     function renderInteractiveQuiz(output, quizText, topic) {
       if (!output) return;
-      const questions = String(quizText || "").split(/(?=Q\d+:)/i).filter((q) => q.trim());
+      const rawBlocks = String(quizText || "").split(/(?=Q\d+:)/i).filter((q) => q.trim());
+      const questions = rawBlocks.map(parseQuizQuestionBlock).filter(Boolean);
       output.innerHTML = "";
       output.dataset.quizFinished = "0";
       if (!questions.length) {
@@ -12813,8 +12901,7 @@
       }
 
       const userAnswers = [];
-      questions.forEach((qBlock, qIdx) => {
-        const parsed = parseQuizQuestionBlock(qBlock);
+      questions.forEach((parsed, qIdx) => {
         const qDiv = document.createElement("div");
         qDiv.className = "quiz-question";
         const title = document.createElement("div");
@@ -12856,8 +12943,7 @@
         submitBtn.disabled = true;
 
         let correct = 0;
-        questions.forEach((qBlock, idx) => {
-          const parsed = parseQuizQuestionBlock(qBlock);
+        questions.forEach((parsed, idx) => {
           const qDiv = output.querySelectorAll(".quiz-question")[idx];
           if (userAnswers[idx] === parsed.correctAnswer) correct += 1;
           if (!qDiv) return;
@@ -13326,6 +13412,11 @@
       try {
         const includeHistory = scope === "conversation";
         const notebookOnly = !!options.notebookOnly || scope === "notebook" || scope === "answer";
+        let quizSource = options.source || "";
+        try {
+          if (!quizSource) quizSource = sessionStorage.getItem("sb_quiz_source") || "";
+          sessionStorage.removeItem("sb_quiz_source");
+        } catch (_) {}
         const res = await fetch("/api/quiz", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -13333,6 +13424,7 @@
           body: JSON.stringify(studyBody({
             messages: buildMessagesWithPrompt(prompt, { includeHistory }),
             notebook_only: notebookOnly,
+            source: quizSource || undefined,
           })),
         });
         const data = await res.json();
@@ -13443,7 +13535,14 @@
         return;
       }
       const scope = rawInput ? "topic" : "conversation";
-      const prompt = buildQuizPrompt(rawInput, scope);
+      let quizSource = "";
+      try {
+        quizSource = sessionStorage.getItem("sb_quiz_source") || "";
+        sessionStorage.removeItem("sb_quiz_source");
+      } catch (_) {}
+      const prompt = quizSource === "weakest"
+        ? `Create a 5-question MCQ targeting the student's weakest areas for: ${rawInput || "weakest subjects"}. Use Learning DNA / mistake context if available.`
+        : buildQuizPrompt(rawInput, scope);
 
       const output = document.getElementById("quiz-output");
       output.innerHTML = `<div style="display: flex; justify-content: center; align-items: center; min-height: 200px;"><div class="loading-spinner" style="margin-right: 12px;"></div> Generating quiz...</div>`;
@@ -13454,7 +13553,8 @@
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(studyBody({
-            messages: buildMessagesWithPrompt(prompt, { includeHistory: scope === "conversation" }),
+            messages: buildMessagesWithPrompt(prompt, { includeHistory: scope === "conversation" && !quizSource }),
+            source: quizSource || undefined,
           })),
         });
 
@@ -16167,6 +16267,31 @@
         });
       }
 
+      document.getElementById("quiz-mistakes-btn")?.addEventListener("click", async () => {
+        try {
+          const res = await fetch("/api/mistakes", { credentials: "include" });
+          const data = await res.json().catch(() => ({}));
+          const mistakes = (data.mistakes || []).filter((m) => !m.mastered);
+          if (!Array.isArray(mistakes) || !mistakes.length) {
+            alert("No open mistakes yet. Take a quiz or add mistakes first.");
+            return;
+          }
+          const material = mistakes.slice(0, 12).map((m, i) => {
+            return `${i + 1}. Subject: ${m.subject || "General"} | Topic: ${m.topic || "—"}\nQ: ${m.question || ""}\nWrong: ${m.wrong_answer || ""}\nCorrect: ${m.correct_answer || ""}\nWhy: ${m.explanation || ""}`;
+          }).join("\n\n");
+          try { sessionStorage.setItem("sb_quiz_source", "mistakes"); } catch (_) {}
+          if (typeof generateQuizFromAnswer === "function") {
+            generateQuizFromAnswer(
+              `Mistake Vault (unmastered):\n\n${material}`,
+              true,
+              { scope: "answer", source: "mistakes" }
+            );
+          }
+        } catch (e) {
+          alert(e.message || "Could not load mistakes");
+        }
+      });
+
       if (closeMistakeModal) {
         closeMistakeModal.addEventListener('click', () => {
           addMistakeModal.style.display = 'none';
@@ -16433,7 +16558,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ topic, grade: getStudyGrade() }),
+          body: JSON.stringify({ topic }),
         });
         const data = await readJsonResponse(res);
         if (!res.ok) {
@@ -17006,7 +17131,6 @@
         }
 
         if (q.type === "short" || q.type === "long") {
-          possible += marks;
           const student = String(mockTestState.answers[q.id] || "").trim();
           const model = String(q.answer || "").trim() || "(see explanation)";
           if (!student) {
@@ -17017,10 +17141,10 @@
               yourAnswer: "(skipped)",
               correctAnswer: model,
               explanation: q.explanation || "Written answer — review the model response.",
-              badge: "Written",
+              badge: "Written (not in auto score)",
             });
           } else {
-            // Can't auto-mark prose; put in Incorrect for review with model answer
+            // Written answers are self-check only — do not inflate auto-marked totals
             incorrectItems.push({
               number: num,
               question: stem,
@@ -17094,7 +17218,7 @@
               subject,
               chapters: document.getElementById("mock-chapters")?.value || "",
               exam: "Board",
-              grade: `Class ${getStudyGrade()}`,
+              grade: "School",
               difficulty: "Pre-boards",
               size: "standard",
               model: cfg.model,
@@ -17131,7 +17255,7 @@
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
-            body: JSON.stringify({ topic, model: cfg.model, grade: getStudyGrade() }),
+            body: JSON.stringify({ topic, model: cfg.model }),
           });
           const data = await readJsonResponse(res);
           if (!res.ok) throw new Error(data?.error || "Failed");

@@ -116,11 +116,6 @@
     document.documentElement.style.setProperty("--sb-font-scale", String(prefs.fontScale || 1));
     document.documentElement.classList.toggle("sb-high-contrast", !!prefs.highContrast);
     document.documentElement.classList.toggle("sb-reduced-motion", !!prefs.reducedMotion);
-    const gradeEl = document.getElementById("settings-grade");
-    if (gradeEl) {
-      gradeEl.value = String(prefs.grade || localStorage.getItem("sb_grade") || 9);
-      try { localStorage.setItem("sb_grade", gradeEl.value); } catch (_) {}
-    }
     const sectionEl = document.getElementById("settings-section");
     const section = prefs.section || "";
     if (sectionEl && section) {
@@ -406,6 +401,7 @@
     onComplete() {
       this.stop();
       this.seconds = 25 * 60;
+      this.exitFullscreen();
       this.syncUi();
       this.persist();
       toast("🎉 Focus session complete! Take a 5-minute break.", "success");
@@ -418,7 +414,10 @@
       this.syncUi();
       this.persist();
       this.hideAwayOverlay();
-      if (!silent) toast("Focus timer started — stay in this browser tab", "success");
+      if (!silent) {
+        this.enterFullscreen();
+        toast("Focus timer started — stay in this browser tab", "success");
+      }
     },
 
     pause() {
@@ -444,6 +443,7 @@
         sessionStorage.removeItem(FOCUS_AWARD_KEY);
       } catch (_) {}
       this.hideAwayOverlay();
+      this.exitFullscreen();
       this.syncUi();
       this.persist();
     },
@@ -453,6 +453,25 @@
       this.interval = null;
       this.running = false;
       this.hideAwayOverlay();
+    },
+
+    enterFullscreen() {
+      try {
+        const root = document.documentElement;
+        if (!document.fullscreenElement && root.requestFullscreen) {
+          root.requestFullscreen().catch(() => {});
+          this._fsOwned = true;
+        }
+      } catch (_) {}
+    },
+
+    exitFullscreen() {
+      try {
+        if (this._fsOwned && document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+      } catch (_) {}
+      this._fsOwned = false;
     },
 
     ensureAwayOverlay() {
@@ -555,14 +574,8 @@
     if (body) body.innerHTML = `<div class="sb-skel">Loading today's fact…</div>`;
     try {
       if (factInflight) await factInflight;
-      const grade = parseInt(
-        document.getElementById("settings-grade")?.value
-          || localStorage.getItem("sb_grade")
-          || "9",
-        10
-      ) || 9;
       factInflight = api(
-        `/api/daily_fact?localDate=${encodeURIComponent(localDate())}&grade=${grade}`
+        `/api/daily_fact?localDate=${encodeURIComponent(localDate())}`
       );
       lastFact = await factInflight;
       factInflight = null;
@@ -579,7 +592,7 @@
     body.innerHTML = `
       <div class="puzzle-meta">
         <span class="puzzle-pill">${escape(f.category || "Fun")}</span>
-        <span class="puzzle-pill">Grade ${escape(String(f.grade || ""))}</span>
+        ${metaGkPill(f.category)}
         <span class="puzzle-pill xp">+${f.xpReward || 5} XP</span>
       </div>
       <h4 style="margin:12px 0 8px;font-size:1.05rem;">${escape(f.title || "Daily Fact")}</h4>
@@ -601,7 +614,6 @@
         method: "POST",
         body: JSON.stringify({
           localDate: localDate(),
-          grade: lastFact?.grade,
         }),
       });
       if (data.xpAwarded) toast(`+${data.xpAwarded} XP`, "success");
@@ -700,14 +712,8 @@
           puzzleInflight = null;
         }
       }
-      const grade = parseInt(
-        document.getElementById("settings-grade")?.value
-          || localStorage.getItem("sb_grade")
-          || "9",
-        10
-      ) || 9;
       puzzleInflight = api(
-        `/api/daily_puzzle?localDate=${encodeURIComponent(localDate())}&grade=${grade}`
+        `/api/daily_puzzle?localDate=${encodeURIComponent(localDate())}`
       );
       lastPuzzle = await puzzleInflight;
       renderPuzzle(lastPuzzle);
@@ -726,7 +732,7 @@
       <div class="puzzle-meta">
         <span class="puzzle-pill">${escape(p.subject)}</span>
         <span class="puzzle-pill">${escape(p.difficulty)}</span>
-        <span class="puzzle-pill">Grade ${escape(String(p.grade || document.getElementById("settings-grade")?.value || "9"))}</span>
+        ${metaGkPill(p.subject)}
         <span class="puzzle-pill xp">+${p.xpReward} XP</span>
       </div>
       <p class="puzzle-prompt">${escape(p.prompt)}</p>
@@ -759,6 +765,16 @@
       .replace(/"/g, "&quot;");
   }
 
+  function isGkSubject(name) {
+    const t = String(name || "").trim().toLowerCase();
+    return t === "gk" || t === "general knowledge" || t.includes("general knowledge");
+  }
+
+  function metaGkPill(subjectOrCategory) {
+    if (isGkSubject(subjectOrCategory)) return "";
+    return `<span class="puzzle-pill">GK</span>`;
+  }
+
   async function submitPuzzle() {
     const ans = document.getElementById("puzzle-answer")?.value || "";
     const fb = document.getElementById("puzzle-feedback");
@@ -769,7 +785,6 @@
         body: JSON.stringify({
           answer: ans,
           localDate: localDate(),
-          grade: lastPuzzle?.grade,
           subject: lastPuzzle?.subject,
         }),
       });
@@ -797,7 +812,6 @@
         method: "POST",
         body: JSON.stringify({
           localDate: localDate(),
-          grade: lastPuzzle?.grade,
           subject: lastPuzzle?.subject,
         }),
       });
@@ -1052,7 +1066,9 @@
       rememberPendingStudyTopic(prompt, "quiz");
       go("quiz");
       const input = document.getElementById("quiz-input");
-      if (input) input.value = prompt;
+      const subject = String(prompt || "").replace(/^Practice\s+/i, "").replace(/\s*\(weakest.*$/i, "").trim();
+      if (input) input.value = subject ? `Weak areas in ${subject}` : "My weakest topics";
+      try { sessionStorage.setItem("sb_quiz_source", "weakest"); } catch (_) {}
       setTimeout(() => document.getElementById("generate-quiz-btn")?.click(), 120);
       return;
     }
@@ -1460,7 +1476,6 @@
       || document.getElementById("settings-drop-science")?.checked
     );
     const payload = {
-      grade: parseInt(document.getElementById("settings-grade")?.value || localStorage.getItem("sb_grade") || "9", 10),
       language,
       notifyStreak: !!document.getElementById("settings-notify-streak")?.checked,
       notifyPuzzle: !!document.getElementById("settings-notify-puzzle")?.checked,
