@@ -173,7 +173,33 @@
     if (rm) rm.checked = !!prefs.reducedMotion;
     const fs = document.getElementById("settings-font-scale");
     if (fs) fs.value = String(prefs.fontScale || 1);
+    const ageBand = prefs.ageBand || prefs.age_band || "";
+    const ageEl = document.getElementById("settings-age-band");
+    if (ageEl && ageBand) ageEl.value = ageBand;
+    if (ageBand) {
+      try { localStorage.setItem("sb_age_band", ageBand); } catch (_) {}
+    }
+    if (window.currentUser?.loggedIn) {
+      const patch = { ...window.currentUser };
+      if (Object.prototype.hasOwnProperty.call(prefs, "elective")) {
+        patch.elective = prefs.elective || "";
+      }
+      if (Object.prototype.hasOwnProperty.call(prefs, "dropMath")
+          || Object.prototype.hasOwnProperty.call(prefs, "drop_math")) {
+        patch.dropMath = dropMath;
+      }
+      if (Object.prototype.hasOwnProperty.call(prefs, "dropScience")
+          || Object.prototype.hasOwnProperty.call(prefs, "drop_science")) {
+        patch.dropScience = dropScience;
+      }
+      if (prefs.derivedSubjects || prefs.derived_subjects) {
+        patch.derivedSubjects = prefs.derivedSubjects || prefs.derived_subjects;
+      }
+      if (ageBand) patch.ageBand = ageBand;
+      window.currentUser = patch;
+    }
     syncElectiveSettingsUi(prefs);
+    try { window.nbRender?.(); } catch (_) {}
   }
 
   function syncElectiveSettingsUi(prefs) {
@@ -185,53 +211,32 @@
       ?? document.getElementById("settings-drop-math")?.checked);
     const dropScience = section === "Super 3" && !!(prefs?.dropScience ?? prefs?.drop_science
       ?? document.getElementById("settings-drop-science")?.checked);
-    const locked = !!(prefs?.elective || prefs?.electiveLocked);
-    const current = prefs?.elective || "";
+    const BASE = [
+      "Physical Education",
+      "Commercial Applications",
+      "Economics Application",
+      "Art",
+    ];
+    const current = BASE.includes(prefs?.elective) ? prefs.elective : "";
+    const locked = !!(current && (prefs?.electiveLocked || prefs?.elective));
     const fill = window.fillElectiveSelect;
     const allowed = window.allowedElectivesForDrops
       ? window.allowedElectivesForDrops(dropMath, dropScience)
-      : (prefs?.allowedElectives || []);
+      : (prefs?.allowedElectives?.length ? prefs.allowedElectives : BASE);
     if (fill) {
       fill(el, dropMath, dropScience, current || el.value);
     } else {
-      const display = [
-        "Physical Education",
-        "Commercial Applications",
-        "Economics Application",
-        "Economics",
-        "Art",
-      ];
-      const selectable = allowed.length
-        ? allowed
-        : (dropMath && dropScience
-          ? ["Law"]
-          : (dropScience && !dropMath
-            ? display
-            : display.filter((n) => n !== "Economics")));
       el.innerHTML = '<option value="">Select elective…</option>';
-      if (dropMath && dropScience) {
+      (allowed.length ? allowed : BASE).forEach((name) => {
         const o = document.createElement("option");
-        o.value = "Law";
-        o.textContent = "Law";
+        o.value = name;
+        o.textContent = name;
         el.appendChild(o);
-        el.value = "Law";
-      } else {
-        display.forEach((name) => {
-          const o = document.createElement("option");
-          o.value = name;
-          if (name === "Economics" && !selectable.includes("Economics")) {
-            o.textContent = "Economics (requires Drop Science)";
-            o.disabled = true;
-          } else {
-            o.textContent = name;
-          }
-          el.appendChild(o);
-        });
-        if (current) el.value = current;
-      }
+      });
+      if (current) el.value = current;
     }
+    const hintText = "Pick once. Electives: PE, Commercial Applications, Economics Application, Art. Drop Science adds Economics as a subject; drop Math and Science also adds Law.";
     if (locked && current) {
-      // Ensure locked value is present even if not in current drop matrix
       if (![...el.options].some((o) => o.value === current)) {
         const o = document.createElement("option");
         o.value = current;
@@ -241,16 +246,9 @@
       el.value = current;
       el.disabled = true;
       if (hint) hint.textContent = "Elective cannot be changed.";
-    } else if (dropMath && dropScience) {
-      el.disabled = true;
-      if (hint) {
-        hint.textContent = "Both Math and Science dropped — Law is required.";
-      }
     } else {
       el.disabled = false;
-      if (hint) {
-        hint.textContent = "Pick once — elective cannot be changed later. Economics requires Super 3 Drop Science.";
-      }
+      if (hint) hint.textContent = hintText;
     }
   }
 
@@ -1486,6 +1484,9 @@
       section,
       dropMath,
       dropScience,
+      ageBand: document.getElementById("settings-age-band")?.value || (() => {
+        try { return localStorage.getItem("sb_age_band"); } catch (_) { return "14-16"; }
+      })() || "14-16",
     };
     const electiveEl = document.getElementById("settings-elective");
     if (electiveEl && !electiveEl.disabled && electiveEl.value) {
@@ -1517,6 +1518,8 @@
           elective: data.prefs.elective,
           electiveLocked: data.prefs.electiveLocked ?? !!data.prefs.elective,
           allowedElectives: data.prefs.allowedElectives,
+          derivedSubjects: data.prefs.derivedSubjects || data.prefs.derived_subjects,
+          ageBand: data.prefs.ageBand || data.prefs.age_band,
         });
         try {
           if (payload.section) localStorage.setItem("sb_section", payload.section);
@@ -1615,6 +1618,13 @@
     document.getElementById("settings-grade")?.addEventListener("change", (e) => {
       const g = String(e.target.value || "9");
       try { localStorage.setItem("sb_grade", g); } catch (_) {}
+      if (isLoggedIn()) {
+        savePrefsFromSettings({ quiet: true }).catch(() => {});
+      }
+    });
+    document.getElementById("settings-age-band")?.addEventListener("change", (e) => {
+      const band = String(e.target.value || "14-16");
+      try { localStorage.setItem("sb_age_band", band); } catch (_) {}
       if (isLoggedIn()) {
         savePrefsFromSettings({ quiet: true }).catch(() => {});
       }

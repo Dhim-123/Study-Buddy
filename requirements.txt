@@ -1,4 +1,4 @@
-Flask
+pypdf
 flask-cors
 python-dotenv
 groq

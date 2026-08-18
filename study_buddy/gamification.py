@@ -42,7 +42,8 @@ ELECTIVE_BASE = (
 )
 ELECTIVE_ECONOMICS = "Economics"
 ELECTIVE_LAW = "Law"
-ALL_ELECTIVES = ELECTIVE_BASE + (ELECTIVE_ECONOMICS, ELECTIVE_LAW)
+ALL_ELECTIVES = ELECTIVE_BASE
+LEGACY_SUBJECT_ELECTIVES = (ELECTIVE_ECONOMICS, ELECTIVE_LAW)
 
 FACT_FALLBACKS = [
     {
@@ -325,6 +326,7 @@ def migrate_gamification_tables(conn):
         "ALTER TABLE user_prefs ADD COLUMN drop_science INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE user_prefs ADD COLUMN elective TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE user_prefs ADD COLUMN notify_fact INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE user_prefs ADD COLUMN age_band TEXT NOT NULL DEFAULT '14-16'",
     ):
         try:
             conn.execute(ddl)
@@ -340,19 +342,21 @@ def _normalize_elective_value(raw) -> str:
     return ""
 
 
-def _allowed_electives(drop_math=False, drop_science=False):
+def _derived_subjects(drop_math=False, drop_science=False):
+    out = []
+    if drop_science:
+        out.append(ELECTIVE_ECONOMICS)
     if drop_math and drop_science:
-        return [ELECTIVE_LAW]
-    opts = list(ELECTIVE_BASE)
-    if drop_science and not drop_math:
-        opts.append(ELECTIVE_ECONOMICS)
-    return opts
+        out.append(ELECTIVE_LAW)
+    return out
+
+
+def _allowed_electives(drop_math=False, drop_science=False):
+    return list(ELECTIVE_BASE)
 
 
 def _validate_elective(elective_raw, drop_math=False, drop_science=False):
     allowed = _allowed_electives(drop_math, drop_science)
-    if drop_math and drop_science:
-        return True, ELECTIVE_LAW
     elective = _normalize_elective_value(elective_raw)
     if not elective:
         return False, "Please select an elective."
@@ -406,6 +410,7 @@ def _get_prefs(conn, uid: int) -> dict:
         "ALTER TABLE user_prefs ADD COLUMN drop_science INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE user_prefs ADD COLUMN elective TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE user_prefs ADD COLUMN notify_fact INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE user_prefs ADD COLUMN age_band TEXT NOT NULL DEFAULT '14-16'",
     ):
         try:
             conn.execute(ddl)
@@ -424,6 +429,8 @@ def _get_prefs(conn, uid: int) -> dict:
             "notify_fact": 1,
             "notify_puzzle": 1,
             "notify_streak": 1,
+            "age_band": "14-16",
+            "derived_subjects": [],
         }
     d = dict(row)
     try:
@@ -437,8 +444,21 @@ def _get_prefs(conn, uid: int) -> dict:
     else:
         d["drop_math"] = 1 if int(d.get("drop_math") or 0) else 0
         d["drop_science"] = 1 if int(d.get("drop_science") or 0) else 0
-    d["elective"] = _normalize_elective_value(d.get("elective") or "")
+    raw_el = (d.get("elective") or "").strip()
+    if raw_el in LEGACY_SUBJECT_ELECTIVES:
+        conn.execute(
+            "UPDATE user_prefs SET elective='', updated_at=datetime('now') WHERE user_id=?",
+            (uid,),
+        )
+        d["elective"] = ""
+    else:
+        d["elective"] = _normalize_elective_value(raw_el)
     d["notify_fact"] = 1 if int(d.get("notify_fact") if d.get("notify_fact") is not None else 1) else 0
+    band = (d.get("age_band") or "14-16").strip()
+    if band not in ("11-13", "14-16", "17-18"):
+        band = "14-16"
+    d["age_band"] = band
+    d["derived_subjects"] = _derived_subjects(bool(d["drop_math"]), bool(d["drop_science"]))
     return d
 
 
@@ -765,6 +785,11 @@ def register_gamification_routes(
                     bool(prefs.get("drop_math", 0)),
                     bool(prefs.get("drop_science", 0)),
                 ),
+                "derivedSubjects": prefs.get("derived_subjects") or _derived_subjects(
+                    bool(prefs.get("drop_math", 0)),
+                    bool(prefs.get("drop_science", 0)),
+                ),
+                "ageBand": prefs.get("age_band") or "14-16",
             },
             "inventory": {r["item_id"]: r["qty"] for r in inv},
             "milestones": [dict(m) for m in milestones],
@@ -949,19 +974,18 @@ def register_gamification_routes(
                         elective_error = "Elective cannot be changed once chosen."
                     elective = current_elective
                 else:
-                    # Empty elective + both drops → Law
                     ok_e, val = _validate_elective(requested, bool(drop_math), bool(drop_science))
-                    if not ok_e and drop_math and drop_science:
-                        elective = ELECTIVE_LAW
-                    elif not ok_e:
+                    if not ok_e:
                         elective_error = val
                     else:
                         elective = val
-            elif not current_elective and drop_math and drop_science:
-                elective = ELECTIVE_LAW
 
             if elective_error:
                 return jsonify({"error": elective_error}), 400
+
+            age_band = (data.get("ageBand") or data.get("age_band") or current.get("age_band") or "14-16").strip()
+            if age_band not in ("11-13", "14-16", "17-18"):
+                age_band = "14-16"
 
             conn.execute(
                 """
@@ -979,6 +1003,7 @@ def register_gamification_routes(
                     drop_math=?,
                     drop_science=?,
                     elective=?,
+                    age_band=?,
                     updated_at=datetime('now')
                 WHERE user_id=?
                 """,
@@ -996,6 +1021,7 @@ def register_gamification_routes(
                     drop_math,
                     drop_science,
                     elective or "",
+                    age_band,
                     uid,
                 ),
             )
@@ -1010,6 +1036,8 @@ def register_gamification_routes(
                     bool(prefs.get("drop_math", 0)),
                     bool(prefs.get("drop_science", 0)),
                 ),
+                "derivedSubjects": prefs.get("derived_subjects") or [],
+                "ageBand": prefs.get("age_band") or "14-16",
             },
         })
 

@@ -158,15 +158,23 @@
       width: auto;
       max-width: min(200px, 42vw);
       object-fit: contain;
+      object-position: center;
       border-radius: 8px;
     }
 
-    [data-theme="light"] .logo-img,
+    [data-theme="light"] .logo-img {
+      background: #0B0B0F;
+      padding: 3px 8px;
+      border-radius: 10px;
+      box-sizing: border-box;
+      height: 42px;
+    }
+
     [data-theme="light"] .auth-gate-brand-img {
       background: #0B0B0F;
       padding: 4px 8px;
       border-radius: 10px;
-      box-sizing: content-box;
+      box-sizing: border-box;
     }
 
     .auth-gate-brand-img {
@@ -1704,18 +1712,17 @@
 
     /* ── CHAT AREA ── */
     #chat-area {
-      flex: 1 0 auto;
+      flex: 1;
       display: flex;
       flex-direction: column;
-      overflow: visible;
+      overflow: hidden;
       min-width: 0;
-      min-height: 100%;
+      min-height: 0;
     }
 
-    # ── CHAT AREA ──
     #messages {
-      flex: 1 0 auto;
-      overflow: visible;
+      flex: 1;
+      overflow-y: auto;
       padding: 28px 24px;
       display: flex;
       flex-direction: column;
@@ -2084,15 +2091,13 @@
 
     /* ── INPUT BAR ── */
     #input-bar {
-      padding: 16px 24px;
+      padding: 10px 18px;
       background: var(--surface);
       border-top: 1px solid var(--border);
       display: flex;
-      gap: 12px;
+      gap: 10px;
       align-items: center;
       flex-shrink: 0;
-      position: sticky;
-      bottom: 0;
       z-index: 15;
     }
 
@@ -2248,14 +2253,14 @@
         gap: 4px;
       }
       .logo-img {
-        height: 36px;
-        width: 36px;
-        max-width: 36px;
-        object-fit: cover;
-        object-position: left center;
-        border-radius: 10px;
+        height: 30px;
+        width: auto;
+        max-width: min(140px, 42vw);
+        object-fit: contain;
+        object-position: center;
+        border-radius: 8px;
         background: #0B0B0F;
-        padding: 0;
+        padding: 2px 6px;
         box-sizing: border-box;
         border: 1px solid rgba(59, 130, 246, 0.4);
       }
@@ -4222,6 +4227,47 @@
       border-radius: 4px;
     }
 
+    .sb-sources-panel {
+      padding: 0 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .sb-sources-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .sb-source-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text);
+      background: rgba(17, 24, 39, 0.45);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 8px;
+    }
+    .sb-source-row span {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sb-source-row button {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.95rem;
+      padding: 0 4px;
+    }
+
     .nb-pill {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border);
@@ -5951,11 +5997,20 @@
             <div class="settings-row"><span>Drop Science</span><input type="checkbox" class="settings-toggle" id="settings-drop-science" /></div>
           </div>
           <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:6px;">
+            <span>Age band</span>
+            <select id="settings-age-band" class="input" style="padding:6px 8px;width:auto;">
+              <option value="11-13">11–13</option>
+              <option value="14-16" selected>14–16</option>
+              <option value="17-18">17–18</option>
+            </select>
+            <p class="settings-hint" style="margin:0;font-size:0.72rem;">School-safe replies. Younger bands use simpler words and extra caution on adult topics.</p>
+          </div>
+          <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:6px;">
             <span>Elective</span>
             <select id="settings-elective" class="input" style="padding:6px 8px;width:100%;">
               <option value="">Select elective…</option>
             </select>
-            <p class="settings-hint" id="settings-elective-hint" style="margin:0;font-size:0.72rem;">Pick once — elective cannot be changed later. Economics requires Super 3 Drop Science.</p>
+            <p class="settings-hint" id="settings-elective-hint" style="margin:0;font-size:0.72rem;">Pick once. Electives: PE, Commercial Applications, Economics Application, Art. Drop Science adds Economics as a subject; drop Math and Science also adds Law.</p>
           </div>
         </div>
       </div>
@@ -6157,7 +6212,7 @@
     <div class="sb-game-backdrop"></div>
     <div class="sb-game-card" role="dialog" aria-modal="true" aria-labelledby="elective-pick-title">
       <h3 id="elective-pick-title">Choose your elective</h3>
-      <p style="color:var(--muted);font-size:0.88rem;margin:0 0 12px;">Pick once — you cannot change this later. Economics requires Super 3 Drop Science.</p>
+      <p style="color:var(--muted);font-size:0.88rem;margin:0 0 12px;">Pick once. Electives: PE, Commercial Applications, Economics Application, Art. Economics and Law are subjects from Super 3 drops, not electives.</p>
       <select id="elective-pick-select" class="input" style="width:100%;margin-bottom:12px;">
         <option value="">Select elective…</option>
       </select>
@@ -6246,7 +6301,7 @@
             <select class="input" id="auth-elective">
               <option value="">Select elective…</option>
             </select>
-            <p class="settings-hint" id="auth-elective-hint" style="margin:6px 0 0;font-size:0.75rem;">You cannot change your elective later. Economics requires Super 3 Drop Science.</p>
+            <p class="settings-hint" id="auth-elective-hint" style="margin:6px 0 0;font-size:0.75rem;">You cannot change your elective later. Economics and Law are subjects if you drop Science (and Math).</p>
           </div>
         </div>
         <div class="field" style="margin-top: 10px;">
@@ -6421,11 +6476,11 @@
           <div id="exam-week-banner" class="exam-week-banner" style="display:none;" aria-live="polite"></div>
           <div id="study-today-banner" class="study-today-banner" style="display:none;" aria-live="polite"></div>
           <div class="upload-card">
-            <strong>Upload study notes or a page photo</strong>
-            <p>Upload a .txt file, or a photo of a textbook/notes page (OCR). The AI will prioritize this material.</p>
-            <input type="file" id="upload-input-welcome" accept=".txt,image/*,.jpg,.jpeg,.png,.webp" class="input file-input" />
+            <strong>Upload a textbook or notes</strong>
+            <p>Upload a .txt, .pdf, or a photo of a page. The AI retrieves from these sources when you ask.</p>
+            <input type="file" id="upload-input-welcome" accept=".txt,.pdf,image/*,.jpg,.jpeg,.png,.webp" class="input file-input" />
             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-              <button class="qs-btn" id="upload-welcome-btn">📤 Upload Notes / Photo</button>
+              <button class="qs-btn" id="upload-welcome-btn">📤 Upload Notes / Textbook</button>
               <button class="qs-btn" id="ocr-save-notebook-btn" type="button" style="display:none;">📔 Save OCR to Notebook</button>
             </div>
             <div id="upload-welcome-status" class="hint-box" style="display:none; margin-top: 4px;"></div>
@@ -7049,6 +7104,24 @@
 
           <div style="border-top: 1px solid var(--border); margin: 2px 0;"></div>
 
+          <div class="sidebar-section-container" id="sources-section-container">
+            <div class="sidebar-section-header" id="sources-section-toggle">
+              <div class="nb-sidebar-title">📄 <span>Sources</span></div>
+              <span class="section-toggle-icon" id="sources-toggle-icon">▼</span>
+            </div>
+            <div id="sources-section-content" class="sidebar-section-content">
+              <div class="sb-sources-panel">
+                <p class="settings-hint" style="margin:0;font-size:0.75rem;">Upload a textbook or notes. Chat uses these files.</p>
+                <input type="file" id="sources-file-input" accept=".txt,.pdf,image/*,.jpg,.jpeg,.png,.webp" class="input file-input" />
+                <button type="button" class="qs-btn" id="sources-upload-btn" style="width:100%;">Upload source</button>
+                <div id="sources-status" class="hint-box" style="display:none;margin:0;"></div>
+                <div id="sources-list" class="sb-sources-list"></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="border-top: 1px solid var(--border); margin: 2px 0;"></div>
+
           <!-- 2. LIVING NOTEBOOK SECTION (BELOW DICTIONARY) -->
           <div class="sidebar-section-container" id="nb-section-container">
             <div class="sidebar-section-header" id="nb-section-toggle">
@@ -7187,8 +7260,12 @@
     //   for the AI to respond. We use it to prevent sending multiple
     //   messages at once (that would be chaotic!).
 
-    let notesContent = localStorage.getItem("sb_notes_content") || "";
-    let notesFileName = localStorage.getItem("sb_notes_filename") || "";
+    let notesContent = "";
+    let notesFileName = "";
+    try {
+      notesContent = localStorage.getItem("sb_notes_content") || "";
+      notesFileName = localStorage.getItem("sb_notes_filename") || "";
+    } catch (_) { /* quota / private mode */ }
     // ^ These store the uploaded study notes content and filename so that we can send them
     //   with our API requests to ensure the AI answers strictly from the notes.
 
@@ -7267,11 +7344,19 @@
       if (authDrops && currentUser?.loggedIn) authDrops.style.display = "none";
     }
     window.syncToolsSectionFromAuth = syncToolsSectionFromAuth;
+    function getAgeBand() {
+      const fromDom = document.getElementById("settings-age-band")?.value;
+      let stored = "";
+      try { stored = localStorage.getItem("sb_age_band") || ""; } catch (_) {}
+      const band = (fromDom || stored || window.currentUser?.ageBand || "14-16").trim();
+      return ["11-13", "14-16", "17-18"].includes(band) ? band : "14-16";
+    }
     function studyBody(extra) {
       return {
         model: cfg.model,
         notes: typeof notesContent !== "undefined" ? notesContent : "",
         language: getReplyLang(),
+        ageBand: getAgeBand(),
         ...(extra || {}),
       };
     }
@@ -8463,7 +8548,14 @@
               dropMath: !!data.dropMath,
               dropScience: !!data.dropScience,
               elective: data.elective || "",
+              derivedSubjects: data.derivedSubjects || [],
+              ageBand: data.ageBand || "14-16",
             };
+            if (data.ageBand) {
+              const ageEl = document.getElementById("settings-age-band");
+              if (ageEl) ageEl.value = data.ageBand;
+              try { localStorage.setItem("sb_age_band", data.ageBand); } catch (_) {}
+            }
             if (data.section) {
               try {
                 localStorage.setItem("sb_section", data.section);
@@ -8482,6 +8574,7 @@
             // Fetch and display chat history if logged in
             await fetchChatHistory();
             await loadUpcomingExams();
+            if (typeof refreshSourcesList === "function") await refreshSourcesList();
             if (data.needsLocalPassword || !data.hasPassword) {
               try { await promptLocalCredentials(data.identifier || ""); } catch (_) {}
             }
@@ -8490,6 +8583,7 @@
             try { localStorage.removeItem("sb_avatar_b64"); } catch (_) {}
             upcomingExamsCache = [];
             renderExamUpcomingBanner([]);
+            if (typeof renderSourcesList === "function") renderSourcesList([]);
           }
         } catch (err) {
           console.error("Error checking login status:", err);
@@ -8530,12 +8624,12 @@
       if (notesPageTextarea) {
         notesContent = notesPageTextarea.value;
         notesFileName = notesContent ? "Pasted Notes" : "";
-        if (notesContent) {
-          localStorage.setItem("sb_notes_content", notesContent);
-          localStorage.setItem("sb_notes_filename", notesFileName);
-        } else {
-          localStorage.removeItem("sb_notes_content");
-          localStorage.removeItem("sb_notes_filename");
+        persistNotesLocal(notesContent, notesFileName);
+        if (!notesContent) {
+          try {
+            localStorage.removeItem("sb_notes_content");
+            localStorage.removeItem("sb_notes_filename");
+          } catch (_) {}
         }
         updateNotesIndicators();
         
@@ -8586,47 +8680,103 @@
       }
     }
 
-    function readTextFile(inputEl, statusEl) {
-      const file = inputEl.files[0];
+    function persistNotesLocal(content, name) {
+      notesContent = content || "";
+      notesFileName = name || "notes";
+      try {
+        localStorage.setItem("sb_notes_content", notesContent);
+        localStorage.setItem("sb_notes_filename", notesFileName);
+      } catch (_) { /* quota */ }
+    }
+
+    function renderSourcesList(sources) {
+      const list = document.getElementById("sources-list");
+      if (!list) return;
+      const items = Array.isArray(sources) ? sources : [];
+      if (!items.length) {
+        list.innerHTML = `<div class="settings-hint" style="margin:0;">No sources yet. Upload a textbook or notes.</div>`;
+        return;
+      }
+      list.innerHTML = items.map((s) => `
+        <div class="sb-source-row" data-source-id="${s.id}">
+          <span title="${escapeHtml(s.title || "")}">${escapeHtml(s.title || "Source")}</span>
+          <button type="button" data-source-del="${s.id}" aria-label="Remove">×</button>
+        </div>
+      `).join("");
+      list.querySelectorAll("[data-source-del]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-source-del");
+          try {
+            const res = await fetch(`/api/sources/${id}`, { method: "DELETE", credentials: "include" });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Could not remove");
+            renderSourcesList(data.sources || []);
+          } catch (e) {
+            showUploadStatus(document.getElementById("sources-status"), e.message || "Remove failed", true);
+          }
+        });
+      });
+    }
+
+    async function refreshSourcesList() {
+      try {
+        const res = await fetch("/api/sources", { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        renderSourcesList(data.sources || []);
+      } catch (_) {}
+    }
+    window.refreshSourcesList = refreshSourcesList;
+    window.renderSourcesList = renderSourcesList;
+
+    async function uploadSourceFile(file, statusEl) {
       if (!file) {
-        showUploadStatus(statusEl, "Please choose a .txt file or page photo first.", true);
+        showUploadStatus(statusEl, "Please choose a .txt, .pdf, or page photo first.", true);
         return;
       }
-
-      const maxSizeBytes = 8 * 1024 * 1024;
-      if (file.size > maxSizeBytes) {
-        showUploadStatus(statusEl, "File is too large. Maximum size is 8MB.", true);
+      if (!window.currentUser?.loggedIn) {
+        showUploadStatus(statusEl, "Log in to upload notes.", true);
         return;
       }
-
-      const nameLower = file.name.toLowerCase();
-      const isTxt = nameLower.endsWith(".txt");
-      const isImage = (file.type || "").startsWith("image/") || /\.(jpe?g|png|webp|gif)$/i.test(nameLower);
-
-      if (isTxt) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          notesContent = reader.result;
-          notesFileName = file.name;
-          localStorage.setItem("sb_notes_content", notesContent);
-          localStorage.setItem("sb_notes_filename", notesFileName);
-          showUploadStatus(statusEl, `Loaded notes successfully (${(file.size / 1024).toFixed(1)} KB). AI will prioritize your notes.`);
-          updateNotesIndicators();
-          const saveBtn = document.getElementById("ocr-save-notebook-btn");
-          if (saveBtn) saveBtn.style.display = "none";
-          try { if (window.SBGame) window.SBGame.award("notes_upload"); } catch (_) {}
-        };
-        reader.onerror = () => showUploadStatus(statusEl, "Unable to read the file.", true);
-        reader.readAsText(file, "UTF-8");
+      const nameLower = (file.name || "").toLowerCase();
+      const isPdf = nameLower.endsWith(".pdf") || file.type === "application/pdf";
+      const maxBytes = isPdf ? 15 * 1024 * 1024 : 8 * 1024 * 1024;
+      if (file.size > maxBytes) {
+        showUploadStatus(statusEl, isPdf ? "PDF too large. Maximum size is 15MB." : "File is too large. Maximum size is 8MB.", true);
         return;
       }
-
-      if (isImage) {
-        runOcrOnFile(file, statusEl);
-        return;
+      showUploadStatus(statusEl, isPdf ? "Reading PDF…" : ((file.type || "").startsWith("image/") ? "Reading page with OCR…" : "Uploading notes…"));
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/sources", { method: "POST", body: fd, credentials: "include" });
+        const data = await (typeof readJsonResponse === "function" ? readJsonResponse(res) : res.json().catch(() => ({})));
+        if (res.status === 401) throw new Error("Log in to upload notes.");
+        if (!res.ok) throw new Error(data?.error || "Upload failed");
+        const text = (data.text || "").trim();
+        if (text) persistNotesLocal(text, data.source?.title || file.name);
+        showUploadStatus(statusEl, `Loaded "${data.source?.title || file.name}" (${data.chars || text.length || 0} characters). Chat will use this source.`);
+        updateNotesIndicators();
+        renderSourcesList(data.sources || []);
+        const saveBtn = document.getElementById("ocr-save-notebook-btn");
+        if (saveBtn) saveBtn.style.display = data.source?.kind === "ocr" ? "inline-flex" : "none";
+        if (data.source?.kind === "ocr") {
+          window.__lastOcrText = text;
+          pageReferralActive = true;
+          await rememberPageImage(file);
+          updateReferPageChip();
+        }
+        try { if (window.SBGame) window.SBGame.award("notes_upload"); } catch (_) {}
+        return text;
+      } catch (err) {
+        showUploadStatus(statusEl, err.message || "Upload failed", true);
+        return "";
       }
+    }
 
-      showUploadStatus(statusEl, "Only .txt or image files (jpg/png/webp) are supported.", true);
+    function readTextFile(inputEl, statusEl) {
+      const file = inputEl?.files?.[0];
+      uploadSourceFile(file, statusEl);
     }
 
     function updateReferPageChip() {
@@ -8780,35 +8930,7 @@
     }
 
     async function runOcrOnFile(file, statusEl) {
-      showUploadStatus(statusEl, "Reading page with OCR… this may take a few seconds.");
-      const saveBtn = document.getElementById("ocr-save-notebook-btn");
-      try {
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await fetch("/api/ocr", { method: "POST", body: fd, credentials: "include" });
-        const data = await readJsonResponse(res);
-        if (!res.ok) throw new Error(data?.error || "OCR failed");
-        const text = (data.text || "").trim();
-        if (!text) throw new Error("No text found in image.");
-
-        notesContent = text;
-        notesFileName = file.name + " (OCR)";
-        localStorage.setItem("sb_notes_content", notesContent);
-        localStorage.setItem("sb_notes_filename", notesFileName);
-        showUploadStatus(statusEl, `OCR extracted ${text.length} characters from ${file.name}. Click the image or chip to refer it to the AI.`);
-        updateNotesIndicators();
-        if (saveBtn) saveBtn.style.display = "inline-flex";
-        window.__lastOcrText = text;
-        pageReferralActive = true;
-        await rememberPageImage(file);
-        updateReferPageChip();
-        try { if (window.SBGame) window.SBGame.award("notes_upload"); } catch (_) {}
-        return text;
-      } catch (err) {
-        showUploadStatus(statusEl, `OCR failed: ${err.message}`, true);
-        if (saveBtn) saveBtn.style.display = "none";
-        return "";
-      }
+      return uploadSourceFile(file, statusEl);
     }
 
 
@@ -9272,46 +9394,21 @@
       ];
 
       function allowedElectivesForDrops(dropMath, dropScience) {
-        if (dropMath && dropScience) return ["Law"];
-        const opts = ELECTIVE_BASE.slice();
-        if (dropScience && !dropMath) opts.push("Economics");
-        return opts;
+        return ELECTIVE_BASE.slice();
       }
 
-      /** Display order for the five electives (Economics always listed; gated by Drop Science). */
-      const ELECTIVE_DISPLAY = [
-        "Physical Education",
-        "Commercial Applications",
-        "Economics Application",
-        "Economics",
-        "Art",
-      ];
+      /** Display order for electives (Economics/Law are subjects, not listed here). */
+      const ELECTIVE_DISPLAY = ELECTIVE_BASE.slice();
 
       function fillElectiveSelect(selectEl, dropMath, dropScience, selected) {
         if (!selectEl) return;
-        const dm = !!dropMath;
-        const ds = !!dropScience;
-        const selectable = allowedElectivesForDrops(dm, ds);
+        const selectable = allowedElectivesForDrops(dropMath, dropScience);
         const prev = selected != null ? selected : selectEl.value;
         selectEl.innerHTML = '<option value="">Select elective…</option>';
-        if (dm && ds) {
-          const o = document.createElement("option");
-          o.value = "Law";
-          o.textContent = "Law";
-          selectEl.appendChild(o);
-          selectEl.value = "Law";
-          selectEl.disabled = true;
-          return;
-        }
         ELECTIVE_DISPLAY.forEach((name) => {
           const o = document.createElement("option");
           o.value = name;
-          if (name === "Economics" && !selectable.includes("Economics")) {
-            o.textContent = "Economics (requires Drop Science)";
-            o.disabled = true;
-          } else {
-            o.textContent = name;
-          }
+          o.textContent = name;
           selectEl.appendChild(o);
         });
         selectEl.disabled = false;
@@ -9582,7 +9679,6 @@
         if (mode === "register") {
           const opts = allowedElectivesForDrops(sectionPayload.dropMath, sectionPayload.dropScience);
           let elective = sectionPayload.elective;
-          if (opts.length === 1 && opts[0] === "Law") elective = "Law";
           if (!elective || !opts.includes(elective)) {
             showAuthMessage("Please select your elective.", true);
             authElectiveEl?.focus();
@@ -9760,6 +9856,7 @@
             } catch (_) {}
             notesContent = "";
             notesFileName = "";
+            try { if (typeof renderSourcesList === "function") renderSourcesList([]); } catch (_) {}
             try { if (typeof clearPageReferral === "function") clearPageReferral(); } catch (_) {}
             if (typeof sbResetChatState === "function") sbResetChatState();
             else {
@@ -9803,7 +9900,6 @@
             }
             const opts = allowedElectivesForDrops(sectionPayload.dropMath, sectionPayload.dropScience);
             let elective = sectionPayload.elective;
-            if (opts.length === 1 && opts[0] === "Law") elective = "Law";
             if (!elective || !opts.includes(elective)) {
               showAuthMessage("Please select your elective before continuing with Google.", true);
               authElectiveEl?.focus();
@@ -10887,6 +10983,23 @@
       }
       readTextFile(inputEl, statusEl);
     };
+
+    document.getElementById("sources-upload-btn")?.addEventListener("click", () => {
+      const inputEl = document.getElementById("sources-file-input");
+      const statusEl = document.getElementById("sources-status");
+      if (!inputEl) return;
+      if (!inputEl.files || !inputEl.files[0]) {
+        inputEl.click();
+        return;
+      }
+      uploadSourceFile(inputEl.files[0], statusEl);
+    });
+    document.getElementById("sources-file-input")?.addEventListener("change", () => {
+      const inputEl = document.getElementById("sources-file-input");
+      const statusEl = document.getElementById("sources-status");
+      if (!inputEl?.files?.[0]) return;
+      uploadSourceFile(inputEl.files[0], statusEl);
+    });
 
     document.getElementById("upload-input-welcome")?.addEventListener("change", async () => {
       const inputEl = document.getElementById("upload-input-welcome");
@@ -15234,6 +15347,20 @@
       if (Array.isArray(cfg?.subjects)) {
         cfg.subjects.forEach(s => s && subjectsSet.add(s));
       }
+      const elective = (window.currentUser?.elective
+        || document.getElementById("settings-elective")?.value
+        || "").trim();
+      if (elective) subjectsSet.add(elective);
+      const dropMath = (() => {
+        try { return localStorage.getItem("sb_drop_math") === "1"; } catch (_) { return false; }
+      })() || !!(window.currentUser?.dropMath);
+      const dropScience = (() => {
+        try { return localStorage.getItem("sb_drop_science") === "1"; } catch (_) { return false; }
+      })() || !!(window.currentUser?.dropScience);
+      const derived = window.currentUser?.derivedSubjects || [];
+      derived.forEach((s) => { if (s) subjectsSet.add(s); });
+      if (dropScience) subjectsSet.add("Economics");
+      if (dropMath && dropScience) subjectsSet.add("Law");
       nbEntries.forEach(e => {
         if (e.subject && e.subject.trim()) {
           subjectsSet.add(e.subject.trim());
@@ -15362,6 +15489,7 @@
       nbRenderTeaser();
       nbRenderFull();
     }
+    window.nbRender = nbRender;
 
     function nbCreateNoteCard(entry, title, bodyText, listEl, options = {}) {
       const isBulletFragment = !!options.isBulletFragment;
@@ -16083,6 +16211,7 @@
       function setRightSidebarSection(openKey) {
         const sections = [
           { key: "dict", content: "dict-section-content", icon: "dict-toggle-icon" },
+          { key: "sources", content: "sources-section-content", icon: "sources-toggle-icon" },
           { key: "nb", content: "nb-section-content", icon: "nb-toggle-icon" },
         ];
         sections.forEach(({ key, content, icon }) => {
@@ -16104,6 +16233,16 @@
         }
       });
 
+      document.getElementById("sources-section-toggle")?.addEventListener("click", () => {
+        const content = document.getElementById("sources-section-content");
+        const opening = content?.classList.contains("collapsed");
+        if (opening) setRightSidebarSection("sources");
+        else {
+          content?.classList.add("collapsed");
+          document.getElementById("sources-toggle-icon")?.classList.add("collapsed");
+        }
+      });
+
       document.getElementById("nb-section-toggle")?.addEventListener("click", () => {
         const content = document.getElementById("nb-section-content");
         const opening = content?.classList.contains("collapsed");
@@ -16121,6 +16260,7 @@
       await nbLoadEntries();
       initNotebook();
       initPodcast();
+      try { await window.refreshSourcesList?.(); } catch (_) {}
       if (typeof startDnaHeartbeat === 'function') startDnaHeartbeat();
     }
 
